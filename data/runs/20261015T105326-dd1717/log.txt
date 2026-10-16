@@ -1,0 +1,144 @@
+2026-10-15 10:54:48,789 INFO docling.datamodel.document: detected formats: [<InputFormat.PDF: 'pdf'>]
+2026-10-15 10:54:54,880 INFO docling.document_converter: Going to convert document batch...
+2026-10-15 10:54:54,883 INFO docling.document_converter: Initializing pipeline for StandardPdfPipeline with options hash 80d31f4f506f1d59f2b3ce2a34c322bb
+2026-10-15 10:54:54,957 INFO docling.models.factories.base_factory: Loading plugin 'docling_defaults'
+2026-10-15 10:54:55,026 INFO docling.models.factories: Registered picture descriptions: ['picture_description_vlm_engine', 'vlm', 'api']
+2026-10-15 10:54:55,070 INFO docling.models.factories.base_factory: Loading plugin 'docling_defaults'
+2026-10-15 10:54:55,375 INFO docling.models.factories: Registered ocr engines: ['auto', 'easyocr', 'kserve_v2_ocr', 'nemotron-ocr', 'ocrmac', 'rapidocr', 'tesserocr', 'tesseract']
+2026-10-15 10:54:55,376 INFO docling.models.stages.ocr.auto_ocr_model: rapidocr cannot be used because onnxruntime is not installed.
+2026-10-15 10:54:55,377 INFO docling.models.stages.ocr.auto_ocr_model: easyocr cannot be used because it is not installed.
+2026-10-15 10:54:59,093 INFO docling.utils.accelerator_utils: Accelerator device: 'cpu'
+2026-10-15 10:54:59,154 INFO docling.models.stages.ocr.auto_ocr_model: Auto OCR model selected rapidocr with torch.
+2026-10-15 10:54:59,200 INFO docling.models.factories.base_factory: Loading plugin 'docling_defaults'
+2026-10-15 10:54:59,298 INFO docling.models.factories: Registered layout engines: ['layout_object_detection', 'docling_layout_default', 'docling_experimental_table_crops_layout']
+2026-10-15 10:55:39,606 INFO docling.models.inference_engines.object_detection.transformers_engine: Initializing Transformers object-detection engine
+2026-10-15 10:55:39,606 INFO docling.models.inference_engines.common.hf_vision_base: Downloading object-detection model from HuggingFace: docling-project/docling-layout-heron@main
+2026-10-15 10:55:39,606 INFO docling.models.utils.hf_model_download: Fetching model docling-project/docling-layout-heron (revision: main)...
+2026-10-15 10:55:39,830 INFO httpx: HTTP Request: GET https://huggingface.co/api/agent-harnesses "HTTP/1.1 200 OK"
+2026-10-15 10:55:39,960 INFO httpx: HTTP Request: GET https://huggingface.co/api/models/docling-project/docling-layout-heron/revision/main "HTTP/1.1 200 OK"
+2026-10-15 10:55:39,987 INFO docling.models.utils.hf_model_download: Model docling-project/docling-layout-heron already cached at C:\Users\aufol\.cache\huggingface\hub\models--docling-project--docling-layout-heron\snapshots\8f39ad3c0b4c58e9c2d2c84a38465abf757272d8
+2026-10-15 10:55:39,987 INFO docling.utils.accelerator_utils: Accelerator device: 'cpu'
+Loading weights:   0%|          | 0/770 [00:00<?, ?it/s]Loading weights:  30%|###       | 232/770 [00:00<00:00, 2318.89it/s]Loading weights:  60%|######    | 464/770 [00:00<00:00, 1450.43it/s]Loading weights: 100%|##########| 770/770 [00:00<00:00, 2334.47it/s]
+2026-10-15 10:55:47,166 INFO docling.models.inference_engines.object_detection.transformers_engine: Transformers engine ready (device=cpu, dtype=torch.float32)
+2026-10-15 10:55:47,223 INFO docling.models.factories.base_factory: Loading plugin 'docling_defaults'
+2026-10-15 10:55:47,308 INFO docling.models.factories: Registered table structure engines: ['docling_tableformer', 'docling_tableformer_v2', 'granite_vision_table']
+2026-10-15 10:55:47,308 INFO docling.models.utils.hf_model_download: Fetching model docling-project/docling-models (revision: v2.3.0)...
+2026-10-15 10:55:47,506 INFO httpx: HTTP Request: GET https://huggingface.co/api/models/docling-project/docling-models/revision/v2.3.0 "HTTP/1.1 200 OK"
+2026-10-15 10:55:47,532 INFO docling.models.utils.hf_model_download: Model docling-project/docling-models already cached at C:\Users\aufol\.cache\huggingface\hub\models--docling-project--docling-models\snapshots\fc0f2d45e2218ea24bce5045f58a389aed16dc23
+2026-10-15 10:55:47,830 INFO docling.utils.accelerator_utils: Accelerator device: 'cpu'
+2026-10-15 10:55:49,150 INFO docling.pipeline.base_pipeline: Processing document 2503.04790v1.pdf
+[32m[INFO] 2026-10-15 10:56:04,275 [RapidOCR] base.py:23: Using engine_name: torch[0m
+[32m[INFO] 2026-10-15 10:56:04,500 [RapidOCR] device_config.py:57: Using CPU device[0m
+[32m[INFO] 2026-10-15 10:56:04,502 [RapidOCR] download_file.py:68: Initiating download: https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.10.0/torch/PP-OCRv6/det/PP-OCRv6_det_small.pth[0m
+[32m[INFO] 2026-10-15 10:56:07,004 [RapidOCR] download_file.py:82: Download size: 9.77MB[0m
+[32m[INFO] 2026-10-15 10:56:07,652 [RapidOCR] download_file.py:95: Successfully saved to: C:\Users\aufol\workspace\hierarch_graph_rag\.venv\Lib\site-packages\rapidocr\models\PP-OCRv6_det_small.pth[0m
+[32m[INFO] 2026-10-15 10:56:07,657 [RapidOCR] main.py:50: Using C:\Users\aufol\workspace\hierarch_graph_rag\.venv\Lib\site-packages\rapidocr\models\PP-OCRv6_det_small.pth[0m
+C:\Users\aufol\workspace\hierarch_graph_rag\.venv\Lib\site-packages\rapidocr\inference_engine\pytorch\networks\heads\multiheadAttention.py:14: SyntaxWarning: invalid escape sequence '\d'
+  \text{MultiHead}(Q, K, V) = \text{Concat}(head_1,\dots,head_h)W^O
+C:\Users\aufol\workspace\hierarch_graph_rag\.venv\Lib\site-packages\torch\nn\modules\conv.py:560: UserWarning: Using padding='same' with even kernel lengths and odd dilation may require a zero-padded copy of the input be created (Triggered internally at C:\actions-runner\_work\pytorch\pytorch\aten\src\ATen\native\Convolution.cpp:1105.)
+  return F.conv2d(
+[32m[INFO] 2026-10-15 10:56:09,784 [RapidOCR] base.py:23: Using engine_name: torch[0m
+[32m[INFO] 2026-10-15 10:56:09,785 [RapidOCR] device_config.py:57: Using CPU device[0m
+[32m[INFO] 2026-10-15 10:56:09,787 [RapidOCR] download_file.py:68: Initiating download: https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.10.0/torch/PP-OCRv4/cls/ch_ppocr_mobile_v2.0_cls_mobile.pth[0m
+[32m[INFO] 2026-10-15 10:56:11,093 [RapidOCR] download_file.py:82: Download size: 0.56MB[0m
+[32m[INFO] 2026-10-15 10:56:11,195 [RapidOCR] download_file.py:95: Successfully saved to: C:\Users\aufol\workspace\hierarch_graph_rag\.venv\Lib\site-packages\rapidocr\models\ch_ppocr_mobile_v2.0_cls_mobile.pth[0m
+[32m[INFO] 2026-10-15 10:56:11,200 [RapidOCR] main.py:50: Using C:\Users\aufol\workspace\hierarch_graph_rag\.venv\Lib\site-packages\rapidocr\models\ch_ppocr_mobile_v2.0_cls_mobile.pth[0m
+[32m[INFO] 2026-10-15 10:56:11,909 [RapidOCR] base.py:23: Using engine_name: torch[0m
+[32m[INFO] 2026-10-15 10:56:11,910 [RapidOCR] device_config.py:57: Using CPU device[0m
+[32m[INFO] 2026-10-15 10:56:11,912 [RapidOCR] download_file.py:68: Initiating download: https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.10.0/torch/PP-OCRv6/rec/PP-OCRv6_rec_small.pth[0m
+[32m[INFO] 2026-10-15 10:56:13,218 [RapidOCR] download_file.py:82: Download size: 20.34MB[0m
+[32m[INFO] 2026-10-15 10:56:14,374 [RapidOCR] download_file.py:95: Successfully saved to: C:\Users\aufol\workspace\hierarch_graph_rag\.venv\Lib\site-packages\rapidocr\models\PP-OCRv6_rec_small.pth[0m
+[32m[INFO] 2026-10-15 10:56:14,377 [RapidOCR] main.py:50: Using C:\Users\aufol\workspace\hierarch_graph_rag\.venv\Lib\site-packages\rapidocr\models\PP-OCRv6_rec_small.pth[0m
+[32m[INFO] 2026-10-15 10:56:14,723 [RapidOCR] download_file.py:68: Initiating download: https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.10.0/paddle/PP-OCRv6/rec/PP-OCRv6_rec_small/ppocrv6_dict.txt[0m
+[32m[INFO] 2026-10-15 10:56:16,402 [RapidOCR] download_file.py:82: Download size: 0.00MB[0m
+[32m[INFO] 2026-10-15 10:56:16,793 [RapidOCR] download_file.py:95: Successfully saved to: C:\Users\aufol\workspace\hierarch_graph_rag\.venv\Lib\site-packages\rapidocr\models\ppocrv6_dict.txt[0m
+2026-10-15 10:56:32,259 INFO docling.document_converter: Finished converting document 2503.04790v1.pdf in 103.47 sec.
+2026-10-15 10:56:32,788 INFO docling.datamodel.document: detected formats: [<InputFormat.PDF: 'pdf'>]
+2026-10-15 10:56:33,472 INFO docling.document_converter: Going to convert document batch...
+2026-10-15 10:56:33,474 INFO docling.pipeline.base_pipeline: Processing document 2512.03413v1.pdf
+2026-10-15 10:57:29,344 INFO docling.document_converter: Finished converting document 2512.03413v1.pdf in 56.56 sec.
+2026-10-15 10:57:29,756 INFO docling.datamodel.document: detected formats: [<InputFormat.PDF: 'pdf'>]
+2026-10-15 10:57:30,433 INFO docling.document_converter: Going to convert document batch...
+2026-10-15 10:57:30,434 INFO docling.pipeline.base_pipeline: Processing document rapport.pdf
+2026-10-15 10:57:48,415 INFO docling.document_converter: Finished converting document rapport.pdf in 18.66 sec.
+2026-10-15 10:57:48,890 ERROR __main__: hierarchy failed for 2503.04790v1.pdf:
+Traceback (most recent call last):
+  File "C:\Users\aufol\workspace\hierarch_graph_rag\src\hgrag\runner.py", line 268, in run_indexing
+    summary = pipeline.build_and_save_hierarchy(manifest["doc_dir"], run_key=run_key)
+  File "C:\Users\aufol\workspace\hierarch_graph_rag\src\hgrag\pipeline.py", line 50, in build_and_save_hierarchy
+    out = _build_and_save_hierarchy(doc_dir)
+  File "C:\Users\aufol\workspace\hierarch_graph_rag\src\hgrag\pipeline.py", line 60, in _build_and_save_hierarchy
+    (doc_dir / "hierarchy.json").write_text(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        json.dumps(root.to_dict(), indent=2, ensure_ascii=False)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\aufol\anaconda3\Lib\pathlib\_local.py", line 555, in write_text
+    return PathBase.write_text(self, data, encoding, errors, newline)
+           ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\aufol\anaconda3\Lib\pathlib\_abc.py", line 652, in write_text
+    return f.write(data)
+           ~~~~~~~^^^^^^
+  File "C:\Users\aufol\anaconda3\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2217' in position 642: character maps to <undefined>
+
+2026-10-15 10:57:49,203 ERROR __main__: hierarchy failed for 2512.03413v1.pdf:
+Traceback (most recent call last):
+  File "C:\Users\aufol\workspace\hierarch_graph_rag\src\hgrag\runner.py", line 268, in run_indexing
+    summary = pipeline.build_and_save_hierarchy(manifest["doc_dir"], run_key=run_key)
+  File "C:\Users\aufol\workspace\hierarch_graph_rag\src\hgrag\pipeline.py", line 50, in build_and_save_hierarchy
+    out = _build_and_save_hierarchy(doc_dir)
+  File "C:\Users\aufol\workspace\hierarch_graph_rag\src\hgrag\pipeline.py", line 60, in _build_and_save_hierarchy
+    (doc_dir / "hierarchy.json").write_text(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        json.dumps(root.to_dict(), indent=2, ensure_ascii=False)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\aufol\anaconda3\Lib\pathlib\_local.py", line 555, in write_text
+    return PathBase.write_text(self, data, encoding, errors, newline)
+           ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\aufol\anaconda3\Lib\pathlib\_abc.py", line 652, in write_text
+    return f.write(data)
+           ~~~~~~~^^^^^^
+  File "C:\Users\aufol\anaconda3\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\U0001d437' in position 19559: character maps to <undefined>
+
+2026-10-15 10:57:58,060 INFO sentence_transformers.base.model: No device provided, using cpu
+2026-10-15 10:57:58,271 INFO httpx: HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/modules.json "HTTP/1.1 307 Temporary Redirect"
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+2026-10-15 10:57:58,272 WARNING huggingface_hub.utils._http: Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+2026-10-15 10:57:58,302 INFO httpx: HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/1110a243fdf4706b3f48f1d95db1a4f5529b4d41/modules.json?%2Fsentence-transformers%2Fall-MiniLM-L6-v2%2Fresolve%2Fmain%2Fmodules.json=&etag=%22952a9b81c0bfd99800fabf352f69c7ccd46c5e43%22 "HTTP/1.1 200 OK"
+2026-10-15 10:57:58,438 INFO httpx: HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/config_sentence_transformers.json "HTTP/1.1 307 Temporary Redirect"
+2026-10-15 10:57:58,468 INFO httpx: HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/1110a243fdf4706b3f48f1d95db1a4f5529b4d41/config_sentence_transformers.json?%2Fsentence-transformers%2Fall-MiniLM-L6-v2%2Fresolve%2Fmain%2Fconfig_sentence_transformers.json=&etag=%22fd1b291129c607e5d49799f87cb219b27f98acdf%22 "HTTP/1.1 200 OK"
+2026-10-15 10:57:58,478 INFO sentence_transformers.base.model: Loading SentenceTransformer model from sentence-transformers/all-MiniLM-L6-v2.
+2026-10-15 10:57:58,611 INFO httpx: HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/config_sentence_transformers.json "HTTP/1.1 307 Temporary Redirect"
+2026-10-15 10:57:58,642 INFO httpx: HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/1110a243fdf4706b3f48f1d95db1a4f5529b4d41/config_sentence_transformers.json?%2Fsentence-transformers%2Fall-MiniLM-L6-v2%2Fresolve%2Fmain%2Fconfig_sentence_transformers.json=&etag=%22fd1b291129c607e5d49799f87cb219b27f98acdf%22 "HTTP/1.1 200 OK"
+2026-10-15 10:57:58,778 INFO httpx: HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/README.md "HTTP/1.1 307 Temporary Redirect"
+2026-10-15 10:57:58,809 INFO httpx: HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/1110a243fdf4706b3f48f1d95db1a4f5529b4d41/README.md?%2Fsentence-transformers%2Fall-MiniLM-L6-v2%2Fresolve%2Fmain%2FREADME.md=&etag=%2244af2e3b0fa3a0b6239e48422972bf755f28fde0%22 "HTTP/1.1 200 OK"
+2026-10-15 10:57:58,956 INFO httpx: HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/modules.json "HTTP/1.1 307 Temporary Redirect"
+2026-10-15 10:57:58,988 INFO httpx: HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/1110a243fdf4706b3f48f1d95db1a4f5529b4d41/modules.json?%2Fsentence-transformers%2Fall-MiniLM-L6-v2%2Fresolve%2Fmain%2Fmodules.json=&etag=%22952a9b81c0bfd99800fabf352f69c7ccd46c5e43%22 "HTTP/1.1 200 OK"
+2026-10-15 10:57:59,128 INFO httpx: HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/sentence_bert_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-10-15 10:57:59,162 INFO httpx: HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/1110a243fdf4706b3f48f1d95db1a4f5529b4d41/sentence_bert_config.json?%2Fsentence-transformers%2Fall-MiniLM-L6-v2%2Fresolve%2Fmain%2Fsentence_bert_config.json=&etag=%2259d594003bf59880a884c574bf88ef7555bb0202%22 "HTTP/1.1 200 OK"
+2026-10-15 10:57:59,307 INFO httpx: HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/adapter_config.json "HTTP/1.1 404 Not Found"
+2026-10-15 10:57:59,441 INFO httpx: HTTP Request: GET https://huggingface.co/api/models/sentence-transformers/all-MiniLM-L6-v2 "HTTP/1.1 200 OK"
+2026-10-15 10:57:59,594 INFO httpx: HTTP Request: GET https://huggingface.co/api/models/sentence-transformers/all-MiniLM-L6-v2 "HTTP/1.1 200 OK"
+Loading weights:   0%|          | 0/103 [00:00<?, ?it/s]Loading weights: 100%|##########| 103/103 [00:00<00:00, 1951.95it/s]
+2026-10-15 10:57:59,993 INFO httpx: HTTP Request: GET https://huggingface.co/api/models/sentence-transformers/all-MiniLM-L6-v2 "HTTP/1.1 200 OK"
+2026-10-15 10:58:00,167 INFO httpx: HTTP Request: GET https://huggingface.co/api/models/sentence-transformers/all-MiniLM-L6-v2/tree/main/additional_chat_templates?recursive=false&expand=false "HTTP/1.1 404 Not Found"
+2026-10-15 10:58:00,304 INFO httpx: HTTP Request: GET https://huggingface.co/api/models/sentence-transformers/all-MiniLM-L6-v2/tree/main?recursive=true&expand=false "HTTP/1.1 200 OK"
+2026-10-15 10:58:00,551 INFO httpx: HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/1_Pooling/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-10-15 10:58:00,582 INFO httpx: HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/1110a243fdf4706b3f48f1d95db1a4f5529b4d41/1_Pooling%2Fconfig.json?%2Fsentence-transformers%2Fall-MiniLM-L6-v2%2Fresolve%2Fmain%2F1_Pooling%2Fconfig.json=&etag=%22d1514c3162bbe87b343f565fadc62e6c06f04f03%22 "HTTP/1.1 200 OK"
+2026-10-15 10:58:00,717 INFO httpx: HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/2_Normalize/config.json "HTTP/1.1 404 Not Found"
+2026-10-15 10:58:00,849 INFO httpx: HTTP Request: GET https://huggingface.co/api/models/sentence-transformers/all-MiniLM-L6-v2 "HTTP/1.1 200 OK"
+2026-10-15 10:58:00,979 INFO httpx: HTTP Request: GET https://huggingface.co/api/models/sentence-transformers/all-MiniLM-L6-v2 "HTTP/1.1 200 OK"
+2026-10-15 10:58:01,130 INFO httpx: HTTP Request: GET https://huggingface.co/api/models/sentence-transformers/all-MiniLM-L6-v2/tree/main/additional_chat_templates?recursive=false&expand=false "HTTP/1.1 404 Not Found"
+2026-10-15 10:58:01,267 INFO httpx: HTTP Request: GET https://huggingface.co/api/models/sentence-transformers/all-MiniLM-L6-v2/tree/main?recursive=true&expand=false "HTTP/1.1 200 OK"
+[transformers] Token indices sequence length is longer than the specified maximum sequence length for this model (1409 > 512). Running this sequence through the model will result in indexing errors
+2026-10-15 10:58:01,625 INFO hgrag.indexing: doc 312c0b2bba5c5eb5: kept 3 paragraph chunks, dropped non-paragraph chunks by label: {'list_item': 1, 'caption': 2, 'table': 8, 'too_short': 1, 'footnote': 1}
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|##########| 1/1 [00:00<00:00, 13.06it/s]

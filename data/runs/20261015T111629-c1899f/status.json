@@ -1,0 +1,77 @@
+{
+ "pipeline": "hgrag_pipeline",
+ "run_key": "20261015T111629-c1899f",
+ "state": "cancelled",
+ "pid": 18476,
+ "started_at": 1792055792.676021,
+ "ended_at": 1792056709.146829,
+ "params": {
+  "pdf_dir": "C:\\Users\\aufol\\workspace\\hierarch_graph_rag\\data\\pdf_sample",
+  "describe_pictures": true,
+  "steps": [
+   "parse",
+   "hierarchy",
+   "index"
+  ],
+  "pdfs": "all"
+ },
+ "error": "cancelled by the user",
+ "graph": {
+  "tasks": [
+   "list_pdfs",
+   "parse",
+   "hierarchy",
+   "index"
+  ],
+  "edges": [
+   [
+    "list_pdfs",
+    "parse"
+   ],
+   [
+    "parse",
+    "hierarchy"
+   ],
+   [
+    "hierarchy",
+    "index"
+   ]
+  ]
+ },
+ "tasks": {
+  "list_pdfs": {
+   "instances": [
+    {
+     "item": null,
+     "state": "success",
+     "started_at": 1792055792.6775262,
+     "ended_at": 1792055792.6796865,
+     "seconds": 0.002160310745239258,
+     "error": null,
+     "info": {
+      "n_pdfs": 3
+     }
+    }
+   ]
+  },
+  "parse": {
+   "instances": [
+    {
+     "item": "2503.04790v1.pdf",
+     "state": "running",
+     "started_at": 1792055829.8965695,
+     "ended_at": null,
+     "seconds": null,
+     "error": null,
+     "info": null
+    }
+   ]
+  },
+  "hierarchy": {
+   "instances": []
+  },
+  "index": {
+   "instances": []
+  }
+ }
+}

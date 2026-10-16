@@ -1,0 +1,142 @@
+{
+ "pipeline": "hgrag_pipeline",
+ "run_key": "20261015T105326-dd1717",
+ "state": "failed",
+ "pid": 21512,
+ "started_at": 1792054411.5153563,
+ "ended_at": 1792054681.8575027,
+ "params": {
+  "pdf_dir": "C:\\Users\\aufol\\workspace\\hierarch_graph_rag\\data\\pdf_sample",
+  "describe_pictures": false
+ },
+ "error": "some documents failed (see tasks)",
+ "graph": {
+  "tasks": [
+   "list_pdfs",
+   "parse",
+   "hierarchy",
+   "index"
+  ],
+  "edges": [
+   [
+    "list_pdfs",
+    "parse"
+   ],
+   [
+    "parse",
+    "hierarchy"
+   ],
+   [
+    "hierarchy",
+    "index"
+   ]
+  ]
+ },
+ "tasks": {
+  "list_pdfs": {
+   "instances": [
+    {
+     "item": null,
+     "state": "success",
+     "started_at": 1792054411.5171134,
+     "ended_at": 1792054411.519591,
+     "seconds": 0.0024776458740234375,
+     "error": null,
+     "info": {
+      "n_pdfs": 3
+     }
+    }
+   ]
+  },
+  "parse": {
+   "instances": [
+    {
+     "item": "2503.04790v1.pdf",
+     "state": "success",
+     "started_at": 1792054481.974255,
+     "ended_at": 1792054592.6704779,
+     "seconds": 110.69622278213501,
+     "error": null,
+     "info": {
+      "doc_id": "c91e9b3f71ddcd8c",
+      "n_figures": 4
+     }
+    },
+    {
+     "item": "2512.03413v1.pdf",
+     "state": "success",
+     "started_at": 1792054592.672064,
+     "ended_at": 1792054649.6464608,
+     "seconds": 56.97439670562744,
+     "error": null,
+     "info": {
+      "doc_id": "9fc1d9484749cc25",
+      "n_figures": 8
+     }
+    },
+    {
+     "item": "rapport.pdf",
+     "state": "success",
+     "started_at": 1792054649.6481326,
+     "ended_at": 1792054668.5406523,
+     "seconds": 18.89251971244812,
+     "error": null,
+     "info": {
+      "doc_id": "312c0b2bba5c5eb5",
+      "n_figures": 1
+     }
+    }
+   ]
+  },
+  "hierarchy": {
+   "instances": [
+    {
+     "item": "2503.04790v1.pdf",
+     "state": "failed",
+     "started_at": 1792054668.5425315,
+     "ended_at": 1792054668.8903103,
+     "seconds": 0.3477787971496582,
+     "error": "UnicodeEncodeError: 'charmap' codec can't encode character '\\u2217' in position 642: character maps to <undefined>",
+     "info": null
+    },
+    {
+     "item": "2512.03413v1.pdf",
+     "state": "failed",
+     "started_at": 1792054668.8935413,
+     "ended_at": 1792054669.2035837,
+     "seconds": 0.3100423812866211,
+     "error": "UnicodeEncodeError: 'charmap' codec can't encode character '\\U0001d437' in position 19559: character maps to <undefined>",
+     "info": null
+    },
+    {
+     "item": "rapport.pdf",
+     "state": "success",
+     "started_at": 1792054669.207547,
+     "ended_at": 1792054669.3605394,
+     "seconds": 0.15299248695373535,
+     "error": null,
+     "info": {
+      "n_sections": 4,
+      "n_leaf_sections": 4,
+      "n_elements": 15
+     }
+    }
+   ]
+  },
+  "index": {
+   "instances": [
+    {
+     "item": null,
+     "state": "success",
+     "started_at": 1792054669.3623471,
+     "ended_at": 1792054681.8559647,
+     "seconds": 12.493617534637451,
+     "error": null,
+     "info": {
+      "total_chunks": 3
+     }
+    }
+   ]
+  }
+ }
+}

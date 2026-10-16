@@ -1,0 +1,32 @@
+[project]
+name = "hgrag"
+version = "0.1.0"
+description = "Hierarchical RAG: PDF -> Docling -> heading tree -> Qdrant paragraph chunks"
+readme = "README.md"
+authors = [
+    { name = "Claude", email = "noreply@anthropic.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "docling>=2.138.0",
+    "mlflow>=3.17.0",
+    "psutil>=7.2.2",
+    "qdrant-client>=1.19.1",
+    "requests>=2.34.2",
+    "sentence-transformers>=6.1.0",
+    "streamlit>=1.65.0",
+]
+
+[project.scripts]
+hgrag = "hgrag.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.11.32,<0.12.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pypdf>=6.20.1",
+    "pytest>=9.1.1",
+    "reportlab>=5.0.1",
+]

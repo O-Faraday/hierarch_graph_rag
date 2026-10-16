@@ -1,0 +1,105 @@
+2026-10-16 11:08:48,717 INFO docling.datamodel.document: detected formats: [<InputFormat.PDF: 'pdf'>]
+2026-10-16 11:09:17,516 INFO docling.document_converter: Going to convert document batch...
+2026-10-16 11:09:17,591 INFO docling.document_converter: Initializing pipeline for StandardPdfPipeline with options hash c6a6a1b0ceabe96192569b665145db26
+2026-10-16 11:09:17,694 INFO docling.models.factories.base_factory: Loading plugin 'docling_defaults'
+2026-10-16 11:09:17,797 INFO docling.models.factories: Registered picture descriptions: ['picture_description_vlm_engine', 'vlm', 'api']
+2026-10-16 11:09:17,835 INFO docling.models.factories.base_factory: Loading plugin 'docling_defaults'
+2026-10-16 11:09:18,318 INFO docling.models.factories: Registered ocr engines: ['auto', 'easyocr', 'kserve_v2_ocr', 'nemotron-ocr', 'ocrmac', 'rapidocr', 'tesserocr', 'tesseract']
+2026-10-16 11:09:18,399 INFO docling.models.stages.ocr.auto_ocr_model: rapidocr cannot be used because onnxruntime is not installed.
+2026-10-16 11:09:18,399 INFO docling.models.stages.ocr.auto_ocr_model: easyocr cannot be used because it is not installed.
+2026-10-16 11:09:28,446 INFO docling.utils.accelerator_utils: Accelerator device: 'cpu'
+2026-10-16 11:09:28,552 INFO docling.models.stages.ocr.auto_ocr_model: Auto OCR model selected rapidocr with torch.
+2026-10-16 11:09:28,585 INFO docling.models.factories.base_factory: Loading plugin 'docling_defaults'
+2026-10-16 11:09:28,742 INFO docling.models.factories: Registered layout engines: ['layout_object_detection', 'docling_layout_default', 'docling_experimental_table_crops_layout']
+2026-10-16 11:09:36,967 INFO docling.models.inference_engines.object_detection.transformers_engine: Initializing Transformers object-detection engine
+2026-10-16 11:09:36,967 INFO docling.models.inference_engines.common.hf_vision_base: Downloading object-detection model from HuggingFace: docling-project/docling-layout-heron@main
+2026-10-16 11:09:36,967 INFO docling.models.utils.hf_model_download: Fetching model docling-project/docling-layout-heron (revision: main)...
+2026-10-16 11:09:37,247 INFO docling.models.utils.hf_model_download: Model docling-project/docling-layout-heron already cached at C:\Users\aufol\.cache\huggingface\hub\models--docling-project--docling-layout-heron\snapshots\8f39ad3c0b4c58e9c2d2c84a38465abf757272d8
+2026-10-16 11:09:37,247 INFO docling.utils.accelerator_utils: Accelerator device: 'cpu'
+Loading weights:   0%|          | 0/770 [00:00<?, ?it/s]Loading weights:  16%|#5        | 122/770 [00:00<00:00, 1156.35it/s]Loading weights:  31%|###       | 238/770 [00:00<00:00, 692.26it/s] Loading weights:  41%|####1     | 318/770 [00:00<00:01, 441.57it/s]Loading weights:  49%|####8     | 374/770 [00:00<00:00, 465.60it/s]Loading weights:  56%|#####5    | 430/770 [00:00<00:00, 389.11it/s]Loading weights:  62%|######1   | 476/770 [00:01<00:00, 338.84it/s]Loading weights: 100%|##########| 770/770 [00:01<00:00, 673.50it/s]
+2026-10-16 11:09:47,814 INFO docling.models.inference_engines.object_detection.transformers_engine: Transformers engine ready (device=cpu, dtype=torch.float32)
+2026-10-16 11:09:47,858 INFO docling.models.factories.base_factory: Loading plugin 'docling_defaults'
+2026-10-16 11:09:47,999 INFO docling.models.factories: Registered table structure engines: ['docling_tableformer', 'docling_tableformer_v2', 'granite_vision_table']
+2026-10-16 11:09:47,999 INFO docling.models.utils.hf_model_download: Fetching model docling-project/docling-models (revision: v2.3.0)...
+2026-10-16 11:09:48,100 INFO docling.models.utils.hf_model_download: Model docling-project/docling-models already cached at C:\Users\aufol\.cache\huggingface\hub\models--docling-project--docling-models\snapshots\fc0f2d45e2218ea24bce5045f58a389aed16dc23
+2026-10-16 11:09:48,916 INFO docling.utils.accelerator_utils: Accelerator device: 'cpu'
+2026-10-16 11:09:56,259 INFO docling.models.stages.code_formula.code_formula_vlm_model: Initializing CodeFormulaVlmModel with runtime system: model=docling-project/CodeFormulaV2, engine=auto_inline
+2026-10-16 11:09:56,264 INFO docling.models.inference_engines.vlm.auto_inline_engine: Initializing auto-inline VLM inference engine...
+2026-10-16 11:09:56,264 INFO docling.utils.accelerator_utils: Accelerator device: 'cpu'
+2026-10-16 11:09:56,264 INFO docling.models.inference_engines.vlm.auto_inline_engine: Auto-selecting engine for system=Windows, device=cpu
+2026-10-16 11:09:56,264 INFO docling.models.inference_engines.vlm.auto_inline_engine: Selected Transformers engine (default)
+2026-10-16 11:09:56,264 INFO docling.models.inference_engines.vlm.auto_inline_engine: Generated config for transformers: repo_id=docling-project/CodeFormulaV2, extra_config={'transformers_model_type': <TransformersModelType.AUTOMODEL_IMAGETEXTTOTEXT: 'automodel-imagetexttotext'>, 'extra_generation_config': {'skip_special_tokens': False}, 'torch_dtype': 'bfloat16'}
+2026-10-16 11:09:56,299 INFO docling.models.inference_engines.vlm.transformers_engine: Initializing Transformers VLM inference engine...
+2026-10-16 11:09:56,299 INFO docling.utils.accelerator_utils: Accelerator device: 'cpu'
+2026-10-16 11:09:56,299 INFO docling.models.inference_engines.vlm.transformers_engine: Using device: cpu
+2026-10-16 11:09:56,299 INFO docling.models.inference_engines.vlm.transformers_engine: Loading model docling-project/CodeFormulaV2 (revision: main, model_type: automodel-imagetexttotext)
+2026-10-16 11:09:56,306 INFO docling.models.utils.hf_model_download: Fetching model docling-project/CodeFormulaV2 (revision: main)...
+2026-10-16 11:09:56,418 INFO docling.models.utils.hf_model_download: Model docling-project/CodeFormulaV2 already cached at C:\Users\aufol\.cache\huggingface\hub\models--docling-project--CodeFormulaV2\snapshots\ecedbe111d15c2dc60bfd4a823cbe80127b58af4
+[transformers] Model config: pad_token_id must be `None` or an integer within the vocabulary (between 0 and 31999), got 128002. This may result in unexpected behavior.
+2026-10-16 11:09:58,529 INFO docling.models.inference_engines.vlm.transformers_engine: Loading model docling-project/CodeFormulaV2 into memory (device: cpu)...
+Loading weights:   0%|          | 0/471 [00:00<?, ?it/s]Loading weights:   1%|          | 4/471 [00:00<00:21, 21.28it/s]Loading weights:   1%|1         | 7/471 [00:00<00:26, 17.52it/s]Loading weights:   4%|4         | 20/471 [00:00<00:08, 51.14it/s]Loading weights:   6%|5         | 27/471 [00:00<00:07, 56.04it/s]Loading weights:   7%|7         | 35/471 [00:00<00:06, 62.52it/s]Loading weights:   9%|9         | 43/471 [00:00<00:06, 66.96it/s]Loading weights:  12%|#1        | 55/471 [00:00<00:05, 81.83it/s]Loading weights:  14%|#3        | 64/471 [00:01<00:06, 66.55it/s]Loading weights:  15%|#5        | 72/471 [00:01<00:07, 55.74it/s]Loading weights:  18%|#8        | 87/471 [00:01<00:05, 75.55it/s]Loading weights:  20%|##        | 96/471 [00:01<00:04, 78.18it/s]Loading weights:  22%|##2       | 105/471 [00:01<00:04, 78.99it/s]Loading weights:  24%|##4       | 114/471 [00:01<00:06, 53.05it/s]Loading weights:  26%|##5       | 121/471 [00:02<00:07, 48.00it/s]Loading weights:  27%|##7       | 128/471 [00:02<00:06, 51.86it/s]Loading weights:  29%|##8       | 135/471 [00:02<00:06, 55.68it/s]Loading weights:  30%|###       | 142/471 [00:02<00:05, 58.34it/s]Loading weights:  32%|###1      | 149/471 [00:02<00:05, 60.70it/s]Loading weights:  33%|###3      | 156/471 [00:02<00:06, 49.46it/s]Loading weights:  35%|###4      | 164/471 [00:02<00:06, 47.43it/s]Loading weights:  36%|###6      | 170/471 [00:03<00:07, 40.66it/s]Loading weights:  37%|###7      | 175/471 [00:03<00:06, 42.33it/s]Loading weights: 100%|##########| 471/471 [00:03<00:00, 144.91it/s]
+[transformers] The tied weights mapping and config for this model specifies to tie model.text_model.embed_tokens.weight to lm_head.weight, but both are present in the checkpoints with different values, so we will NOT tie them. You should update the config with `tie_word_embeddings=False` to silence this warning.
+2026-10-16 11:10:04,118 INFO docling.models.inference_engines.vlm.transformers_engine: Loaded model docling-project/CodeFormulaV2 (revision: main) in 5.59 sec.
+2026-10-16 11:10:04,118 INFO docling.models.inference_engines.vlm.auto_inline_engine: Auto-inline engine initialized with transformers
+2026-10-16 11:10:04,118 INFO docling.models.stages.code_formula.code_formula_vlm_model: CodeFormulaVlmModel initialized successfully
+2026-10-16 11:10:04,118 INFO docling.pipeline.base_pipeline: Processing document 2409.02293v3.pdf
+[32m[INFO] 2026-10-16 11:10:26,736 [RapidOCR] base.py:23: Using engine_name: torch[0m
+[32m[INFO] 2026-10-16 11:10:27,425 [RapidOCR] device_config.py:57: Using CPU device[0m
+[32m[INFO] 2026-10-16 11:10:27,432 [RapidOCR] download_file.py:68: Initiating download: https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.10.0/torch/PP-OCRv6/det/PP-OCRv6_det_small.pth[0m
+[32m[INFO] 2026-10-16 11:10:29,284 [RapidOCR] download_file.py:82: Download size: 9.77MB[0m
+[32m[INFO] 2026-10-16 11:10:29,931 [RapidOCR] download_file.py:95: Successfully saved to: C:\Users\aufol\workspace\hierarch_graph_rag\.venv\Lib\site-packages\rapidocr\models\PP-OCRv6_det_small.pth[0m
+[32m[INFO] 2026-10-16 11:10:29,938 [RapidOCR] main.py:50: Using C:\Users\aufol\workspace\hierarch_graph_rag\.venv\Lib\site-packages\rapidocr\models\PP-OCRv6_det_small.pth[0m
+C:\Users\aufol\workspace\hierarch_graph_rag\.venv\Lib\site-packages\rapidocr\inference_engine\pytorch\networks\heads\multiheadAttention.py:14: SyntaxWarning: invalid escape sequence '\d'
+  \text{MultiHead}(Q, K, V) = \text{Concat}(head_1,\dots,head_h)W^O
+C:\Users\aufol\workspace\hierarch_graph_rag\.venv\Lib\site-packages\torch\nn\modules\conv.py:560: UserWarning: Using padding='same' with even kernel lengths and odd dilation may require a zero-padded copy of the input be created (Triggered internally at C:\actions-runner\_work\pytorch\pytorch\aten\src\ATen\native\Convolution.cpp:1105.)
+  return F.conv2d(
+[32m[INFO] 2026-10-16 11:10:38,057 [RapidOCR] base.py:23: Using engine_name: torch[0m
+[32m[INFO] 2026-10-16 11:10:38,058 [RapidOCR] device_config.py:57: Using CPU device[0m
+[32m[INFO] 2026-10-16 11:10:38,061 [RapidOCR] download_file.py:68: Initiating download: https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.10.0/torch/PP-OCRv4/cls/ch_ppocr_mobile_v2.0_cls_mobile.pth[0m
+[32m[INFO] 2026-10-16 11:10:39,416 [RapidOCR] download_file.py:82: Download size: 0.56MB[0m
+[32m[INFO] 2026-10-16 11:10:39,527 [RapidOCR] download_file.py:95: Successfully saved to: C:\Users\aufol\workspace\hierarch_graph_rag\.venv\Lib\site-packages\rapidocr\models\ch_ppocr_mobile_v2.0_cls_mobile.pth[0m
+[32m[INFO] 2026-10-16 11:10:39,532 [RapidOCR] main.py:50: Using C:\Users\aufol\workspace\hierarch_graph_rag\.venv\Lib\site-packages\rapidocr\models\ch_ppocr_mobile_v2.0_cls_mobile.pth[0m
+[32m[INFO] 2026-10-16 11:10:40,327 [RapidOCR] base.py:23: Using engine_name: torch[0m
+[32m[INFO] 2026-10-16 11:10:40,328 [RapidOCR] device_config.py:57: Using CPU device[0m
+[32m[INFO] 2026-10-16 11:10:40,330 [RapidOCR] download_file.py:68: Initiating download: https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.10.0/torch/PP-OCRv6/rec/PP-OCRv6_rec_small.pth[0m
+[32m[INFO] 2026-10-16 11:10:41,575 [RapidOCR] download_file.py:82: Download size: 20.34MB[0m
+[32m[INFO] 2026-10-16 11:10:42,810 [RapidOCR] download_file.py:95: Successfully saved to: C:\Users\aufol\workspace\hierarch_graph_rag\.venv\Lib\site-packages\rapidocr\models\PP-OCRv6_rec_small.pth[0m
+[32m[INFO] 2026-10-16 11:10:42,814 [RapidOCR] main.py:50: Using C:\Users\aufol\workspace\hierarch_graph_rag\.venv\Lib\site-packages\rapidocr\models\PP-OCRv6_rec_small.pth[0m
+[32m[INFO] 2026-10-16 11:10:43,404 [RapidOCR] download_file.py:68: Initiating download: https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.10.0/paddle/PP-OCRv6/rec/PP-OCRv6_rec_small/ppocrv6_dict.txt[0m
+[32m[INFO] 2026-10-16 11:10:44,850 [RapidOCR] download_file.py:82: Download size: 0.00MB[0m
+[32m[INFO] 2026-10-16 11:10:45,251 [RapidOCR] download_file.py:95: Successfully saved to: C:\Users\aufol\workspace\hierarch_graph_rag\.venv\Lib\site-packages\rapidocr\models\ppocrv6_dict.txt[0m
+2026-10-16 11:11:54,140 INFO docling.document_converter: Finished converting document 2409.02293v3.pdf in 185.42 sec.
+2026-10-16 11:13:42,568 INFO hgrag.pipeline: parse 2409.02293v3.pdf: 35 pages, 15 figures, 0 tables, 20 headings in 185.6s
+2026-10-16 11:13:43,073 INFO docling.datamodel.document: detected formats: [<InputFormat.PDF: 'pdf'>]
+2026-10-16 11:13:50,784 INFO docling.document_converter: Going to convert document batch...
+2026-10-16 11:13:50,788 INFO docling.pipeline.base_pipeline: Processing document 2409.13333v2.pdf
+2026-10-16 11:15:45,044 INFO docling.document_converter: Finished converting document 2409.13333v2.pdf in 121.97 sec.
+2026-10-16 11:17:16,804 INFO hgrag.pipeline: parse 2409.13333v2.pdf: 42 pages, 5 figures, 13 tables, 31 headings in 122.1s
+2026-10-16 11:17:17,014 INFO docling.datamodel.document: detected formats: [<InputFormat.PDF: 'pdf'>]
+2026-10-16 11:17:23,282 INFO docling.document_converter: Going to convert document batch...
+2026-10-16 11:17:23,283 INFO docling.pipeline.base_pipeline: Processing document 2412.19754v3.pdf
+2026-10-16 11:21:26,589 INFO docling.document_converter: Finished converting document 2412.19754v3.pdf in 249.58 sec.
+2026-10-16 11:27:15,289 WARNING hgrag.describe: 1cf79f0d2d6acb21: 11 item(s) not described: ["figure 4: cannot reach https://router.huggingface.co/v1: is the local model server running? (('Connection aborted.', RemoteDisconnected('Remote end closed connection without response')))", "figure 3: cannot reach https://router.huggingface.co/v1: is the local model server running? (('Connection aborted.', RemoteDisconnected('Remote end closed connection without response')))", "figure 9: cannot reach https://router.huggingface.co/v1: is the local model server running? (('Connection aborted.', RemoteDisconnected('Remote end closed connection without response')))", "figure 13: cannot reach https://router.huggingface.co/v1: is the local model server running? (('Connection aborted.', RemoteDisconnected('Remote end closed connection without response')))", "figure 14: cannot reach https://router.huggingface.co/v1: is the local model server running? (('Connection aborted.', RemoteDisconnected('Remote end closed connection without response')))", "table 5: cannot reach https://router.huggingface.co/v1: is the local model server running? (('Connection aborted.', RemoteDisconnected('Remote end closed connection without response')))", "table 8: cannot reach https://router.huggingface.co/v1: is the local model server running? (('Connection aborted.', RemoteDisconnected('Remote end closed connection without response')))", "table 9: cannot reach https://router.huggingface.co/v1: is the local model server running? (('Connection aborted.', RemoteDisconnected('Remote end closed connection without response')))", 'table 18: openai returned HTTP 502: <html>\r\n<head><title>502 Bad Gateway</title></head>\r\n<body>\r\n<center><h1>502 Bad Gateway</h1></center>\r\n</body>\r\n</html>\r\n.', "table 23: cannot reach https://router.huggingface.co/v1: is the local model server running? (('Connection aborted.', RemoteDisconnected('Remote end closed connection without response')))", "#/texts/108: cannot reach https://router.huggingface.co/v1: is the local model server running? (('Connection aborted.', RemoteDisconnected('Remote end closed connection without response')))"]
+2026-10-16 11:27:16,587 INFO hgrag.pipeline: parse 2412.19754v3.pdf: 69 pages, 23 figures, 23 tables, 64 headings in 249.6s
+2026-10-16 11:27:17,204 INFO hgrag.hierarchy: heading levels corrected for 4 of 20 headings (Docling level -> new): {'#/texts/891': (2, 1), '#/texts/903': (2, 1), '#/texts/905': (2, 1), '#/texts/912': (2, 1)}
+2026-10-16 11:27:17,698 INFO hgrag.pipeline: hierarchy ea422053f3fd1f9f: 20 sections (max depth 3), 183 elements {'paragraph': 85, 'footnote': 7, 'figure': 15, 'formula': 9, 'list_item': 67}
+2026-10-16 11:27:18,218 INFO hgrag.hierarchy: heading levels corrected for 1 of 31 headings (Docling level -> new): {'#/texts/593': (2, 1)}
+2026-10-16 11:27:19,117 INFO hgrag.pipeline: hierarchy 824229a2d0e28939: 31 sections (max depth 6), 232 elements {'paragraph': 126, 'footnote': 20, 'table': 13, 'figure': 5, 'caption': 1, 'formula': 16, 'list_item': 51}
+2026-10-16 11:27:21,144 INFO hgrag.pipeline: hierarchy 1cf79f0d2d6acb21: 64 sections (max depth 4), 309 elements {'paragraph': 122, 'footnote': 9, 'list_item': 121, 'formula': 8, 'table': 23, 'figure': 23, 'caption': 3}
+2026-10-16 11:27:31,984 INFO sentence_transformers.base.model: No device provided, using cpu
+2026-10-16 11:27:31,989 INFO sentence_transformers.base.model: Loading SentenceTransformer model from sentence-transformers/all-MiniLM-L6-v2.
+Loading weights:   0%|          | 0/103 [00:00<?, ?it/s]Loading weights:  15%|#4        | 15/103 [00:00<00:00, 140.24it/s]Loading weights:  29%|##9       | 30/103 [00:00<00:00, 145.67it/s]Loading weights: 100%|##########| 103/103 [00:00<00:00, 487.76it/s]
+2026-10-16 11:27:34,457 INFO hgrag.hierarchy: heading levels corrected for 4 of 20 headings (Docling level -> new): {'#/texts/891': (2, 1), '#/texts/903': (2, 1), '#/texts/905': (2, 1), '#/texts/912': (2, 1)}
+[transformers] Token indices sequence length is longer than the specified maximum sequence length for this model (728 > 512). Running this sequence through the model will result in indexing errors
+2026-10-16 11:27:34,921 INFO hgrag.indexing: doc ea422053f3fd1f9f: kept 116 chunks, dropped chunks by label: {'too_short': 5, 'excluded_section': 23}
+Batches:   0%|          | 0/5 [00:00<?, ?it/s]Batches:  20%|##        | 1/5 [00:01<00:07,  1.93s/it]Batches:  40%|####      | 2/5 [00:03<00:04,  1.60s/it]Batches:  60%|######    | 3/5 [00:03<00:02,  1.19s/it]Batches:  80%|########  | 4/5 [00:04<00:00,  1.08it/s]Batches: 100%|##########| 5/5 [00:04<00:00,  1.09it/s]
+2026-10-16 11:27:47,744 INFO hgrag.hierarchy: heading levels corrected for 1 of 31 headings (Docling level -> new): {'#/texts/593': (2, 1)}
+2026-10-16 11:27:49,866 INFO hgrag.indexing: doc 824229a2d0e28939: kept 244 chunks, dropped chunks by label: {'too_short': 14, 'excluded_section': 16}
+Batches:   0%|          | 0/8 [00:00<?, ?it/s]Batches:  12%|#2        | 1/8 [00:01<00:10,  1.44s/it]Batches:  25%|##5       | 2/8 [00:02<00:08,  1.43s/it]Batches:  38%|###7      | 3/8 [00:04<00:07,  1.41s/it]Batches:  50%|#####     | 4/8 [00:05<00:05,  1.41s/it]Batches:  62%|######2   | 5/8 [00:07<00:04,  1.44s/it]Batches:  75%|#######5  | 6/8 [00:08<00:02,  1.30s/it]Batches:  88%|########7 | 7/8 [00:09<00:01,  1.15s/it]Batches: 100%|##########| 8/8 [00:09<00:00,  1.14it/s]Batches: 100%|##########| 8/8 [00:09<00:00,  1.17s/it]
+2026-10-16 11:28:16,968 INFO hgrag.indexing: doc 1cf79f0d2d6acb21: kept 210 chunks, dropped chunks by label: {'too_short': 29, 'excluded_section': 28}
+Batches:   0%|          | 0/8 [00:00<?, ?it/s]Batches:  12%|#2        | 1/8 [00:01<00:09,  1.42s/it]Batches:  25%|##5       | 2/8 [00:02<00:08,  1.50s/it]Batches:  38%|###7      | 3/8 [00:04<00:07,  1.49s/it]Batches:  50%|#####     | 4/8 [00:05<00:05,  1.48s/it]Batches:  62%|######2   | 5/8 [00:06<00:03,  1.32s/it]Batches:  75%|#######5  | 6/8 [00:07<00:02,  1.07s/it]Batches:  88%|########7 | 7/8 [00:08<00:00,  1.13it/s]Batches: 100%|##########| 8/8 [00:08<00:00,  1.01s/it]
+2026-10-16 11:28:40,391 INFO hgrag.pipeline: index 2409.02293v3.pdf: 131 chunks (83 words mean, max 221), 17 sections covered, dropped {'too_short': 5, 'excluded_section': 23}
+2026-10-16 11:28:40,392 INFO hgrag.pipeline: index 2409.13333v2.pdf: 249 chunks (74 words mean, max 185), 25 sections covered, dropped {'too_short': 14, 'excluded_section': 16}
+2026-10-16 11:28:40,392 INFO hgrag.pipeline: index 2412.19754v3.pdf: 228 chunks (77 words mean, max 183), 54 sections covered, dropped {'too_short': 29, 'excluded_section': 28}
+2026-10-16 11:28:45,344 INFO docling.models.inference_engines.vlm.transformers_engine: Transformers runtime cleaned up
+2026-10-16 11:28:45,344 INFO docling.models.inference_engines.vlm.auto_inline_engine: Auto-inline engine cleaned up

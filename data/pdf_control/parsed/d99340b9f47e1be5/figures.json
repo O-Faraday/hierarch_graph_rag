@@ -1,0 +1,74 @@
+[
+  {
+    "doc_id": "d99340b9f47e1be5",
+    "figure_index": 1,
+    "self_ref": "#/pictures/0",
+    "parent_ref": "#/body",
+    "children_refs": [
+      "#/texts/12",
+      "#/texts/13",
+      "#/texts/14",
+      "#/texts/15",
+      "#/texts/16",
+      "#/texts/17",
+      "#/texts/18",
+      "#/texts/19",
+      "#/texts/20",
+      "#/texts/21",
+      "#/texts/22",
+      "#/texts/23",
+      "#/texts/24"
+    ],
+    "label": "picture",
+    "content_layer": "body",
+    "page_no": 2,
+    "prov": [
+      {
+        "page_no": 2,
+        "bbox": {
+          "l": 135.85468062968414,
+          "t": 764.8820272255579,
+          "r": 458.7641106187245,
+          "b": 600.4822513311898,
+          "coord_origin": "BOTTOMLEFT"
+        },
+        "charspan": [
+          0,
+          0
+        ]
+      }
+    ],
+    "caption": "Figure 1. Number of Aurora Bank branches per year.",
+    "caption_refs": [
+      "#/texts/12"
+    ],
+    "footnote_refs": [],
+    "reference_refs": [],
+    "png_path": "figures/figure-001.png",
+    "image": {
+      "mimetype": "image/png",
+      "dpi": 144,
+      "width": 646.0,
+      "height": 329.0
+    },
+    "classification": null,
+    "meta": {
+      "summary": null,
+      "language": null,
+      "entities": null,
+      "keywords": null,
+      "topics": null,
+      "description": {
+        "confidence": null,
+        "created_by": "HuggingFaceTB/SmolVLM-256M-Instruct",
+        "text": "The image is a bar chart titled \"Branches per year.\" The chart is divided into two main sections: the x-axis and the y-axis. The x-axis is labeled \"2021\" and the y-axis is labeled \"Branches.\"\n\n### Description of the Bar Chart:\n- **Title**: \"Branches per year\"\n- **X-Axis**: Labeled \"2021\"\n- **Y-Axis**: Labeled \"Branches\"\n- **Data Points**:\n  - **2021**: Approximately 200 branches\n  - **2022**: Approximately 200 branches\n  - **2023**: Approximately 200 branches\n  - **2024**: Approximately 200 branches\n  - **2025**: Approximately 200 branches\n\n### Analysis:\n- **2021**: The bar chart indicates that the number of"
+      },
+      "classification": null,
+      "molecule": null,
+      "tabular_chart": null,
+      "code": null
+    },
+    "source": null,
+    "png_bytes": 21841
+  }
+]

@@ -1,0 +1,163 @@
+{
+ "pipeline": "hgrag_pipeline",
+ "run_key": "20261016T110603-affecb",
+ "state": "success",
+ "pid": 9656,
+ "started_at": 1792141565.8226078,
+ "ended_at": 1792142920.5969129,
+ "params": {
+  "pdf_dir": "C:\\Users\\aufol\\workspace\\hierarch_graph_rag\\data\\pdf_ragbench",
+  "describe_pictures": true,
+  "steps": [
+   "parse",
+   "hierarchy",
+   "index"
+  ],
+  "pdfs": "all"
+ },
+ "error": null,
+ "graph": {
+  "tasks": [
+   "list_pdfs",
+   "parse",
+   "hierarchy",
+   "index"
+  ],
+  "edges": [
+   [
+    "list_pdfs",
+    "parse"
+   ],
+   [
+    "parse",
+    "hierarchy"
+   ],
+   [
+    "hierarchy",
+    "index"
+   ]
+  ]
+ },
+ "tasks": {
+  "list_pdfs": {
+   "instances": [
+    {
+     "item": null,
+     "state": "success",
+     "started_at": 1792141565.8698432,
+     "ended_at": 1792141565.8727279,
+     "seconds": 0.0028846263885498047,
+     "error": null,
+     "info": {
+      "n_pdfs": 3
+     }
+    }
+   ]
+  },
+  "parse": {
+   "instances": [
+    {
+     "item": "2409.02293v3.pdf",
+     "state": "success",
+     "started_at": 1792141708.069162,
+     "ended_at": 1792142022.5689535,
+     "seconds": 314.49979162216187,
+     "error": null,
+     "info": {
+      "doc_id": "ea422053f3fd1f9f",
+      "n_pages": 35,
+      "n_figures": 15,
+      "n_tables": 0
+     }
+    },
+    {
+     "item": "2409.13333v2.pdf",
+     "state": "success",
+     "started_at": 1792142022.570501,
+     "ended_at": 1792142236.8051484,
+     "seconds": 214.23464727401733,
+     "error": null,
+     "info": {
+      "doc_id": "824229a2d0e28939",
+      "n_pages": 42,
+      "n_figures": 5,
+      "n_tables": 13
+     }
+    },
+    {
+     "item": "2412.19754v3.pdf",
+     "state": "success",
+     "started_at": 1792142236.8069038,
+     "ended_at": 1792142836.5876682,
+     "seconds": 599.7807643413544,
+     "error": null,
+     "info": {
+      "doc_id": "1cf79f0d2d6acb21",
+      "n_pages": 69,
+      "n_figures": 23,
+      "n_tables": 23
+     }
+    }
+   ]
+  },
+  "hierarchy": {
+   "instances": [
+    {
+     "item": "2409.02293v3.pdf",
+     "state": "success",
+     "started_at": 1792142836.5892363,
+     "ended_at": 1792142837.6987886,
+     "seconds": 1.1095523834228516,
+     "error": null,
+     "info": {
+      "n_sections": 20,
+      "n_leaf_sections": 17,
+      "n_elements": 183
+     }
+    },
+    {
+     "item": "2409.13333v2.pdf",
+     "state": "success",
+     "started_at": 1792142837.700621,
+     "ended_at": 1792142839.117574,
+     "seconds": 1.4169530868530273,
+     "error": null,
+     "info": {
+      "n_sections": 31,
+      "n_leaf_sections": 21,
+      "n_elements": 232
+     }
+    },
+    {
+     "item": "2412.19754v3.pdf",
+     "state": "success",
+     "started_at": 1792142839.1190112,
+     "ended_at": 1792142841.1447122,
+     "seconds": 2.0257010459899902,
+     "error": null,
+     "info": {
+      "n_sections": 64,
+      "n_leaf_sections": 47,
+      "n_elements": 309
+     }
+    }
+   ]
+  },
+  "index": {
+   "instances": [
+    {
+     "item": null,
+     "state": "success",
+     "started_at": 1792142841.1462607,
+     "ended_at": 1792142920.5950003,
+     "seconds": 79.448739528656,
+     "error": null,
+     "info": {
+      "total_chunks": 608,
+      "n_documents": 3
+     }
+    }
+   ]
+  }
+ }
+}

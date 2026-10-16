@@ -1,0 +1,22 @@
+{
+  "doc_id": "d99340b9f47e1be5",
+  "source_pdf": "01_aurora_bank_annual_report.pdf",
+  "doc_dir": "",
+  "n_figures": 1,
+  "convert_seconds": 197.24,
+  "n_pages": 2,
+  "n_tables": 1,
+  "n_pictures": 1,
+  "n_headings": 8,
+  "n_paragraphs": 5,
+  "n_list_items": 0,
+  "n_figures_described": 1,
+  "n_figures_png": 1,
+  "labels": {
+    "caption": 1,
+    "picture": 1,
+    "section_header": 8,
+    "table": 1,
+    "text": 5
+  }
+}

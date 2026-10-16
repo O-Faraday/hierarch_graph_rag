@@ -1,0 +1,59 @@
+2026-10-15 11:17:15,419 INFO docling.datamodel.document: detected formats: [<InputFormat.PDF: 'pdf'>]
+2026-10-15 11:17:16,649 INFO docling.document_converter: Going to convert document batch...
+2026-10-15 11:17:16,653 INFO docling.document_converter: Initializing pipeline for StandardPdfPipeline with options hash c95e30892f09596d1ef5c630a7174d37
+2026-10-15 11:17:16,713 INFO docling.models.factories.base_factory: Loading plugin 'docling_defaults'
+2026-10-15 11:17:16,743 INFO docling.models.factories: Registered picture descriptions: ['picture_description_vlm_engine', 'vlm', 'api']
+2026-10-15 11:17:16,743 INFO docling.models.utils.hf_model_download: Fetching model HuggingFaceTB/SmolVLM-256M-Instruct (revision: main)...
+2026-10-15 11:17:17,018 INFO httpx: HTTP Request: GET https://huggingface.co/api/models/HuggingFaceTB/SmolVLM-256M-Instruct/revision/main "HTTP/1.1 200 OK"
+2026-10-15 11:17:17,429 INFO docling.models.utils.hf_model_download: Model HuggingFaceTB/SmolVLM-256M-Instruct already cached at C:\Users\aufol\.cache\huggingface\hub\models--HuggingFaceTB--SmolVLM-256M-Instruct\snapshots\7e3e67edbbed1bf9888184d9df282b700a323964
+2026-10-15 11:17:17,429 INFO docling.utils.accelerator_utils: Accelerator device: 'cpu'
+[transformers] Model config: pad_token_id must be `None` or an integer within the vocabulary (between 0 and 31999), got 128002. This may result in unexpected behavior.
+Loading weights:   0%|          | 0/471 [00:00<?, ?it/s]Loading weights:   7%|7         | 33/471 [00:00<00:01, 328.86it/s]Loading weights:  14%|#4        | 66/471 [00:00<00:01, 305.09it/s]Loading weights:  22%|##1       | 102/471 [00:00<00:01, 320.28it/s]Loading weights:  29%|##8       | 135/471 [00:00<00:01, 267.04it/s]Loading weights:  35%|###5      | 166/471 [00:00<00:01, 275.87it/s]Loading weights: 100%|##########| 471/471 [00:00<00:00, 724.55it/s]
+2026-10-15 11:18:04,741 INFO docling.models.factories.base_factory: Loading plugin 'docling_defaults'
+2026-10-15 11:18:05,083 INFO docling.models.factories: Registered ocr engines: ['auto', 'easyocr', 'kserve_v2_ocr', 'nemotron-ocr', 'ocrmac', 'rapidocr', 'tesserocr', 'tesseract']
+2026-10-15 11:18:05,084 INFO docling.models.stages.ocr.auto_ocr_model: rapidocr cannot be used because onnxruntime is not installed.
+2026-10-15 11:18:05,085 INFO docling.models.stages.ocr.auto_ocr_model: easyocr cannot be used because it is not installed.
+2026-10-15 11:18:08,681 INFO docling.utils.accelerator_utils: Accelerator device: 'cpu'
+2026-10-15 11:18:08,745 INFO docling.models.stages.ocr.auto_ocr_model: Auto OCR model selected rapidocr with torch.
+2026-10-15 11:18:08,793 INFO docling.models.factories.base_factory: Loading plugin 'docling_defaults'
+2026-10-15 11:18:08,897 INFO docling.models.factories: Registered layout engines: ['layout_object_detection', 'docling_layout_default', 'docling_experimental_table_crops_layout']
+2026-10-15 11:18:08,935 INFO docling.models.inference_engines.object_detection.transformers_engine: Initializing Transformers object-detection engine
+2026-10-15 11:18:08,935 INFO docling.models.inference_engines.common.hf_vision_base: Downloading object-detection model from HuggingFace: docling-project/docling-layout-heron@main
+2026-10-15 11:18:08,936 INFO docling.models.utils.hf_model_download: Fetching model docling-project/docling-layout-heron (revision: main)...
+2026-10-15 11:18:09,187 INFO httpx: HTTP Request: GET https://huggingface.co/api/models/docling-project/docling-layout-heron/revision/main "HTTP/1.1 200 OK"
+2026-10-15 11:18:09,205 INFO docling.models.utils.hf_model_download: Model docling-project/docling-layout-heron already cached at C:\Users\aufol\.cache\huggingface\hub\models--docling-project--docling-layout-heron\snapshots\8f39ad3c0b4c58e9c2d2c84a38465abf757272d8
+2026-10-15 11:18:09,206 INFO docling.utils.accelerator_utils: Accelerator device: 'cpu'
+Loading weights:   0%|          | 0/770 [00:00<?, ?it/s]Loading weights:  29%|##9       | 226/770 [00:00<00:00, 2102.06it/s]Loading weights:  57%|#####6    | 437/770 [00:00<00:00, 1389.55it/s]Loading weights: 100%|##########| 770/770 [00:00<00:00, 2379.82it/s]
+2026-10-15 11:18:10,263 INFO docling.models.inference_engines.object_detection.transformers_engine: Transformers engine ready (device=cpu, dtype=torch.float32)
+2026-10-15 11:18:10,315 INFO docling.models.factories.base_factory: Loading plugin 'docling_defaults'
+2026-10-15 11:18:10,411 INFO docling.models.factories: Registered table structure engines: ['docling_tableformer', 'docling_tableformer_v2', 'granite_vision_table']
+2026-10-15 11:18:10,411 INFO docling.models.utils.hf_model_download: Fetching model docling-project/docling-models (revision: v2.3.0)...
+2026-10-15 11:18:10,544 INFO httpx: HTTP Request: GET https://huggingface.co/api/models/docling-project/docling-models/revision/v2.3.0 "HTTP/1.1 200 OK"
+2026-10-15 11:18:10,570 INFO docling.models.utils.hf_model_download: Model docling-project/docling-models already cached at C:\Users\aufol\.cache\huggingface\hub\models--docling-project--docling-models\snapshots\fc0f2d45e2218ea24bce5045f58a389aed16dc23
+2026-10-15 11:18:10,712 INFO docling.utils.accelerator_utils: Accelerator device: 'cpu'
+2026-10-15 11:18:12,070 INFO docling.pipeline.base_pipeline: Processing document 2503.04790v1.pdf
+[32m[INFO] 2026-10-15 11:18:27,140 [RapidOCR] base.py:23: Using engine_name: torch[0m
+[32m[INFO] 2026-10-15 11:18:27,413 [RapidOCR] device_config.py:57: Using CPU device[0m
+[32m[INFO] 2026-10-15 11:18:27,415 [RapidOCR] download_file.py:68: Initiating download: https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.10.0/torch/PP-OCRv6/det/PP-OCRv6_det_small.pth[0m
+[32m[INFO] 2026-10-15 11:18:28,960 [RapidOCR] download_file.py:82: Download size: 9.77MB[0m
+[32m[INFO] 2026-10-15 11:18:29,581 [RapidOCR] download_file.py:95: Successfully saved to: C:\Users\aufol\workspace\hierarch_graph_rag\.venv\Lib\site-packages\rapidocr\models\PP-OCRv6_det_small.pth[0m
+[32m[INFO] 2026-10-15 11:18:29,588 [RapidOCR] main.py:50: Using C:\Users\aufol\workspace\hierarch_graph_rag\.venv\Lib\site-packages\rapidocr\models\PP-OCRv6_det_small.pth[0m
+C:\Users\aufol\workspace\hierarch_graph_rag\.venv\Lib\site-packages\rapidocr\inference_engine\pytorch\networks\heads\multiheadAttention.py:14: SyntaxWarning: invalid escape sequence '\d'
+  \text{MultiHead}(Q, K, V) = \text{Concat}(head_1,\dots,head_h)W^O
+C:\Users\aufol\workspace\hierarch_graph_rag\.venv\Lib\site-packages\torch\nn\modules\conv.py:560: UserWarning: Using padding='same' with even kernel lengths and odd dilation may require a zero-padded copy of the input be created (Triggered internally at C:\actions-runner\_work\pytorch\pytorch\aten\src\ATen\native\Convolution.cpp:1105.)
+  return F.conv2d(
+[32m[INFO] 2026-10-15 11:18:32,172 [RapidOCR] base.py:23: Using engine_name: torch[0m
+[32m[INFO] 2026-10-15 11:18:32,173 [RapidOCR] device_config.py:57: Using CPU device[0m
+[32m[INFO] 2026-10-15 11:18:32,176 [RapidOCR] download_file.py:68: Initiating download: https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.10.0/torch/PP-OCRv4/cls/ch_ppocr_mobile_v2.0_cls_mobile.pth[0m
+[32m[INFO] 2026-10-15 11:18:33,471 [RapidOCR] download_file.py:82: Download size: 0.56MB[0m
+[32m[INFO] 2026-10-15 11:18:33,578 [RapidOCR] download_file.py:95: Successfully saved to: C:\Users\aufol\workspace\hierarch_graph_rag\.venv\Lib\site-packages\rapidocr\models\ch_ppocr_mobile_v2.0_cls_mobile.pth[0m
+[32m[INFO] 2026-10-15 11:18:33,582 [RapidOCR] main.py:50: Using C:\Users\aufol\workspace\hierarch_graph_rag\.venv\Lib\site-packages\rapidocr\models\ch_ppocr_mobile_v2.0_cls_mobile.pth[0m
+[32m[INFO] 2026-10-15 11:18:35,388 [RapidOCR] base.py:23: Using engine_name: torch[0m
+[32m[INFO] 2026-10-15 11:18:35,390 [RapidOCR] device_config.py:57: Using CPU device[0m
+[32m[INFO] 2026-10-15 11:18:35,392 [RapidOCR] download_file.py:68: Initiating download: https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.10.0/torch/PP-OCRv6/rec/PP-OCRv6_rec_small.pth[0m
+[32m[INFO] 2026-10-15 11:18:37,599 [RapidOCR] download_file.py:82: Download size: 20.34MB[0m
+[32m[INFO] 2026-10-15 11:18:38,763 [RapidOCR] download_file.py:95: Successfully saved to: C:\Users\aufol\workspace\hierarch_graph_rag\.venv\Lib\site-packages\rapidocr\models\PP-OCRv6_rec_small.pth[0m
+[32m[INFO] 2026-10-15 11:18:38,768 [RapidOCR] main.py:50: Using C:\Users\aufol\workspace\hierarch_graph_rag\.venv\Lib\site-packages\rapidocr\models\PP-OCRv6_rec_small.pth[0m
+[32m[INFO] 2026-10-15 11:18:39,179 [RapidOCR] download_file.py:68: Initiating download: https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.10.0/paddle/PP-OCRv6/rec/PP-OCRv6_rec_small/ppocrv6_dict.txt[0m
+[32m[INFO] 2026-10-15 11:18:40,380 [RapidOCR] download_file.py:82: Download size: 0.00MB[0m
+[32m[INFO] 2026-10-15 11:18:40,764 [RapidOCR] download_file.py:95: Successfully saved to: C:\Users\aufol\workspace\hierarch_graph_rag\.venv\Lib\site-packages\rapidocr\models\ppocrv6_dict.txt[0m

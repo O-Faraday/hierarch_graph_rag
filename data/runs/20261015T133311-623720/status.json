@@ -1,0 +1,163 @@
+{
+ "pipeline": "hgrag_pipeline",
+ "run_key": "20261015T133311-623720",
+ "state": "success",
+ "pid": 2364,
+ "started_at": 1792063993.8508654,
+ "ended_at": 1792064597.3028681,
+ "params": {
+  "pdf_dir": "C:\\Users\\aufol\\workspace\\hierarch_graph_rag\\data\\pdf_control",
+  "describe_pictures": true,
+  "steps": [
+   "parse",
+   "hierarchy",
+   "index"
+  ],
+  "pdfs": "all"
+ },
+ "error": null,
+ "graph": {
+  "tasks": [
+   "list_pdfs",
+   "parse",
+   "hierarchy",
+   "index"
+  ],
+  "edges": [
+   [
+    "list_pdfs",
+    "parse"
+   ],
+   [
+    "parse",
+    "hierarchy"
+   ],
+   [
+    "hierarchy",
+    "index"
+   ]
+  ]
+ },
+ "tasks": {
+  "list_pdfs": {
+   "instances": [
+    {
+     "item": null,
+     "state": "success",
+     "started_at": 1792063993.8522556,
+     "ended_at": 1792063993.854372,
+     "seconds": 0.0021164417266845703,
+     "error": null,
+     "info": {
+      "n_pdfs": 3
+     }
+    }
+   ]
+  },
+  "parse": {
+   "instances": [
+    {
+     "item": "01_aurora_bank_annual_report.pdf",
+     "state": "success",
+     "started_at": 1792064031.917322,
+     "ended_at": 1792064234.7504392,
+     "seconds": 202.8331172466278,
+     "error": null,
+     "info": {
+      "doc_id": "d99340b9f47e1be5",
+      "n_pages": 2,
+      "n_figures": 1,
+      "n_tables": 1
+     }
+    },
+    {
+     "item": "02_alpine_botany_field_guide.pdf",
+     "state": "success",
+     "started_at": 1792064234.7523777,
+     "ended_at": 1792064584.6223383,
+     "seconds": 349.86996054649353,
+     "error": null,
+     "info": {
+      "doc_id": "275fc285269fc9e2",
+      "n_pages": 2,
+      "n_figures": 2,
+      "n_tables": 0
+     }
+    },
+    {
+     "item": "03_network_operations_handbook.pdf",
+     "state": "success",
+     "started_at": 1792064584.6243541,
+     "ended_at": 1792064588.3460557,
+     "seconds": 3.7217016220092773,
+     "error": null,
+     "info": {
+      "doc_id": "7b28f479d876ef87",
+      "n_pages": 1,
+      "n_figures": 0,
+      "n_tables": 1
+     }
+    }
+   ]
+  },
+  "hierarchy": {
+   "instances": [
+    {
+     "item": "01_aurora_bank_annual_report.pdf",
+     "state": "success",
+     "started_at": 1792064588.3478847,
+     "ended_at": 1792064588.5486045,
+     "seconds": 0.20071983337402344,
+     "error": null,
+     "info": {
+      "n_sections": 8,
+      "n_leaf_sections": 6,
+      "n_elements": 7
+     }
+    },
+    {
+     "item": "02_alpine_botany_field_guide.pdf",
+     "state": "success",
+     "started_at": 1792064588.5500956,
+     "ended_at": 1792064588.7142017,
+     "seconds": 0.16410613059997559,
+     "error": null,
+     "info": {
+      "n_sections": 10,
+      "n_leaf_sections": 7,
+      "n_elements": 8
+     }
+    },
+    {
+     "item": "03_network_operations_handbook.pdf",
+     "state": "success",
+     "started_at": 1792064588.716371,
+     "ended_at": 1792064588.8821423,
+     "seconds": 0.1657712459564209,
+     "error": null,
+     "info": {
+      "n_sections": 8,
+      "n_leaf_sections": 6,
+      "n_elements": 11
+     }
+    }
+   ]
+  },
+  "index": {
+   "instances": [
+    {
+     "item": null,
+     "state": "success",
+     "started_at": 1792064588.8834357,
+     "ended_at": 1792064597.3012283,
+     "seconds": 8.417792558670044,
+     "error": null,
+     "info": {
+      "total_chunks": 16,
+      "n_documents": 3
+     }
+    }
+   ]
+  }
+ }
+}

@@ -1,0 +1,21 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Pipeline outputs and local state
+data/output/
+data/qdrant/
+data/pdf_sample/*.pdf
+orchestration/.airflow/
+data/mlflow
+data/eval/
+data/bundles/
+.env
+data/ragbench/

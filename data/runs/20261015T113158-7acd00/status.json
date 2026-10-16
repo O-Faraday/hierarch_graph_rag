@@ -1,0 +1,106 @@
+{
+ "pipeline": "hgrag_pipeline",
+ "run_key": "20261015T113158-7acd00",
+ "state": "success",
+ "pid": 14672,
+ "started_at": 1792056721.9196682,
+ "ended_at": 1792056918.50758,
+ "params": {
+  "pdf_dir": "C:\\Users\\aufol\\workspace\\hierarch_graph_rag\\data\\pdf_sample",
+  "describe_pictures": true,
+  "steps": [
+   "parse",
+   "hierarchy",
+   "index"
+  ],
+  "pdfs": "all"
+ },
+ "error": null,
+ "graph": {
+  "tasks": [
+   "list_pdfs",
+   "parse",
+   "hierarchy",
+   "index"
+  ],
+  "edges": [
+   [
+    "list_pdfs",
+    "parse"
+   ],
+   [
+    "parse",
+    "hierarchy"
+   ],
+   [
+    "hierarchy",
+    "index"
+   ]
+  ]
+ },
+ "tasks": {
+  "list_pdfs": {
+   "instances": [
+    {
+     "item": null,
+     "state": "success",
+     "started_at": 1792056721.9209812,
+     "ended_at": 1792056721.9226544,
+     "seconds": 0.0016732215881347656,
+     "error": null,
+     "info": {
+      "n_pdfs": 1
+     }
+    }
+   ]
+  },
+  "parse": {
+   "instances": [
+    {
+     "item": "rapport.pdf",
+     "state": "success",
+     "started_at": 1792056745.8808708,
+     "ended_at": 1792056906.9324272,
+     "seconds": 161.05155634880066,
+     "error": null,
+     "info": {
+      "doc_id": "312c0b2bba5c5eb5",
+      "n_figures": 1
+     }
+    }
+   ]
+  },
+  "hierarchy": {
+   "instances": [
+    {
+     "item": "rapport.pdf",
+     "state": "success",
+     "started_at": 1792056906.9340882,
+     "ended_at": 1792056907.2317936,
+     "seconds": 0.29770541191101074,
+     "error": null,
+     "info": {
+      "n_sections": 4,
+      "n_leaf_sections": 4,
+      "n_elements": 15
+     }
+    }
+   ]
+  },
+  "index": {
+   "instances": [
+    {
+     "item": null,
+     "state": "success",
+     "started_at": 1792056907.2333086,
+     "ended_at": 1792056918.506183,
+     "seconds": 11.272874355316162,
+     "error": null,
+     "info": {
+      "total_chunks": 3
+     }
+    }
+   ]
+  }
+ }
+}

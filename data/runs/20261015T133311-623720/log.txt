@@ -1,0 +1,108 @@
+2026-10-15 13:33:57,299 INFO docling.datamodel.document: detected formats: [<InputFormat.PDF: 'pdf'>]
+2026-10-15 13:34:03,062 INFO docling.document_converter: Going to convert document batch...
+2026-10-15 13:34:03,065 INFO docling.document_converter: Initializing pipeline for StandardPdfPipeline with options hash a1bfcbaef62938ccc245c5f6dd9dcb45
+2026-10-15 13:34:03,114 INFO docling.models.factories.base_factory: Loading plugin 'docling_defaults'
+2026-10-15 13:34:03,127 INFO docling.models.factories: Registered picture descriptions: ['picture_description_vlm_engine', 'vlm', 'api']
+2026-10-15 13:34:03,127 INFO docling.models.utils.hf_model_download: Fetching model HuggingFaceTB/SmolVLM-256M-Instruct (revision: main)...
+2026-10-15 13:34:03,344 INFO httpx: HTTP Request: GET https://huggingface.co/api/models/HuggingFaceTB/SmolVLM-256M-Instruct/revision/main "HTTP/1.1 200 OK"
+2026-10-15 13:34:03,390 INFO docling.models.utils.hf_model_download: Model HuggingFaceTB/SmolVLM-256M-Instruct already cached at C:\Users\aufol\.cache\huggingface\hub\models--HuggingFaceTB--SmolVLM-256M-Instruct\snapshots\7e3e67edbbed1bf9888184d9df282b700a323964
+2026-10-15 13:34:03,391 INFO docling.utils.accelerator_utils: Accelerator device: 'cpu'
+[transformers] Model config: pad_token_id must be `None` or an integer within the vocabulary (between 0 and 31999), got 128002. This may result in unexpected behavior.
+Loading weights:   0%|          | 0/471 [00:00<?, ?it/s]Loading weights:   4%|3         | 17/471 [00:00<00:02, 159.82it/s]Loading weights:  12%|#2        | 58/471 [00:00<00:01, 298.11it/s]Loading weights:  19%|#9        | 90/471 [00:00<00:01, 295.92it/s]Loading weights:  25%|##5       | 120/471 [00:00<00:01, 240.08it/s]Loading weights:  31%|###       | 146/471 [00:00<00:01, 222.92it/s]Loading weights: 100%|##########| 471/471 [00:00<00:00, 671.66it/s]
+2026-10-15 13:34:19,087 INFO docling.models.factories.base_factory: Loading plugin 'docling_defaults'
+2026-10-15 13:34:19,142 INFO docling.models.factories: Registered ocr engines: ['auto', 'easyocr', 'kserve_v2_ocr', 'nemotron-ocr', 'ocrmac', 'rapidocr', 'tesserocr', 'tesseract']
+2026-10-15 13:34:19,143 INFO docling.models.stages.ocr.auto_ocr_model: rapidocr cannot be used because onnxruntime is not installed.
+2026-10-15 13:34:19,143 INFO docling.models.stages.ocr.auto_ocr_model: easyocr cannot be used because it is not installed.
+2026-10-15 13:34:20,126 INFO docling.utils.accelerator_utils: Accelerator device: 'cpu'
+2026-10-15 13:34:20,168 INFO docling.models.stages.ocr.auto_ocr_model: Auto OCR model selected rapidocr with torch.
+2026-10-15 13:34:20,212 INFO docling.models.factories.base_factory: Loading plugin 'docling_defaults'
+2026-10-15 13:34:20,229 INFO docling.models.factories: Registered layout engines: ['layout_object_detection', 'docling_layout_default', 'docling_experimental_table_crops_layout']
+2026-10-15 13:34:20,233 INFO docling.models.inference_engines.object_detection.transformers_engine: Initializing Transformers object-detection engine
+2026-10-15 13:34:20,234 INFO docling.models.inference_engines.common.hf_vision_base: Downloading object-detection model from HuggingFace: docling-project/docling-layout-heron@main
+2026-10-15 13:34:20,234 INFO docling.models.utils.hf_model_download: Fetching model docling-project/docling-layout-heron (revision: main)...
+2026-10-15 13:34:20,425 INFO httpx: HTTP Request: GET https://huggingface.co/api/models/docling-project/docling-layout-heron/revision/main "HTTP/1.1 200 OK"
+2026-10-15 13:34:20,449 INFO docling.models.utils.hf_model_download: Model docling-project/docling-layout-heron already cached at C:\Users\aufol\.cache\huggingface\hub\models--docling-project--docling-layout-heron\snapshots\8f39ad3c0b4c58e9c2d2c84a38465abf757272d8
+2026-10-15 13:34:20,449 INFO docling.utils.accelerator_utils: Accelerator device: 'cpu'
+Loading weights:   0%|          | 0/770 [00:00<?, ?it/s]Loading weights:  29%|##9       | 227/770 [00:00<00:00, 2252.29it/s]Loading weights:  59%|#####8    | 453/770 [00:00<00:00, 1405.28it/s]Loading weights: 100%|##########| 770/770 [00:00<00:00, 2415.17it/s]
+2026-10-15 13:34:21,281 INFO docling.models.inference_engines.object_detection.transformers_engine: Transformers engine ready (device=cpu, dtype=torch.float32)
+2026-10-15 13:34:21,325 INFO docling.models.factories.base_factory: Loading plugin 'docling_defaults'
+2026-10-15 13:34:21,340 INFO docling.models.factories: Registered table structure engines: ['docling_tableformer', 'docling_tableformer_v2', 'granite_vision_table']
+2026-10-15 13:34:21,340 INFO docling.models.utils.hf_model_download: Fetching model docling-project/docling-models (revision: v2.3.0)...
+2026-10-15 13:34:21,481 INFO httpx: HTTP Request: GET https://huggingface.co/api/models/docling-project/docling-models/revision/v2.3.0 "HTTP/1.1 200 OK"
+2026-10-15 13:34:21,509 INFO docling.models.utils.hf_model_download: Model docling-project/docling-models already cached at C:\Users\aufol\.cache\huggingface\hub\models--docling-project--docling-models\snapshots\fc0f2d45e2218ea24bce5045f58a389aed16dc23
+2026-10-15 13:34:21,616 INFO docling.utils.accelerator_utils: Accelerator device: 'cpu'
+2026-10-15 13:34:23,039 INFO docling.pipeline.base_pipeline: Processing document 01_aurora_bank_annual_report.pdf
+[32m[INFO] 2026-10-15 13:34:25,775 [RapidOCR] base.py:23: Using engine_name: torch[0m
+[32m[INFO] 2026-10-15 13:34:25,821 [RapidOCR] device_config.py:57: Using CPU device[0m
+[32m[INFO] 2026-10-15 13:34:25,878 [RapidOCR] download_file.py:60: File exists and is valid: C:\Users\aufol\workspace\hierarch_graph_rag\.venv\Lib\site-packages\rapidocr\models\PP-OCRv6_det_small.pth[0m
+[32m[INFO] 2026-10-15 13:34:25,880 [RapidOCR] main.py:50: Using C:\Users\aufol\workspace\hierarch_graph_rag\.venv\Lib\site-packages\rapidocr\models\PP-OCRv6_det_small.pth[0m
+C:\Users\aufol\workspace\hierarch_graph_rag\.venv\Lib\site-packages\torch\nn\modules\conv.py:560: UserWarning: Using padding='same' with even kernel lengths and odd dilation may require a zero-padded copy of the input be created (Triggered internally at C:\actions-runner\_work\pytorch\pytorch\aten\src\ATen\native\Convolution.cpp:1105.)
+  return F.conv2d(
+[32m[INFO] 2026-10-15 13:34:27,499 [RapidOCR] base.py:23: Using engine_name: torch[0m
+[32m[INFO] 2026-10-15 13:34:27,499 [RapidOCR] device_config.py:57: Using CPU device[0m
+[32m[INFO] 2026-10-15 13:34:27,516 [RapidOCR] download_file.py:60: File exists and is valid: C:\Users\aufol\workspace\hierarch_graph_rag\.venv\Lib\site-packages\rapidocr\models\ch_ppocr_mobile_v2.0_cls_mobile.pth[0m
+[32m[INFO] 2026-10-15 13:34:27,516 [RapidOCR] main.py:50: Using C:\Users\aufol\workspace\hierarch_graph_rag\.venv\Lib\site-packages\rapidocr\models\ch_ppocr_mobile_v2.0_cls_mobile.pth[0m
+[32m[INFO] 2026-10-15 13:34:27,741 [RapidOCR] base.py:23: Using engine_name: torch[0m
+[32m[INFO] 2026-10-15 13:34:27,741 [RapidOCR] device_config.py:57: Using CPU device[0m
+[32m[INFO] 2026-10-15 13:34:27,869 [RapidOCR] download_file.py:60: File exists and is valid: C:\Users\aufol\workspace\hierarch_graph_rag\.venv\Lib\site-packages\rapidocr\models\PP-OCRv6_rec_small.pth[0m
+[32m[INFO] 2026-10-15 13:34:27,869 [RapidOCR] main.py:50: Using C:\Users\aufol\workspace\hierarch_graph_rag\.venv\Lib\site-packages\rapidocr\models\PP-OCRv6_rec_small.pth[0m
+2026-10-15 13:37:14,527 INFO docling.document_converter: Finished converting document 01_aurora_bank_annual_report.pdf in 197.23 sec.
+2026-10-15 13:37:14,750 INFO hgrag.pipeline: parse 01_aurora_bank_annual_report.pdf: 2 pages, 1 figures, 1 tables, 8 headings in 197.2s
+2026-10-15 13:37:14,818 INFO docling.datamodel.document: detected formats: [<InputFormat.PDF: 'pdf'>]
+2026-10-15 13:37:15,496 INFO docling.document_converter: Going to convert document batch...
+2026-10-15 13:37:15,497 INFO docling.pipeline.base_pipeline: Processing document 02_alpine_botany_field_guide.pdf
+2026-10-15 13:43:04,436 INFO docling.document_converter: Finished converting document 02_alpine_botany_field_guide.pdf in 349.62 sec.
+2026-10-15 13:43:04,622 INFO hgrag.pipeline: parse 02_alpine_botany_field_guide.pdf: 2 pages, 2 figures, 0 tables, 10 headings in 349.6s
+2026-10-15 13:43:04,687 INFO docling.datamodel.document: detected formats: [<InputFormat.PDF: 'pdf'>]
+2026-10-15 13:43:05,293 INFO docling.document_converter: Going to convert document batch...
+2026-10-15 13:43:05,294 INFO docling.pipeline.base_pipeline: Processing document 03_network_operations_handbook.pdf
+2026-10-15 13:43:08,223 INFO docling.document_converter: Finished converting document 03_network_operations_handbook.pdf in 3.54 sec.
+2026-10-15 13:43:08,345 INFO hgrag.pipeline: parse 03_network_operations_handbook.pdf: 1 pages, 0 figures, 1 tables, 8 headings in 3.5s
+2026-10-15 13:43:08,431 INFO docling_core.types.doc.items.picture.picture: Migrating deprecated `annotations` to `meta`; this will be removed in the future. Note that only the first available instance of each annotation type will be migrated.
+2026-10-15 13:43:08,548 INFO hgrag.pipeline: hierarchy d99340b9f47e1be5: 8 sections (max depth 2), 7 elements {'paragraph': 5, 'table': 1, 'figure': 1}
+2026-10-15 13:43:08,616 INFO docling_core.types.doc.items.picture.picture: Migrating deprecated `annotations` to `meta`; this will be removed in the future. Note that only the first available instance of each annotation type will be migrated.
+2026-10-15 13:43:08,617 INFO docling_core.types.doc.items.picture.picture: Migrating deprecated `annotations` to `meta`; this will be removed in the future. Note that only the first available instance of each annotation type will be migrated.
+2026-10-15 13:43:08,714 INFO hgrag.pipeline: hierarchy 275fc285269fc9e2: 10 sections (max depth 3), 8 elements {'paragraph': 6, 'figure': 2}
+2026-10-15 13:43:08,881 INFO hgrag.pipeline: hierarchy 7b28f479d876ef87: 8 sections (max depth 2), 11 elements {'paragraph': 5, 'table': 1, 'list_item': 4, 'code': 1}
+2026-10-15 13:43:12,280 INFO sentence_transformers.base.model: No device provided, using cpu
+2026-10-15 13:43:12,505 INFO httpx: HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/modules.json "HTTP/1.1 307 Temporary Redirect"
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+2026-10-15 13:43:12,506 WARNING huggingface_hub.utils._http: Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+2026-10-15 13:43:12,535 INFO httpx: HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/1110a243fdf4706b3f48f1d95db1a4f5529b4d41/modules.json?%2Fsentence-transformers%2Fall-MiniLM-L6-v2%2Fresolve%2Fmain%2Fmodules.json=&etag=%22952a9b81c0bfd99800fabf352f69c7ccd46c5e43%22 "HTTP/1.1 200 OK"
+2026-10-15 13:43:12,672 INFO httpx: HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/config_sentence_transformers.json "HTTP/1.1 307 Temporary Redirect"
+2026-10-15 13:43:12,701 INFO httpx: HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/1110a243fdf4706b3f48f1d95db1a4f5529b4d41/config_sentence_transformers.json?%2Fsentence-transformers%2Fall-MiniLM-L6-v2%2Fresolve%2Fmain%2Fconfig_sentence_transformers.json=&etag=%22fd1b291129c607e5d49799f87cb219b27f98acdf%22 "HTTP/1.1 200 OK"
+2026-10-15 13:43:12,710 INFO sentence_transformers.base.model: Loading SentenceTransformer model from sentence-transformers/all-MiniLM-L6-v2.
+2026-10-15 13:43:12,837 INFO httpx: HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/config_sentence_transformers.json "HTTP/1.1 307 Temporary Redirect"
+2026-10-15 13:43:12,870 INFO httpx: HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/1110a243fdf4706b3f48f1d95db1a4f5529b4d41/config_sentence_transformers.json?%2Fsentence-transformers%2Fall-MiniLM-L6-v2%2Fresolve%2Fmain%2Fconfig_sentence_transformers.json=&etag=%22fd1b291129c607e5d49799f87cb219b27f98acdf%22 "HTTP/1.1 200 OK"
+2026-10-15 13:43:13,001 INFO httpx: HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/README.md "HTTP/1.1 307 Temporary Redirect"
+2026-10-15 13:43:13,033 INFO httpx: HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/1110a243fdf4706b3f48f1d95db1a4f5529b4d41/README.md?%2Fsentence-transformers%2Fall-MiniLM-L6-v2%2Fresolve%2Fmain%2FREADME.md=&etag=%2244af2e3b0fa3a0b6239e48422972bf755f28fde0%22 "HTTP/1.1 200 OK"
+2026-10-15 13:43:13,178 INFO httpx: HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/modules.json "HTTP/1.1 307 Temporary Redirect"
+2026-10-15 13:43:13,206 INFO httpx: HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/1110a243fdf4706b3f48f1d95db1a4f5529b4d41/modules.json?%2Fsentence-transformers%2Fall-MiniLM-L6-v2%2Fresolve%2Fmain%2Fmodules.json=&etag=%22952a9b81c0bfd99800fabf352f69c7ccd46c5e43%22 "HTTP/1.1 200 OK"
+2026-10-15 13:43:13,342 INFO httpx: HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/sentence_bert_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-10-15 13:43:13,371 INFO httpx: HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/1110a243fdf4706b3f48f1d95db1a4f5529b4d41/sentence_bert_config.json?%2Fsentence-transformers%2Fall-MiniLM-L6-v2%2Fresolve%2Fmain%2Fsentence_bert_config.json=&etag=%2259d594003bf59880a884c574bf88ef7555bb0202%22 "HTTP/1.1 200 OK"
+2026-10-15 13:43:13,514 INFO httpx: HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/adapter_config.json "HTTP/1.1 404 Not Found"
+2026-10-15 13:43:13,649 INFO httpx: HTTP Request: GET https://huggingface.co/api/models/sentence-transformers/all-MiniLM-L6-v2 "HTTP/1.1 200 OK"
+2026-10-15 13:43:13,800 INFO httpx: HTTP Request: GET https://huggingface.co/api/models/sentence-transformers/all-MiniLM-L6-v2 "HTTP/1.1 200 OK"
+Loading weights:   0%|          | 0/103 [00:00<?, ?it/s]Loading weights: 100%|##########| 103/103 [00:00<00:00, 2265.08it/s]
+2026-10-15 13:43:14,204 INFO httpx: HTTP Request: GET https://huggingface.co/api/models/sentence-transformers/all-MiniLM-L6-v2 "HTTP/1.1 200 OK"
+2026-10-15 13:43:14,395 INFO httpx: HTTP Request: GET https://huggingface.co/api/models/sentence-transformers/all-MiniLM-L6-v2/tree/main/additional_chat_templates?recursive=false&expand=false "HTTP/1.1 404 Not Found"
+2026-10-15 13:43:14,525 INFO httpx: HTTP Request: GET https://huggingface.co/api/models/sentence-transformers/all-MiniLM-L6-v2/tree/main?recursive=true&expand=false "HTTP/1.1 200 OK"
+2026-10-15 13:43:14,773 INFO httpx: HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/1_Pooling/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-10-15 13:43:14,803 INFO httpx: HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/sentence-transformers/all-MiniLM-L6-v2/1110a243fdf4706b3f48f1d95db1a4f5529b4d41/1_Pooling%2Fconfig.json?%2Fsentence-transformers%2Fall-MiniLM-L6-v2%2Fresolve%2Fmain%2F1_Pooling%2Fconfig.json=&etag=%22d1514c3162bbe87b343f565fadc62e6c06f04f03%22 "HTTP/1.1 200 OK"
+2026-10-15 13:43:14,945 INFO httpx: HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/2_Normalize/config.json "HTTP/1.1 404 Not Found"
+2026-10-15 13:43:15,075 INFO httpx: HTTP Request: GET https://huggingface.co/api/models/sentence-transformers/all-MiniLM-L6-v2 "HTTP/1.1 200 OK"
+2026-10-15 13:43:15,211 INFO httpx: HTTP Request: GET https://huggingface.co/api/models/sentence-transformers/all-MiniLM-L6-v2 "HTTP/1.1 200 OK"
+2026-10-15 13:43:15,351 INFO httpx: HTTP Request: GET https://huggingface.co/api/models/sentence-transformers/all-MiniLM-L6-v2/tree/main/additional_chat_templates?recursive=false&expand=false "HTTP/1.1 404 Not Found"
+2026-10-15 13:43:15,493 INFO httpx: HTTP Request: GET https://huggingface.co/api/models/sentence-transformers/all-MiniLM-L6-v2/tree/main?recursive=true&expand=false "HTTP/1.1 200 OK"
+2026-10-15 13:43:15,592 INFO docling_core.types.doc.items.picture.picture: Migrating deprecated `annotations` to `meta`; this will be removed in the future. Note that only the first available instance of each annotation type will be migrated.
+2026-10-15 13:43:16,791 INFO hgrag.indexing: doc d99340b9f47e1be5: kept 5 paragraph chunks, dropped non-paragraph chunks by label: {'table': 1, 'picture': 1, 'caption': 1}
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|##########| 1/1 [00:00<00:00, 15.75it/s]
+2026-10-15 13:43:16,902 INFO docling_core.types.doc.items.picture.picture: Migrating deprecated `annotations` to `meta`; this will be removed in the future. Note that only the first available instance of each annotation type will be migrated.
+2026-10-15 13:43:16,903 INFO docling_core.types.doc.items.picture.picture: Migrating deprecated `annotations` to `meta`; this will be removed in the future. Note that only the first available instance of each annotation type will be migrated.
+2026-10-15 13:43:16,922 INFO hgrag.indexing: doc 275fc285269fc9e2: kept 6 paragraph chunks, dropped non-paragraph chunks by label: {'picture': 2, 'caption': 2}
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|##########| 1/1 [00:00<00:00, 20.17it/s]
+2026-10-15 13:43:17,028 INFO hgrag.indexing: doc 7b28f479d876ef87: kept 5 paragraph chunks, dropped non-paragraph chunks by label: {'table': 1, 'list_item': 1, 'code': 1}
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|##########| 1/1 [00:00<00:00, 25.69it/s]
+2026-10-15 13:43:17,264 INFO hgrag.pipeline: index 01_aurora_bank_annual_report.pdf: 5 chunks (37 words mean, max 51), 5 sections covered, dropped {'table': 1, 'picture': 1, 'caption': 1}
+2026-10-15 13:43:17,264 INFO hgrag.pipeline: index 02_alpine_botany_field_guide.pdf: 6 chunks (35 words mean, max 43), 6 sections covered, dropped {'picture': 2, 'caption': 2}
+2026-10-15 13:43:17,264 INFO hgrag.pipeline: index 03_network_operations_handbook.pdf: 5 chunks (29 words mean, max 35), 5 sections covered, dropped {'table': 1, 'list_item': 1, 'code': 1}

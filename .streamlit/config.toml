@@ -1,0 +1,10 @@
+[theme]
+primaryColor = "#5B93E6"
+baseRadius = "0.5rem"
+linkColor = "#5B93E6"
+
+[client]
+toolbarMode = "minimal"
+
+[browser]
+gatherUsageStats = false

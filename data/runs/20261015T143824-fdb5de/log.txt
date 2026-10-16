@@ -1,0 +1,78 @@
+2026-10-15 14:39:41,122 INFO docling.datamodel.document: detected formats: [<InputFormat.PDF: 'pdf'>]
+2026-10-15 14:39:46,453 INFO docling.document_converter: Going to convert document batch...
+2026-10-15 14:39:46,458 INFO docling.document_converter: Initializing pipeline for StandardPdfPipeline with options hash fbf9ee0f940eb77045b6c11df59cc55c
+2026-10-15 14:39:46,536 INFO docling.models.factories.base_factory: Loading plugin 'docling_defaults'
+2026-10-15 14:39:46,621 INFO docling.models.factories: Registered picture descriptions: ['picture_description_vlm_engine', 'vlm', 'api']
+2026-10-15 14:39:46,680 INFO docling.models.factories.base_factory: Loading plugin 'docling_defaults'
+2026-10-15 14:39:46,997 INFO docling.models.factories: Registered ocr engines: ['auto', 'easyocr', 'kserve_v2_ocr', 'nemotron-ocr', 'ocrmac', 'rapidocr', 'tesserocr', 'tesseract']
+2026-10-15 14:39:46,998 INFO docling.models.stages.ocr.auto_ocr_model: rapidocr cannot be used because onnxruntime is not installed.
+2026-10-15 14:39:46,999 INFO docling.models.stages.ocr.auto_ocr_model: easyocr cannot be used because it is not installed.
+2026-10-15 14:39:50,421 INFO docling.utils.accelerator_utils: Accelerator device: 'cpu'
+2026-10-15 14:39:50,482 INFO docling.models.stages.ocr.auto_ocr_model: Auto OCR model selected rapidocr with torch.
+2026-10-15 14:39:50,535 INFO docling.models.factories.base_factory: Loading plugin 'docling_defaults'
+2026-10-15 14:39:50,631 INFO docling.models.factories: Registered layout engines: ['layout_object_detection', 'docling_layout_default', 'docling_experimental_table_crops_layout']
+2026-10-15 14:40:28,268 INFO docling.models.inference_engines.object_detection.transformers_engine: Initializing Transformers object-detection engine
+2026-10-15 14:40:28,268 INFO docling.models.inference_engines.common.hf_vision_base: Downloading object-detection model from HuggingFace: docling-project/docling-layout-heron@main
+2026-10-15 14:40:28,268 INFO docling.models.utils.hf_model_download: Fetching model docling-project/docling-layout-heron (revision: main)...
+2026-10-15 14:40:28,334 INFO docling.models.utils.hf_model_download: Model docling-project/docling-layout-heron already cached at C:\Users\aufol\.cache\huggingface\hub\models--docling-project--docling-layout-heron\snapshots\8f39ad3c0b4c58e9c2d2c84a38465abf757272d8
+2026-10-15 14:40:28,334 INFO docling.utils.accelerator_utils: Accelerator device: 'cpu'
+Loading weights:   0%|          | 0/770 [00:00<?, ?it/s]Loading weights:  33%|###2      | 253/770 [00:00<00:00, 2528.48it/s]Loading weights:  66%|######5   | 506/770 [00:00<00:00, 1948.23it/s]Loading weights: 100%|##########| 770/770 [00:00<00:00, 2946.66it/s]
+2026-10-15 14:40:35,257 INFO docling.models.inference_engines.object_detection.transformers_engine: Transformers engine ready (device=cpu, dtype=torch.float32)
+2026-10-15 14:40:35,327 INFO docling.models.factories.base_factory: Loading plugin 'docling_defaults'
+2026-10-15 14:40:35,409 INFO docling.models.factories: Registered table structure engines: ['docling_tableformer', 'docling_tableformer_v2', 'granite_vision_table']
+2026-10-15 14:40:35,409 INFO docling.models.utils.hf_model_download: Fetching model docling-project/docling-models (revision: v2.3.0)...
+2026-10-15 14:40:35,432 INFO docling.models.utils.hf_model_download: Model docling-project/docling-models already cached at C:\Users\aufol\.cache\huggingface\hub\models--docling-project--docling-models\snapshots\fc0f2d45e2218ea24bce5045f58a389aed16dc23
+2026-10-15 14:40:35,747 INFO docling.utils.accelerator_utils: Accelerator device: 'cpu'
+2026-10-15 14:40:37,028 INFO docling.pipeline.base_pipeline: Processing document 01_aurora_bank_annual_report.pdf
+[32m[INFO] 2026-10-15 14:40:41,047 [RapidOCR] base.py:23: Using engine_name: torch[0m
+[32m[INFO] 2026-10-15 14:40:41,216 [RapidOCR] device_config.py:57: Using CPU device[0m
+[32m[INFO] 2026-10-15 14:40:41,218 [RapidOCR] download_file.py:68: Initiating download: https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.10.0/torch/PP-OCRv6/det/PP-OCRv6_det_small.pth[0m
+[32m[INFO] 2026-10-15 14:40:42,602 [RapidOCR] download_file.py:82: Download size: 9.77MB[0m
+[32m[INFO] 2026-10-15 14:40:43,207 [RapidOCR] download_file.py:95: Successfully saved to: C:\Users\aufol\workspace\hierarch_graph_rag\.venv\Lib\site-packages\rapidocr\models\PP-OCRv6_det_small.pth[0m
+[32m[INFO] 2026-10-15 14:40:43,211 [RapidOCR] main.py:50: Using C:\Users\aufol\workspace\hierarch_graph_rag\.venv\Lib\site-packages\rapidocr\models\PP-OCRv6_det_small.pth[0m
+C:\Users\aufol\workspace\hierarch_graph_rag\.venv\Lib\site-packages\rapidocr\inference_engine\pytorch\networks\heads\multiheadAttention.py:14: SyntaxWarning: invalid escape sequence '\d'
+  \text{MultiHead}(Q, K, V) = \text{Concat}(head_1,\dots,head_h)W^O
+C:\Users\aufol\workspace\hierarch_graph_rag\.venv\Lib\site-packages\torch\nn\modules\conv.py:560: UserWarning: Using padding='same' with even kernel lengths and odd dilation may require a zero-padded copy of the input be created (Triggered internally at C:\actions-runner\_work\pytorch\pytorch\aten\src\ATen\native\Convolution.cpp:1105.)
+  return F.conv2d(
+[32m[INFO] 2026-10-15 14:40:44,652 [RapidOCR] base.py:23: Using engine_name: torch[0m
+[32m[INFO] 2026-10-15 14:40:44,652 [RapidOCR] device_config.py:57: Using CPU device[0m
+[32m[INFO] 2026-10-15 14:40:44,654 [RapidOCR] download_file.py:68: Initiating download: https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.10.0/torch/PP-OCRv4/cls/ch_ppocr_mobile_v2.0_cls_mobile.pth[0m
+[32m[INFO] 2026-10-15 14:40:47,538 [RapidOCR] download_file.py:82: Download size: 0.56MB[0m
+[32m[INFO] 2026-10-15 14:40:47,644 [RapidOCR] download_file.py:95: Successfully saved to: C:\Users\aufol\workspace\hierarch_graph_rag\.venv\Lib\site-packages\rapidocr\models\ch_ppocr_mobile_v2.0_cls_mobile.pth[0m
+[32m[INFO] 2026-10-15 14:40:47,647 [RapidOCR] main.py:50: Using C:\Users\aufol\workspace\hierarch_graph_rag\.venv\Lib\site-packages\rapidocr\models\ch_ppocr_mobile_v2.0_cls_mobile.pth[0m
+[32m[INFO] 2026-10-15 14:40:47,887 [RapidOCR] base.py:23: Using engine_name: torch[0m
+[32m[INFO] 2026-10-15 14:40:47,888 [RapidOCR] device_config.py:57: Using CPU device[0m
+[32m[INFO] 2026-10-15 14:40:47,889 [RapidOCR] download_file.py:68: Initiating download: https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.10.0/torch/PP-OCRv6/rec/PP-OCRv6_rec_small.pth[0m
+[32m[INFO] 2026-10-15 14:40:49,322 [RapidOCR] download_file.py:82: Download size: 20.34MB[0m
+[32m[INFO] 2026-10-15 14:40:50,439 [RapidOCR] download_file.py:95: Successfully saved to: C:\Users\aufol\workspace\hierarch_graph_rag\.venv\Lib\site-packages\rapidocr\models\PP-OCRv6_rec_small.pth[0m
+[32m[INFO] 2026-10-15 14:40:50,442 [RapidOCR] main.py:50: Using C:\Users\aufol\workspace\hierarch_graph_rag\.venv\Lib\site-packages\rapidocr\models\PP-OCRv6_rec_small.pth[0m
+[32m[INFO] 2026-10-15 14:40:50,734 [RapidOCR] download_file.py:68: Initiating download: https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.10.0/paddle/PP-OCRv6/rec/PP-OCRv6_rec_small/ppocrv6_dict.txt[0m
+[32m[INFO] 2026-10-15 14:40:52,294 [RapidOCR] download_file.py:82: Download size: 0.00MB[0m
+[32m[INFO] 2026-10-15 14:40:52,757 [RapidOCR] download_file.py:95: Successfully saved to: C:\Users\aufol\workspace\hierarch_graph_rag\.venv\Lib\site-packages\rapidocr\models\ppocrv6_dict.txt[0m
+2026-10-15 14:40:53,225 INFO docling.document_converter: Finished converting document 01_aurora_bank_annual_report.pdf in 72.10 sec.
+2026-10-15 14:40:53,547 INFO hgrag.pipeline: parse 01_aurora_bank_annual_report.pdf: 2 pages, 1 figures, 1 tables, 8 headings in 72.1s
+2026-10-15 14:40:53,640 INFO docling.datamodel.document: detected formats: [<InputFormat.PDF: 'pdf'>]
+2026-10-15 14:40:53,906 INFO docling.document_converter: Going to convert document batch...
+2026-10-15 14:40:53,912 INFO docling.pipeline.base_pipeline: Processing document 02_alpine_botany_field_guide.pdf
+2026-10-15 14:40:58,080 INFO docling.document_converter: Finished converting document 02_alpine_botany_field_guide.pdf in 4.44 sec.
+2026-10-15 14:40:58,249 INFO hgrag.pipeline: parse 02_alpine_botany_field_guide.pdf: 2 pages, 2 figures, 0 tables, 10 headings in 4.4s
+2026-10-15 14:40:58,325 INFO docling.datamodel.document: detected formats: [<InputFormat.PDF: 'pdf'>]
+2026-10-15 14:40:58,591 INFO docling.document_converter: Going to convert document batch...
+2026-10-15 14:40:58,592 INFO docling.pipeline.base_pipeline: Processing document 03_network_operations_handbook.pdf
+2026-10-15 14:41:01,064 INFO docling.document_converter: Finished converting document 03_network_operations_handbook.pdf in 2.74 sec.
+2026-10-15 14:41:01,195 INFO hgrag.pipeline: parse 03_network_operations_handbook.pdf: 1 pages, 0 figures, 1 tables, 8 headings in 2.7s
+2026-10-15 14:41:01,380 INFO hgrag.pipeline: hierarchy d99340b9f47e1be5: 8 sections (max depth 2), 7 elements {'paragraph': 5, 'table': 1, 'figure': 1}
+2026-10-15 14:41:01,610 INFO hgrag.pipeline: hierarchy 275fc285269fc9e2: 10 sections (max depth 3), 8 elements {'paragraph': 6, 'figure': 2}
+2026-10-15 14:41:01,798 INFO hgrag.pipeline: hierarchy 7b28f479d876ef87: 8 sections (max depth 2), 11 elements {'paragraph': 5, 'table': 1, 'list_item': 4, 'code': 1}
+2026-10-15 14:41:11,408 INFO sentence_transformers.base.model: No device provided, using cpu
+2026-10-15 14:41:11,434 INFO sentence_transformers.base.model: Loading SentenceTransformer model from sentence-transformers/all-MiniLM-L6-v2.
+Loading weights:   0%|          | 0/103 [00:00<?, ?it/s]Loading weights: 100%|##########| 103/103 [00:00<00:00, 1691.75it/s]
+2026-10-15 14:41:12,318 INFO hgrag.indexing: doc d99340b9f47e1be5: kept 6 chunks, dropped chunks by label: {'caption': 1}
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|##########| 1/1 [00:00<00:00,  8.35it/s]Batches: 100%|##########| 1/1 [00:00<00:00,  8.34it/s]
+2026-10-15 14:41:12,528 INFO hgrag.indexing: doc 275fc285269fc9e2: kept 6 chunks, dropped chunks by label: {'caption': 2}
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|##########| 1/1 [00:00<00:00, 15.44it/s]
+2026-10-15 14:41:12,688 INFO hgrag.indexing: doc 7b28f479d876ef87: kept 8 chunks, dropped chunks by label: none
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|##########| 1/1 [00:00<00:00, 10.86it/s]
+2026-10-15 14:41:13,048 INFO hgrag.pipeline: index 01_aurora_bank_annual_report.pdf: 6 chunks (39 words mean, max 51), 5 sections covered, dropped {'caption': 1}
+2026-10-15 14:41:13,048 INFO hgrag.pipeline: index 02_alpine_botany_field_guide.pdf: 6 chunks (35 words mean, max 43), 6 sections covered, dropped {'caption': 2}
+2026-10-15 14:41:13,048 INFO hgrag.pipeline: index 03_network_operations_handbook.pdf: 8 chunks (27 words mean, max 35), 5 sections covered, dropped none

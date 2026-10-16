@@ -1,0 +1,147 @@
+[
+  {
+    "doc_id": "275fc285269fc9e2",
+    "figure_index": 1,
+    "self_ref": "#/pictures/0",
+    "parent_ref": "#/body",
+    "children_refs": [
+      "#/texts/9",
+      "#/texts/10",
+      "#/texts/11",
+      "#/texts/12",
+      "#/texts/13",
+      "#/texts/14",
+      "#/texts/15",
+      "#/texts/16",
+      "#/texts/17",
+      "#/texts/18",
+      "#/texts/19",
+      "#/texts/20",
+      "#/texts/21",
+      "#/texts/22"
+    ],
+    "label": "picture",
+    "content_layer": "body",
+    "page_no": 1,
+    "prov": [
+      {
+        "page_no": 1,
+        "bbox": {
+          "l": 136.05031962878337,
+          "t": 426.7832165983078,
+          "r": 458.8048935089316,
+          "b": 261.3275486425405,
+          "coord_origin": "BOTTOMLEFT"
+        },
+        "charspan": [
+          0,
+          0
+        ]
+      }
+    ],
+    "caption": "Figure 1. Mean altitude of flowering gentians through the summer.",
+    "caption_refs": [
+      "#/texts/9"
+    ],
+    "footnote_refs": [],
+    "reference_refs": [],
+    "png_path": "figures/figure-001.png",
+    "image": {
+      "mimetype": "image/png",
+      "dpi": 144,
+      "width": 646.0,
+      "height": 331.0
+    },
+    "classification": null,
+    "meta": {
+      "summary": null,
+      "language": null,
+      "entities": null,
+      "keywords": null,
+      "topics": null,
+      "description": {
+        "confidence": null,
+        "created_by": "HuggingFaceTB/SmolVLM-256M-Instruct",
+        "text": "The chart depicts the flowering altitude by month from 1900 to 2000. The x-axis represents the month, while the y-axis measures the flowering altitude in meters (m). The flowering altitude increases from 1800 to 2000.\n\nThe flowering altitude increases from 1800 to 2000. The flowering altitude increases from 1800 to 2000. The flowering altitude increases from 1800 to 2000. The flowering altitude increases from 1800 to 2000. The flowering altitude increases from 1800 to 2000. The flowering altitude increases from 1800 to 2000. The flowering altitude increases from 1800 to 2000. The flowering altitude increases from 1800 to 2000. The flowering"
+      },
+      "classification": null,
+      "molecule": null,
+      "tabular_chart": null,
+      "code": null
+    },
+    "source": null,
+    "png_bytes": 37991
+  },
+  {
+    "doc_id": "275fc285269fc9e2",
+    "figure_index": 2,
+    "self_ref": "#/pictures/1",
+    "parent_ref": "#/body",
+    "children_refs": [
+      "#/texts/29",
+      "#/texts/30",
+      "#/texts/31",
+      "#/texts/32",
+      "#/texts/33",
+      "#/texts/34",
+      "#/texts/35",
+      "#/texts/36",
+      "#/texts/37",
+      "#/texts/38",
+      "#/texts/39",
+      "#/texts/40",
+      "#/texts/41"
+    ],
+    "label": "picture",
+    "content_layer": "body",
+    "page_no": 2,
+    "prov": [
+      {
+        "page_no": 2,
+        "bbox": {
+          "l": 136.90298074287568,
+          "t": 727.1060957838861,
+          "r": 458.5918349121094,
+          "b": 561.0514385454264,
+          "coord_origin": "BOTTOMLEFT"
+        },
+        "charspan": [
+          0,
+          0
+        ]
+      }
+    ],
+    "caption": "Figure 2. Average number of species recorded per hiking day.",
+    "caption_refs": [
+      "#/texts/29"
+    ],
+    "footnote_refs": [],
+    "reference_refs": [],
+    "png_path": "figures/figure-002.png",
+    "image": {
+      "mimetype": "image/png",
+      "dpi": 144,
+      "width": 643.0,
+      "height": 332.0
+    },
+    "classification": null,
+    "meta": {
+      "summary": null,
+      "language": null,
+      "entities": null,
+      "keywords": null,
+      "topics": null,
+      "description": {
+        "confidence": null,
+        "created_by": "HuggingFaceTB/SmolVLM-256M-Instruct",
+        "text": "The image is a bar chart titled \"Species seen per hiking day.\" It compares the number of species seen per hiking day for three different hiking seasons: Jun, Jul, and Aug. The x-axis represents the days of the week, while the y-axis lists the species.\n\n### Description:\n- **X-axis (Days of the Week):**\n  - Jun: 3\n  - Jul: 4\n  - Aug: 5\n\n- **Y-axis (Species):**\n  - Jul: 20\n  - Aug: 20\n  - Sep: 15\n\n### Analysis:\n- **Jul:**\n  - Jun: 3\n  - Jul: 4\n  - Aug: 5\n\n- **Aug:**\n  - Jun: 5\n  - Jul: 5\n  - Aug: 6\n\n- **Sep:**\n  - Jun: 6\n  - Jul: 6\n  - Aug: 6"
+      },
+      "classification": null,
+      "molecule": null,
+      "tabular_chart": null,
+      "code": null
+    },
+    "source": null,
+    "png_bytes": 19074
+  }
+]

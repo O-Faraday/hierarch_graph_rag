@@ -1,0 +1,47 @@
+[
+  {
+    "id": "aurora_f1",
+    "pdf": "01_aurora_bank_annual_report.pdf",
+    "figure_index": 1,
+    "full_description": "Vertical bar chart titled 'Branches per year'. X axis: years 2021 to 2025. Y axis label 'branches', ticks 0 to 200 by 50. Bars (blue): 2021 = 212, 2022 = 208, 2023 = 205, 2024 = 201, 2025 = 204.",
+    "facts": [
+      {"id": "type", "text": "It is a bar chart (vertical bars)."},
+      {"id": "title", "text": "The title is 'Branches per year'."},
+      {"id": "x_axis", "text": "The x axis shows the years 2021 to 2025."},
+      {"id": "y_axis", "text": "The y axis is the number of branches."},
+      {"id": "v2021", "text": "The 2021 bar is about 212 (accept 205-215)."},
+      {"id": "v2024", "text": "The 2024 bar is about 201 (accept 195-205), the lowest of the five."},
+      {"id": "trend", "text": "The number decreases from 2021 to 2024, then rises slightly in 2025 (about 204)."}
+    ]
+  },
+  {
+    "id": "botany_f1",
+    "pdf": "02_alpine_botany_field_guide.pdf",
+    "figure_index": 1,
+    "full_description": "Line chart with circular markers titled 'Flowering altitude by month'. X axis: Jun, Jul, Aug, Sep. Y axis label 'altitude (m)', from 1800 to 2400. Points: Jun = 1800, Jul = 2100, Aug = 2400, Sep = 2200.",
+    "facts": [
+      {"id": "type", "text": "It is a line chart with markers."},
+      {"id": "title", "text": "The title is 'Flowering altitude by month'."},
+      {"id": "x_axis", "text": "The x axis shows the months June to September."},
+      {"id": "y_axis", "text": "The y axis is the altitude in metres."},
+      {"id": "jun", "text": "June is about 1800 m (accept 1750-1850)."},
+      {"id": "aug", "text": "August is the peak, about 2400 m (accept 2350-2450)."},
+      {"id": "trend", "text": "The altitude rises from June to August, then falls in September (about 2200 m)."}
+    ]
+  },
+  {
+    "id": "botany_f2",
+    "pdf": "02_alpine_botany_field_guide.pdf",
+    "figure_index": 2,
+    "full_description": "Vertical bar chart titled 'Species seen per hiking day'. X axis: Jun, Jul, Aug, Sep. Y axis label 'species', 0 to 25. Bars: Jun = 9, Jul = 21, Aug = 26, Sep = 12.",
+    "facts": [
+      {"id": "type", "text": "It is a bar chart (vertical bars)."},
+      {"id": "title", "text": "The title is 'Species seen per hiking day'."},
+      {"id": "x_axis", "text": "The x axis shows the months June to September."},
+      {"id": "y_axis", "text": "The y axis is the number of species."},
+      {"id": "jun", "text": "June is about 9 species (accept 8-10)."},
+      {"id": "aug", "text": "August is the highest, about 26 species (accept 25-27)."},
+      {"id": "trend", "text": "The count rises from June to August, then drops in September (about 12)."}
+    ]
+  }
+]

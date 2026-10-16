@@ -1,0 +1,21 @@
+{
+  "doc_id": "275fc285269fc9e2",
+  "source_pdf": "02_alpine_botany_field_guide.pdf",
+  "doc_dir": "",
+  "n_figures": 2,
+  "convert_seconds": 349.63,
+  "n_pages": 2,
+  "n_tables": 0,
+  "n_pictures": 2,
+  "n_headings": 10,
+  "n_paragraphs": 6,
+  "n_list_items": 0,
+  "n_figures_described": 2,
+  "n_figures_png": 2,
+  "labels": {
+    "caption": 2,
+    "picture": 2,
+    "section_header": 10,
+    "text": 6
+  }
+}

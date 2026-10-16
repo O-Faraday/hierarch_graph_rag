@@ -1,0 +1,1176 @@
+{
+  "schema_name": "DoclingDocument",
+  "version": "1.10.0",
+  "name": "03_network_operations_handbook",
+  "origin": {
+    "mimetype": "application/pdf",
+    "binary_hash": 6634567039709399232,
+    "filename": "03_network_operations_handbook.pdf"
+  },
+  "furniture": {
+    "self_ref": "#/furniture",
+    "children": [],
+    "content_layer": "furniture",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "body": {
+    "self_ref": "#/body",
+    "children": [
+      {
+        "$ref": "#/texts/0"
+      },
+      {
+        "$ref": "#/texts/1"
+      },
+      {
+        "$ref": "#/texts/2"
+      },
+      {
+        "$ref": "#/texts/3"
+      },
+      {
+        "$ref": "#/texts/4"
+      },
+      {
+        "$ref": "#/texts/5"
+      },
+      {
+        "$ref": "#/tables/0"
+      },
+      {
+        "$ref": "#/texts/6"
+      },
+      {
+        "$ref": "#/texts/7"
+      },
+      {
+        "$ref": "#/groups/0"
+      },
+      {
+        "$ref": "#/texts/12"
+      },
+      {
+        "$ref": "#/texts/13"
+      },
+      {
+        "$ref": "#/texts/14"
+      },
+      {
+        "$ref": "#/texts/15"
+      },
+      {
+        "$ref": "#/texts/16"
+      },
+      {
+        "$ref": "#/texts/17"
+      },
+      {
+        "$ref": "#/texts/18"
+      }
+    ],
+    "content_layer": "body",
+    "name": "_root_",
+    "label": "unspecified"
+  },
+  "groups": [
+    {
+      "self_ref": "#/groups/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [
+        {
+          "$ref": "#/texts/8"
+        },
+        {
+          "$ref": "#/texts/9"
+        },
+        {
+          "$ref": "#/texts/10"
+        },
+        {
+          "$ref": "#/texts/11"
+        }
+      ],
+      "content_layer": "body",
+      "name": "list",
+      "label": "list"
+    }
+  ],
+  "texts": [
+    {
+      "self_ref": "#/texts/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "section_header",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 106.94078999999999,
+            "t": 766.1956,
+            "r": 488.3347900000001,
+            "b": 742.1456000000001,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            27
+          ]
+        }
+      ],
+      "orig": "Network Operations Handbook",
+      "text": "Network Operations Handbook",
+      "level": 1
+    },
+    {
+      "self_ref": "#/texts/1",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "section_header",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 68.3622,
+            "t": 719.8876,
+            "r": 145.06220000000002,
+            "b": 701.3876,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            7
+          ]
+        }
+      ],
+      "orig": "1 Scope",
+      "text": "1 Scope",
+      "level": 1
+    },
+    {
+      "self_ref": "#/texts/2",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 68.3622,
+            "t": 687.8096,
+            "r": 515.9082000000002,
+            "b": 663.21399238653,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            198
+          ]
+        }
+      ],
+      "orig": "This handbook defines how the operations team monitors, maintains and restores the production network. It applies to every datacentre, to the wide area links and to the services that depend on them.",
+      "text": "This handbook defines how the operations team monitors, maintains and restores the production network. It applies to every datacentre, to the wide area links and to the services that depend on them."
+    },
+    {
+      "self_ref": "#/texts/3",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "section_header",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 68.3622,
+            "t": 639.8876,
+            "r": 188.3622,
+            "b": 621.3876,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            12
+          ]
+        }
+      ],
+      "orig": "2 Monitoring",
+      "text": "2 Monitoring",
+      "level": 1
+    },
+    {
+      "self_ref": "#/texts/4",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "section_header",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 68.3622,
+            "t": 605.2976,
+            "r": 173.42220000000003,
+            "b": 591.4226,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            16
+          ]
+        }
+      ],
+      "orig": "2.1 Alert levels",
+      "text": "2.1 Alert levels",
+      "level": 2
+    },
+    {
+      "self_ref": "#/texts/5",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 68.3622,
+            "t": 581.8096,
+            "r": 526.9133840000001,
+            "b": 557.21399238653,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            201
+          ]
+        }
+      ],
+      "orig": "Alerts are classified in three levels. A warning requires attention during office hours, a critical alert must be acknowledged within fifteen minutes, and a major incident triggers the on-call manager.",
+      "text": "Alerts are classified in three levels. A warning requires attention during office hours, a critical alert must be acknowledged within fifteen minutes, and a major incident triggers the on-call manager."
+    },
+    {
+      "self_ref": "#/texts/6",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "section_header",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 68.3622,
+            "t": 449.2976,
+            "r": 194.2572,
+            "b": 435.4226,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            17
+          ]
+        }
+      ],
+      "orig": "2.2 Health checks",
+      "text": "2.2 Health checks",
+      "level": 2
+    },
+    {
+      "self_ref": "#/texts/7",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 68.3622,
+            "t": 425.8096,
+            "r": 519.5932000000001,
+            "b": 401.21399238653004,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            135
+          ]
+        }
+      ],
+      "orig": "Every service exposes a health endpoint which the monitoring system queries each thirty seconds. The checks cover the following points:",
+      "text": "Every service exposes a health endpoint which the monitoring system queries each thirty seconds. The checks cover the following points:"
+    },
+    {
+      "self_ref": "#/texts/8",
+      "parent": {
+        "$ref": "#/groups/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 68.3622,
+            "t": 388.1436,
+            "r": 273.04320000000007,
+            "b": 377.0436,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            45
+          ]
+        }
+      ],
+      "orig": "\u00b7 link status and packet loss on every uplink",
+      "text": "link status and packet loss on every uplink",
+      "enumerated": false,
+      "marker": "\u00b7"
+    },
+    {
+      "self_ref": "#/texts/9",
+      "parent": {
+        "$ref": "#/groups/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 68.3622,
+            "t": 365.1436,
+            "r": 225.95220000000003,
+            "b": 354.0436,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            33
+          ]
+        }
+      ],
+      "orig": "\u00b7 latency between the datacentres",
+      "text": "latency between the datacentres",
+      "enumerated": false,
+      "marker": "\u00b7"
+    },
+    {
+      "self_ref": "#/texts/10",
+      "parent": {
+        "$ref": "#/groups/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 68.3622,
+            "t": 342.1436,
+            "r": 186.55020000000002,
+            "b": 331.0436,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            26
+          ]
+        }
+      ],
+      "orig": "\u00b7 certificate expiry dates",
+      "text": "certificate expiry dates",
+      "enumerated": false,
+      "marker": "\u00b7"
+    },
+    {
+      "self_ref": "#/texts/11",
+      "parent": {
+        "$ref": "#/groups/0"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "list_item",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 68.3622,
+            "t": 319.1436,
+            "r": 222.92720000000003,
+            "b": 308.0436000000001,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            34
+          ]
+        }
+      ],
+      "orig": "\u00b7 disk usage of the log collectors",
+      "text": "disk usage of the log collectors",
+      "enumerated": false,
+      "marker": "\u00b7"
+    },
+    {
+      "self_ref": "#/texts/12",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "section_header",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 68.3622,
+            "t": 285.8876,
+            "r": 175.0822,
+            "b": 267.3876,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            10
+          ]
+        }
+      ],
+      "orig": "3 Recovery",
+      "text": "3 Recovery",
+      "level": 1
+    },
+    {
+      "self_ref": "#/texts/13",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "section_header",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 68.3622,
+            "t": 251.2976,
+            "r": 150.9072,
+            "b": 237.4226,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            12
+          ]
+        }
+      ],
+      "orig": "3.1 Failover",
+      "text": "3.1 Failover",
+      "level": 2
+    },
+    {
+      "self_ref": "#/texts/14",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 68.3622,
+            "t": 227.80959999999993,
+            "r": 522.0352000000001,
+            "b": 188.21399238652998,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            213
+          ]
+        }
+      ],
+      "orig": "If the primary datacentre becomes unreachable, traffic must failover to the secondary datacentre within ninety seconds. The procedure is automatic, and the operator only verifies the result with the command below.",
+      "text": "If the primary datacentre becomes unreachable, traffic must failover to the secondary datacentre within ninety seconds. The procedure is automatic, and the operator only verifies the result with the command below."
+    },
+    {
+      "self_ref": "#/texts/15",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "code",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 104.3622,
+            "t": 175.0236,
+            "r": 301.1622000000002,
+            "b": 151.805386963434,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            70
+          ]
+        }
+      ],
+      "orig": "$ netctl failover status --site secondary active: true lag_seconds: 12",
+      "text": "$ netctl failover status --site secondary active: true lag_seconds: 12",
+      "captions": [],
+      "references": [],
+      "footnotes": [],
+      "code_language": "unknown"
+    },
+    {
+      "self_ref": "#/texts/16",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "section_header",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 68.3622,
+            "t": 135.8976,
+            "r": 239.25719999999998,
+            "b": 122.02260000000001,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            24
+          ]
+        }
+      ],
+      "orig": "3.2 Post-incident review",
+      "text": "3.2 Post-incident review",
+      "level": 2
+    },
+    {
+      "self_ref": "#/texts/17",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "text",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 68.3622,
+            "t": 112.40955999999994,
+            "r": 526.9133840000003,
+            "b": 87.81395238652999,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            202
+          ]
+        }
+      ],
+      "orig": "A written review is produced within five working days after each major incident. It lists the timeline, the root cause, the customer impact and the corrective actions, each with an owner and a due date.",
+      "text": "A written review is produced within five working days after each major incident. It lists the timeline, the root cause, the customer impact and the corrective actions, each with an owner and a due date."
+    },
+    {
+      "self_ref": "#/texts/18",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "furniture",
+      "label": "page_footer",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 285.4058,
+            "t": 39.759750000000054,
+            "r": 309.8697999999999,
+            "b": 32.35974999999996,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            6
+          ]
+        }
+      ],
+      "orig": "page 1",
+      "text": "page 1"
+    }
+  ],
+  "pictures": [],
+  "tables": [
+    {
+      "self_ref": "#/tables/0",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "children": [],
+      "content_layer": "body",
+      "label": "table",
+      "prov": [
+        {
+          "page_no": 1,
+          "bbox": {
+            "l": 98.48982639672197,
+            "t": 548.4093860640284,
+            "r": 496.40239005094185,
+            "b": 475.30369041395755,
+            "coord_origin": "BOTTOMLEFT"
+          },
+          "charspan": [
+            0,
+            0
+          ]
+        }
+      ],
+      "captions": [],
+      "references": [],
+      "footnotes": [],
+      "data": {
+        "table_cells": [
+          {
+            "bbox": {
+              "l": 105.2126,
+              "t": 300.1822000000001,
+              "r": 130.7826,
+              "b": 309.4322000000001,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 0,
+            "end_row_offset_idx": 1,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "Level",
+            "column_header": true,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "bbox": {
+              "l": 235.39960000000002,
+              "t": 300.1822000000001,
+              "r": 331.5296000000001,
+              "b": 309.4322000000001,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 0,
+            "end_row_offset_idx": 1,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "Acknowledge within",
+            "column_header": true,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "bbox": {
+              "l": 400.18690000000004,
+              "t": 300.1822000000001,
+              "r": 450.2069,
+              "b": 309.4322000000001,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 0,
+            "end_row_offset_idx": 1,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "Escalation",
+            "column_header": true,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "bbox": {
+              "l": 105.2126,
+              "t": 318.1822000000001,
+              "r": 142.4426,
+              "b": 327.4322000000001,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 1,
+            "end_row_offset_idx": 2,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "Warning",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "bbox": {
+              "l": 266.7896,
+              "t": 318.1822000000001,
+              "r": 300.13960000000003,
+              "b": 327.4322000000001,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 1,
+            "end_row_offset_idx": 2,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "4 hours",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "bbox": {
+              "l": 401.5769,
+              "t": 318.1822000000001,
+              "r": 448.81690000000003,
+              "b": 327.4322000000001,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 1,
+            "end_row_offset_idx": 2,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "Team lead",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "bbox": {
+              "l": 105.2126,
+              "t": 336.1822,
+              "r": 135.7626,
+              "b": 345.4322,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 2,
+            "end_row_offset_idx": 3,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "Critical",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "bbox": {
+              "l": 259.0096,
+              "t": 336.1822,
+              "r": 307.9196,
+              "b": 345.4322,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 2,
+            "end_row_offset_idx": 3,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "15 minutes",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "bbox": {
+              "l": 388.5169,
+              "t": 336.1822,
+              "r": 461.87690000000003,
+              "b": 345.4322,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 2,
+            "end_row_offset_idx": 3,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "On-call engineer",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "bbox": {
+              "l": 105.2126,
+              "t": 354.1822,
+              "r": 130.2126,
+              "b": 363.4322,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 3,
+            "end_row_offset_idx": 4,
+            "start_col_offset_idx": 0,
+            "end_col_offset_idx": 1,
+            "text": "Major",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "bbox": {
+              "l": 261.7896,
+              "t": 354.1822,
+              "r": 305.13960000000003,
+              "b": 363.4322,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 3,
+            "end_row_offset_idx": 4,
+            "start_col_offset_idx": 1,
+            "end_col_offset_idx": 2,
+            "text": "5 minutes",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          },
+          {
+            "bbox": {
+              "l": 388.2419,
+              "t": 354.1822,
+              "r": 462.15189999999996,
+              "b": 363.4322,
+              "coord_origin": "TOPLEFT"
+            },
+            "row_span": 1,
+            "col_span": 1,
+            "start_row_offset_idx": 3,
+            "end_row_offset_idx": 4,
+            "start_col_offset_idx": 2,
+            "end_col_offset_idx": 3,
+            "text": "On-call manager",
+            "column_header": false,
+            "row_header": false,
+            "row_section": false,
+            "fillable": false
+          }
+        ],
+        "num_rows": 4,
+        "num_cols": 3,
+        "orientation": "rot_0",
+        "grid": [
+          [
+            {
+              "bbox": {
+                "l": 105.2126,
+                "t": 300.1822000000001,
+                "r": 130.7826,
+                "b": 309.4322000000001,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "Level",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 235.39960000000002,
+                "t": 300.1822000000001,
+                "r": 331.5296000000001,
+                "b": 309.4322000000001,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "Acknowledge within",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 400.18690000000004,
+                "t": 300.1822000000001,
+                "r": 450.2069,
+                "b": 309.4322000000001,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "Escalation",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            }
+          ],
+          [
+            {
+              "bbox": {
+                "l": 105.2126,
+                "t": 318.1822000000001,
+                "r": 142.4426,
+                "b": 327.4322000000001,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "Warning",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 266.7896,
+                "t": 318.1822000000001,
+                "r": 300.13960000000003,
+                "b": 327.4322000000001,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "4 hours",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 401.5769,
+                "t": 318.1822000000001,
+                "r": 448.81690000000003,
+                "b": 327.4322000000001,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "Team lead",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            }
+          ],
+          [
+            {
+              "bbox": {
+                "l": 105.2126,
+                "t": 336.1822,
+                "r": 135.7626,
+                "b": 345.4322,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "Critical",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 259.0096,
+                "t": 336.1822,
+                "r": 307.9196,
+                "b": 345.4322,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "15 minutes",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 388.5169,
+                "t": 336.1822,
+                "r": 461.87690000000003,
+                "b": 345.4322,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "On-call engineer",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            }
+          ],
+          [
+            {
+              "bbox": {
+                "l": 105.2126,
+                "t": 354.1822,
+                "r": 130.2126,
+                "b": 363.4322,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 3,
+              "end_row_offset_idx": 4,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "Major",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 261.7896,
+                "t": 354.1822,
+                "r": 305.13960000000003,
+                "b": 363.4322,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 3,
+              "end_row_offset_idx": 4,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "5 minutes",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 388.2419,
+                "t": 354.1822,
+                "r": 462.15189999999996,
+                "b": 363.4322,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 3,
+              "end_row_offset_idx": 4,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "On-call manager",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            }
+          ]
+        ]
+      },
+      "annotations": []
+    }
+  ],
+  "key_value_items": [],
+  "form_items": [],
+  "pages": {
+    "1": {
+      "size": {
+        "width": 595.2756,
+        "height": 841.8898
+      },
+      "page_no": 1
+    }
+  }
+}
