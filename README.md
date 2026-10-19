@@ -174,6 +174,8 @@ recouvrement de texte (5-grammes de mots) :
 Détail par type de question (`text`, `text-image`, `text-table`...) et par style (`extractive`/`abstractive`). Résultats dans
 `data/ragbench/runs/<date>/` (`results.jsonl`, `summary.json`, `report.md`, `questions.md`) et dans MLflow (expérience `hgrag_ragbench`).
 
+Une section récupérée est « sur la référence » si un de ses chunks recouvre au moins 50 % des 5-grammes de la référence **ou** si son titre est celui de la section de référence (le LaTeX écrit différemment par les deux parseurs fait chuter le recouvrement) ; `on_gold_by` indique `text` ou `title`.
+
 `questions.md` regroupe dans un seul document, par score croissant (note du juge, puis recall), chaque question avec la réponse attendue,
 la réponse générée, le commentaire du juge, un extrait de la section de référence, les 3 premières sections récupérées et le chemin du PDF
 (`data/ragbench/pdfs/<id arXiv>.pdf`). Pour un run existant : `uv run hgrag ragbench-report data/ragbench/runs/<run>`.
@@ -251,7 +253,7 @@ avec leurs métadonnées. Les logs du run (`Log`) reprennent les mêmes chiffres
 - Lancer les commandes **depuis la racine** du projet.
 - Garder le projet dans le système de fichiers WSL, pas sous `/mnt/c/...` (très lent). Ne jamais
   copier un `.venv` d'une machine à l'autre : le supprimer et relancer `uv sync`.
-- Les modèles locaux (Docling, MiniLM) sont téléchargés au premier usage : le premier run est long.
+- Les modèles locaux (Docling, embedding bge, reranker) sont téléchargés au premier usage : le premier run est long.
 
 ---
 
@@ -308,12 +310,13 @@ figure, formule, code, note…).
 
 ### Indexation
 Seuls les **paragraphes** sont découpés (HybridChunker, tokenizer aligné sur le modèle
-d'embedding, fenêtre 256 tokens) puis embeddés (`all-MiniLM-L6-v2`, cosinus). Les chunks de moins
+d'embedding, au plus `HGRAG_CHUNK_MAX_TOKENS` = 256 tokens) puis embeddés (`BAAI/bge-base-en-v1.5` par défaut, 768 dimensions, cosinus ;
+les préfixes de requête/passage du modèle sont appliqués automatiquement). Les chunks de moins
 de 3 mots sont écartés. Chaque point Qdrant porte `doc_id`, `section_ref`, `section_path`,
 `page_no`, `text`… ; ids déterministes, ré-indexation idempotente par document.
 
 ### Retrieval
-1. La requête est embeddée avec le même modèle, les `k` chunks les plus proches sont lus.
+1. La requête est embeddée avec le même modèle (préfixe de requête compris), les `HGRAG_RERANK_CANDIDATES` chunks les plus proches sont lus ; un cross-encoder les reclasse et garde les `k` meilleurs (`--no-rerank` / `HGRAG_RERANK=0` pour s'en passer).
 2. Regroupement par section (`doc_id` + `section_ref`), meilleur score par section.
 3. Chaque section est reconstruite depuis `hierarchy.json` avec **tous** ses éléments (paragraphes,
    listes, tableaux, figures avec légende + description VLM + PNG, notes), en parallèle (pool de
@@ -355,7 +358,12 @@ jamais échouer un pipeline. Serveur distant : `MLFLOW_TRACKING_URI`.
 | `HGRAG_OUTPUT_DIR` | `data/output` | Sorties du parsing |
 | `HGRAG_QDRANT_PATH` | `data/qdrant` | Stockage Qdrant |
 | `HGRAG_COLLECTION` | `hgrag_chunks` | Nom de la collection |
-| `HGRAG_EMBED_MODEL` | `sentence-transformers/all-MiniLM-L6-v2` | Modèle d'embedding |
+| `HGRAG_EMBED_MODEL` | `BAAI/bge-base-en-v1.5` | Modèle d'embedding. Changer de modèle change la taille des vecteurs : réindexer dans un autre dossier/collection (le ragbench le fait seul, `data/ragbench/<échantillon>/qdrant-<modèle>`) ; `all-MiniLM-L6-v2` reste utilisable |
+| `HGRAG_EMBED_QUERY_PREFIX` / `HGRAG_EMBED_DOC_PREFIX` | selon le modèle | Préfixes d'entraînement (bge : instruction sur la requête ; e5 : `query: ` / `passage: `). `""` pour les désactiver |
+| `HGRAG_CHUNK_MAX_TOKENS` | `256` | Taille maximale des chunks (jamais au-delà de la fenêtre du modèle) |
+| `HGRAG_RERANK` | `1` | Reclassement par cross-encoder : la recherche vectorielle lit `HGRAG_RERANK_CANDIDATES` chunks, le cross-encoder garde les `k` meilleurs |
+| `HGRAG_RERANK_MODEL` | `cross-encoder/ms-marco-MiniLM-L12-v2` | Cross-encoder (rapide sur CPU). Plus précis mais plus lourd : `BAAI/bge-reranker-base` |
+| `HGRAG_RERANK_CANDIDATES` / `HGRAG_RERANK_MAX_LENGTH` | `30` / `512` | Candidats reclassés / tokens lus par paire |
 | `HGRAG_MIN_CHUNK_WORDS` | `3` | Taille minimale d'un chunk (`0` = off) |
 | `HGRAG_CHUNK_LABELS` | `text,paragraph,list_item,footnote,formula,code,table,caption` | Éléments Docling qui deviennent des chunks (retirer `table`, `code`… pour restreindre) |
 | `HGRAG_DESCRIBE_PICTURES` | `1` si `HF_TOKEN` est défini | Décrire figures et tableaux après le parsing (API) |
@@ -368,7 +376,7 @@ jamais échouer un pipeline. Serveur distant : `MLFLOW_TRACKING_URI`.
 | `HGRAG_TABLE_CELL_MATCHING` | `1` | Associe les cellules détectées au texte du PDF |
 | `HGRAG_FORMULA_MODE` | `vlm` | Formules → LaTeX : `vlm` = modèle de vision par l'API après le parsing (quelques secondes par formule, `formulas.json`), `docling` = CodeFormulaV2 exécuté par Docling sur CPU (≈ 1 min par formule), `off` |
 | `HGRAG_FORMULA_VLM` | = `HGRAG_FIGURE_VLM` | Modèle utilisé pour les formules en mode `vlm` |
-| `HGRAG_CODE_ENRICHMENT` | `1` | Blocs de code : langage et indentation |
+| `HGRAG_CODE_ENRICHMENT` | `0` | Blocs de code : langage et indentation. Désactivé : Docling exécute CodeFormulaV2 sur CPU (≈ 170 s par bloc) et boucle souvent sur des blocs mal détectés (`TailRepetitionStopper`) |
 | `HGRAG_PICTURE_CLASSIFICATION` | `0` | Type de figure (graphique, schéma…) dans les métadonnées |
 | `HGRAG_TABLE_IMAGES` | `0` | Exporte une image PNG de chaque tableau |
 | `HGRAG_LLM_SEND_IMAGES` / `HGRAG_LLM_MAX_IMAGES` | `1` (Claude) / `6` | Figures envoyées comme images au LLM de réponse |
@@ -399,6 +407,13 @@ uv run python -c "from huggingface_hub import snapshot_download; snapshot_downlo
 ```
 
 Ensuite on peut remettre `HF_HUB_OFFLINE=1`.
+
+Même chose pour le modèle d'embedding et le reranker (par défaut) :
+
+```powershell
+$env:HF_HUB_OFFLINE = "0"
+uv run python -c "from huggingface_hub import snapshot_download; [snapshot_download(m) for m in ('BAAI/bge-base-en-v1.5','cross-encoder/ms-marco-MiniLM-L12-v2')]"
+```
 
 ### Notes
 - La couche Neo4j est volontairement laissée de côté pour l'instant.

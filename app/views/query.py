@@ -6,7 +6,7 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 import ui
-from models import embedder
+from models import embedder, reranker
 from mlflow_view import MLFLOW_UI_URL
 
 from hgrag import config, generation, runner, tracking
@@ -16,7 +16,8 @@ from hgrag.retrieval import retrieve_steps
 ui.inject_css()
 ui.page_header(
     "Query",
-    f"Collection <code>{config.COLLECTION_NAME}</code> · model <code>{config.EMBED_MODEL_ID}</code>. "
+    f"Collection <code>{config.COLLECTION_NAME}</code> · model <code>{config.EMBED_MODEL_ID}</code> · "
+    f"reranker <code>{config.RERANK_MODEL}</code>. "
     "Qdrant local mode allows one process: queries pause while an indexing run is going.",
 )
 
@@ -47,6 +48,9 @@ with st.form("query"):
     k = c1.number_input("k (chunks)", 1, 50, 5)
     children = c2.checkbox("Include sub-sections")
     track = c3.checkbox("Track in MLflow (experiment hgrag_retrieval)", value=True)
+    rerank = st.checkbox(f"Rerank the {config.RERANK_CANDIDATES} closest chunks with a cross-encoder", value=config.RERANK,
+                         help="The vector search fetches more chunks, a cross-encoder reads (question, chunk) together and "
+                              "keeps the best k. Slower (seconds on CPU), usually better ranked.")
     generate = st.checkbox("Generate the answer from the rebuilt sections", value=True)
     go = st.form_submit_button("Search", type="primary")
 
@@ -58,7 +62,8 @@ if go:
     final: list[dict] = []
     try:
         model = embedder()
-        stream = retrieve_steps(query, int(k), include_children=children, run_key=run_key, embedder=model)
+        stream = retrieve_steps(query, int(k), include_children=children, run_key=run_key, embedder=model,
+                                rerank=rerank, reranker=reranker() if rerank else None)
         slots: dict[str, st.delta_generator.DeltaGenerator] = {}
         for event in stream:
             step, data, secs = event["step"], event["data"], event["seconds"]
@@ -67,7 +72,7 @@ if go:
                     st.write(f"Model `{data['model']}` → vector of dimension **{data['dim']}** (normalized).")
                     st.bar_chart(pd.Series(data["vector"][:64], name="first 64 components"), height=140)
             elif step == "vector_search":
-                with st.status(f"Vector search · {len(data)} chunks · {secs * 1000:.0f} ms",
+                with st.status(f"Vector search · {len(data)} chunks{' (candidates)' if rerank else ''} · {secs * 1000:.0f} ms",
                                state="complete", expanded=True):
                     if data:
                         df = pd.DataFrame(data)
@@ -79,6 +84,15 @@ if go:
                         )
                     else:
                         st.info("No chunk found.")
+            elif step == "rerank":
+                with st.status(f"Rerank · best {len(data)} chunks · {secs * 1000:.0f} ms", state="complete", expanded=True):
+                    st.caption("Cross-encoder score (0-1) next to the vector similarity the chunk had.")
+                    st.dataframe(
+                        pd.DataFrame(data)[["score", "vector_score", "section_path", "page_no", "text"]],
+                        hide_index=True, width="stretch",
+                        column_config={"score": st.column_config.ProgressColumn("rerank", min_value=0.0, max_value=1.0, format="%.3f"),
+                                       "vector_score": st.column_config.NumberColumn("vector", format="%.3f")},
+                    )
             elif step == "group":
                 with st.status(f"Group by section · {len(data)} sections", state="complete",
                                expanded=True):

@@ -105,7 +105,8 @@ def build_bundle(
         info: dict[str, Any] = {
             "created": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "python": sys.version.split()[0],
             "platform": platform.platform(), "libraries": _versions(),
-            "config": {"embed_model": config.EMBED_MODEL_ID, "collection": config.COLLECTION_NAME,
+            "config": {"embed_model": config.EMBED_MODEL_ID, "rerank": config.RERANK, "rerank_model": config.RERANK_MODEL,
+                       "rerank_candidates": config.RERANK_CANDIDATES, "collection": config.COLLECTION_NAME,
                        "min_chunk_words": config.MIN_CHUNK_WORDS, "images_scale": config.IMAGES_SCALE,
                        "figure_vlm": config.FIGURE_VLM, "describe_pictures": config.DESCRIBE_PICTURES,
                        "picture_prompt": config.PICTURE_PROMPT,

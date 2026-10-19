@@ -19,3 +19,7 @@ data/eval/
 data/bundles/
 .env
 data/ragbench/
+
+# Claude Code: personal files (the shared ones are committed)
+CLAUDE.local.md
+.claude/settings.local.json

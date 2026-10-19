@@ -145,6 +145,9 @@ def main() -> None:
     rb.add_argument("--sources", help="keep papers with questions of these kinds: text,text-image,text-table,text-table-image")
     rb.add_argument("--max-queries", type=int, help="cap the number of questions")
     rb.add_argument("-k", type=int, default=5, help="chunks retrieved per question")
+    rb.add_argument("--rerank", action=argparse.BooleanOptionalAction, default=config.RERANK,
+                    help=f"cross-encoder reranking of the candidate chunks ({config.RERANK_MODEL}; HGRAG_RERANK)")
+    rb.add_argument("--candidates", type=int, help=f"chunks fetched before reranking (default {config.RERANK_CANDIDATES})")
     rb.add_argument("--workdir", default=None, help="default data/ragbench")
     rb.add_argument("--describe", action=argparse.BooleanOptionalAction, default=config.DESCRIBE_PICTURES,
                     help="describe figures and tables first with the HF API (default: on when HF_TOKEN is set; --no-describe to skip)")
@@ -221,7 +224,7 @@ def main() -> None:
                                sources=args.sources.split(",") if args.sources else None, workdir=args.workdir,
                                describe=args.describe, generate=args.generate, judge_model=args.judge_model,
                                prepare_only=args.prepare_only, section_base=args.section_base, pause=args.pause,
-                               track=not args.no_mlflow, on_progress=lambda m: print(m, flush=True))
+                               rerank=args.rerank, candidates=args.candidates, track=not args.no_mlflow, on_progress=lambda m: print(m, flush=True))
         except ragbench.RagBenchError as exc:
             print(f"error: {exc}")
             raise SystemExit(2)

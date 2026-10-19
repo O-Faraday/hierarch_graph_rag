@@ -41,8 +41,32 @@ QDRANT_PATH = Path(os.environ.get("HGRAG_QDRANT_PATH", PROJECT_ROOT / "data" / "
 # One single vector store (one collection) for all documents.
 COLLECTION_NAME = os.environ.get("HGRAG_COLLECTION", "hgrag_chunks")
 
-# English embedding model; the chunker tokenizer is aligned on it.
-EMBED_MODEL_ID = os.environ.get("HGRAG_EMBED_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
+# English embedding model; the chunker tokenizer is aligned on it. bge-base-en-v1.5: 768 dimensions, 512-token window,
+# far better on retrieval (MTEB) than all-MiniLM-L6-v2 (384 dimensions, 256 tokens). A different model means another
+# vector size: index into a new collection / Qdrant folder (the ragbench does it by itself).
+EMBED_MODEL_ID = os.environ.get("HGRAG_EMBED_MODEL", "BAAI/bge-base-en-v1.5")
+# Chunks are cut to at most this many tokens (and never beyond the encoder window): the same chunks whatever the model.
+CHUNK_MAX_TOKENS = int(os.environ.get("HGRAG_CHUNK_MAX_TOKENS", "256"))
+
+
+def embed_prefixes(model_id: str = EMBED_MODEL_ID) -> tuple[str, str]:
+    """(query prefix, passage prefix) the model was trained with. Overridable: HGRAG_EMBED_QUERY_PREFIX / _DOC_PREFIX."""
+    name = model_id.lower()
+    if "bge-" in name and "-en" in name:  # bge-*-en-v1.5: instruction on the query only (model card)
+        query, doc = "Represent this sentence for searching relevant passages: ", ""
+    elif "e5-" in name or name.endswith("/e5"):
+        query, doc = "query: ", "passage: "
+    else:
+        query, doc = "", ""
+    return (os.environ.get("HGRAG_EMBED_QUERY_PREFIX", query), os.environ.get("HGRAG_EMBED_DOC_PREFIX", doc))
+
+
+# Reranking: the vector search fetches RERANK_CANDIDATES chunks, a cross-encoder reads (question, chunk) pairs and the
+# best k are kept. The cross-encoder sees both texts together, which a vector comparison cannot do.
+RERANK = os.environ.get("HGRAG_RERANK", "1").strip().lower() in ("1", "true", "yes", "on")
+RERANK_MODEL = os.environ.get("HGRAG_RERANK_MODEL", "cross-encoder/ms-marco-MiniLM-L12-v2")
+RERANK_CANDIDATES = int(os.environ.get("HGRAG_RERANK_CANDIDATES", "30"))
+RERANK_MAX_LENGTH = int(os.environ.get("HGRAG_RERANK_MAX_LENGTH", "512"))
 
 # Paragraph chunks with fewer words than this are dropped (chart labels, stray words...).
 MIN_CHUNK_WORDS = int(os.environ.get("HGRAG_MIN_CHUNK_WORDS", "3"))
@@ -69,7 +93,7 @@ TABLE_CELL_MATCHING = _flag("HGRAG_TABLE_CELL_MATCHING", True)
 FORMULA_MODE = os.environ.get("HGRAG_FORMULA_MODE", "vlm").strip().lower()
 FORMULA_VLM = os.environ.get("HGRAG_FORMULA_VLM", "")  # empty = the figure model
 FORMULA_ENRICHMENT = FORMULA_MODE == "docling"  # Docling's own enrichment (the model is run by Docling on CPU)
-CODE_ENRICHMENT = _flag("HGRAG_CODE_ENRICHMENT", True)  # code blocks: language + indentation
+CODE_ENRICHMENT = _flag("HGRAG_CODE_ENRICHMENT", False)  # code blocks: language + indentation (CodeFormulaV2 on CPU: ~3 min per item)
 PICTURE_CLASSIFICATION = _flag("HGRAG_PICTURE_CLASSIFICATION", False)  # figure type (chart, diagram...) in the metadata
 TABLE_IMAGES = _flag("HGRAG_TABLE_IMAGES", False)  # PNG of each table (to describe a table from its picture)
 

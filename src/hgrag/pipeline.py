@@ -150,8 +150,9 @@ def _index_documents(doc_dirs, qdrant_path, collection, model_id) -> dict[str, A
 
     t0 = time.perf_counter()
     embedder = load_embedder(model_id)
-    # Chunks must fit the encoder window (256 tokens for all-MiniLM-L6-v2), else they are truncated.
-    chunker = make_chunker(model_id, max_tokens=getattr(embedder, "max_seq_length", None) or 256)
+    # Chunks must fit the encoder window, else they are truncated; they are also capped (HGRAG_CHUNK_MAX_TOKENS, 256)
+    # so that changing the model does not change the chunks.
+    chunker = make_chunker(model_id, max_tokens=min(config.CHUNK_MAX_TOKENS, getattr(embedder, "max_seq_length", None) or 256))
     seconds = {"seconds_load_model": time.perf_counter() - t0, "seconds_chunk": 0.0, "seconds_embed_store": 0.0}
     client = open_store(qdrant_path)
     per_doc: dict[str, int] = {}
@@ -181,6 +182,7 @@ def _index_documents(doc_dirs, qdrant_path, collection, model_id) -> dict[str, A
                 doc_id=manifest["doc_id"],
                 source_pdf=manifest["source_pdf"],
                 collection=collection,
+                model_id=model_id,
             )
             seconds["seconds_embed_store"] += time.perf_counter() - t
             words = [len(c["text"].split()) for c in chunks] or [0]

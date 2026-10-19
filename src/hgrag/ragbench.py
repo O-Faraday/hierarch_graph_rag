@@ -188,6 +188,14 @@ def _cached(doc_dir: Path) -> bool:
         return False
 
 
+def qdrant_dirname(model_id: str | None = None) -> str:
+    """One Qdrant folder per embedding model (vector sizes differ); the historical MiniLM store keeps its name."""
+    model_id = model_id or config.EMBED_MODEL_ID
+    if model_id == "sentence-transformers/all-MiniLM-L6-v2":
+        return "qdrant"
+    return "qdrant-" + re.sub(r"[^a-z0-9]+", "-", model_id.lower()).strip("-")
+
+
 def build_store(pdfs: dict[str, Path], workdir: Path, *, output_dir: Path | None = None, collection: str,
                 describe: bool = False, parse: Callable[..., Any] | None = None,
                 on_progress: Callable[[str], None] | None = None) -> dict[str, Any]:
@@ -231,20 +239,28 @@ def build_store(pdfs: dict[str, Path], workdir: Path, *, output_dir: Path | None
     if not dirs:
         raise RagBenchError(f"no document could be parsed: {stats['failed']}")
     t0 = time.perf_counter()
-    index = pipeline.index_documents(list(dirs.values()), qdrant_path=workdir / "qdrant", collection=collection)
-    return {"output_dir": output_dir, "qdrant_path": workdir / "qdrant", "collection": collection, "dirs": dirs,
+    qdrant_path = workdir / qdrant_dirname()
+    index = pipeline.index_documents(list(dirs.values()), qdrant_path=qdrant_path, collection=collection)
+    return {"output_dir": output_dir, "qdrant_path": qdrant_path, "collection": collection, "dirs": dirs,
             "stats": stats, "index": index, "index_seconds": round(time.perf_counter() - t0, 1)}
 
 
 # ------------------------------------------------------------------------------------------- eval
+def _norm_title(text: str) -> str:
+    return re.sub(r"\W+", "", (text or "").lower())
+
+
 def evaluate_query(qid: str, q: dict[str, Any], answer: str, gold: str, paper_id: str, *, client: Any, embedder: Any,
                    output_dir: Path, collection: str, k: int, stem_to_paper: dict[str, str],
-                   gen_cfg: LLMConfig | None = None, judge_cfg: LLMConfig | None = None) -> dict[str, Any]:
+                   gen_cfg: LLMConfig | None = None, judge_cfg: LLMConfig | None = None,
+                   rerank: bool | None = None, reranker: Any = None, candidates: int | None = None) -> dict[str, Any]:
     from .retrieval import reconstruct_hit, search_hits
 
     t0 = time.perf_counter()
     gold_sh = shingles(gold)
-    hits = search_hits(q["query"], k, embedder=embedder, client=client, collection=collection)
+    gold_title = _norm_title(gold.lstrip().split("\n", 1)[0].lstrip("#")) if gold.lstrip().startswith("#") else ""
+    hits = search_hits(q["query"], k, embedder=embedder, client=client, collection=collection, rerank=rerank,
+                       reranker=reranker, candidates=candidates)
     doc_rank = sec_rank = None
     retrieved = []
     covered: set = set()
@@ -252,7 +268,10 @@ def evaluate_query(qid: str, q: dict[str, Any], answer: str, gold: str, paper_id
     for i, h in enumerate(hits, start=1):
         pid = stem_to_paper.get(pdf_stem(h.get("source_pdf") or ""))
         same = pid == paper_id
-        on_gold = same and any(containment(shingles(c["text"] or ""), gold_sh) >= CHUNK_ON_GOLD for c in h["hits"])
+        by_text = same and any(containment(shingles(c["text"] or ""), gold_sh) >= CHUNK_ON_GOLD for c in h["hits"])
+        # LaTeX written differently by the two parsers breaks the word overlap: the section heading is the second proof
+        by_title = same and bool(gold_title) and _norm_title(h["section_path"].split(" > ")[-1]) == gold_title
+        on_gold = by_text or by_title
         doc_rank = doc_rank or (i if same else None)
         sec_rank = sec_rank or (i if on_gold else None)
         rec = reconstruct_hit(h, output_dir=output_dir)
@@ -262,7 +281,8 @@ def evaluate_query(qid: str, q: dict[str, Any], answer: str, gold: str, paper_id
         best = max(h["hits"], key=lambda c: c.get("score") or 0, default={})
         retrieved.append({"rank": i, "paper": pid, "section_path": h["section_path"], "score": round(h["score"], 4),
                           "preview": (best.get("text") or "")[:300],
-                          "doc": same, "on_gold": on_gold, "recall_so_far": round(len(covered) / len(gold_sh), 3) if gold_sh else None})
+                          "doc": same, "on_gold": on_gold, "on_gold_by": "text" if by_text else ("title" if by_title else None),
+                          "recall_so_far": round(len(covered) / len(gold_sh), 3) if gold_sh else None})
     first_recall = retrieved[0]["recall_so_far"] if retrieved else None
     res: dict[str, Any] = {
         "id": qid, "paper": paper_id, "source": q["source"], "type": q["type"], "question": q["query"],
@@ -389,7 +409,7 @@ def run(n_docs: int = 10, *, seed: int = 0, negatives: int = 0, sources: list[st
         max_queries: int | None = None, workdir: str | Path | None = None, describe: bool = False,
         generate: bool = False, judge_model: str | None = None, prepare_only: bool = False, source: Any = None,
         embedder: Any = None, parse: Callable[..., Any] | None = None, pause: float = 3.0, section_base: int | None = None,
-        track: bool = True, on_progress: Callable[[str], None] | None = None) -> dict[str, Any]:
+        rerank: bool | None = None, reranker: Any = None, candidates: int | None = None, track: bool = True, on_progress: Callable[[str], None] | None = None) -> dict[str, Any]:
     workdir = Path(workdir or RAGBENCH_DIR)
     src = source or HFSource(workdir / "meta")
     emit = on_progress or (lambda _m: None)
@@ -425,6 +445,12 @@ def run(n_docs: int = 10, *, seed: int = 0, negatives: int = 0, sources: list[st
         from .indexing import load_embedder
 
         embedder = load_embedder()
+    use_rerank = config.RERANK if rerank is None else rerank
+    if use_rerank and reranker is None:
+        from .rerank import load_reranker
+
+        emit(f"loading the reranker {config.RERANK_MODEL}")
+        reranker = load_reranker(config.RERANK_MODEL)
     from .indexing import open_store
 
     run_key = tracking.new_run_key() if track else None
@@ -444,7 +470,7 @@ def run(n_docs: int = 10, *, seed: int = 0, negatives: int = 0, sources: list[st
                 continue
             res = evaluate_query(qid, queries[qid], answers.get(qid, ""), gold, rel["doc_id"], client=client, embedder=embedder,
                                  output_dir=store["output_dir"], collection=store["collection"], k=k, stem_to_paper=stem_to_paper,
-                                 gen_cfg=gen_cfg, judge_cfg=judge_cfg)
+                                 gen_cfg=gen_cfg, judge_cfg=judge_cfg, rerank=use_rerank, reranker=reranker, candidates=candidates)
             results.append(res)
             emit(f"query {i}/{len(qids)}: doc rank {res['doc_rank']} · section rank {res['section_rank']} · recall {res['context_recall']}")
     finally:
@@ -452,6 +478,8 @@ def run(n_docs: int = 10, *, seed: int = 0, negatives: int = 0, sources: list[st
     summary = summarize(results, k_sections=k)
     summary["config"] = {"docs": n_docs, "seed": seed, "negatives": negatives, "sources": sources, "k_chunks": k, "section_base": base,
                          "described": describe, "generate": generate, "embed_model": config.EMBED_MODEL_ID,
+                         "rerank": use_rerank, "rerank_model": config.RERANK_MODEL if use_rerank else None,
+                         "rerank_candidates": (candidates or config.RERANK_CANDIDATES) if use_rerank else None,
                          "chunk_labels": list(config.CHUNK_LABELS), "n_pdf_failed": len(failed_pdf), "n_describe_failed": len(store["stats"].get("describe_failed", {})), "n_parse_failed": len(store["stats"]["failed"]),
                          "parsed": store["stats"]["parsed"], "reused": store["stats"]["reused"], "papers_indexed": len(store["dirs"]),
                          "points_in_collection": store["index"]["points_in_collection"], "key": key}

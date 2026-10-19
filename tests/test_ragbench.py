@@ -253,7 +253,8 @@ def test_docling_options_are_applied_and_invalidate_the_parse_cache(tmp_path, mo
 
     opts = parsing.build_converter().format_to_options[InputFormat.PDF].pipeline_options
     assert opts.do_table_structure and opts.table_structure_options.mode == TableFormerMode.ACCURATE
-    assert opts.table_structure_options.do_cell_matching and opts.do_code_enrichment
+    assert opts.table_structure_options.do_cell_matching
+    assert not opts.do_code_enrichment  # CodeFormulaV2 runs on CPU (~3 min per item): opt in with HGRAG_CODE_ENRICHMENT=1
     assert not opts.do_formula_enrichment  # formulas are read by the vision model after the parsing (HGRAG_FORMULA_MODE=vlm)
     d = tmp_path / "doc"
     d.mkdir()
@@ -275,3 +276,8 @@ def test_offline_cache_error_gets_a_hint(tmp_path):
     pdf.write_bytes(b"%PDF-1.4 x")
     with pytest.raises(ragbench.RagBenchError, match="HF_HUB_OFFLINE=0"):
         ragbench.build_store({"a": pdf}, tmp_path / "w", output_dir=tmp_path / "o", collection="c", parse=parse)
+
+
+def test_section_title_matches_gold_even_when_the_latex_differs():
+    assert ragbench._norm_title("3.2.2 Response to a higher rival") == ragbench._norm_title("# 3.2.2 Response to a higher rival".lstrip("#"))
+    assert ragbench._norm_title("III. RESULTS") == ragbench._norm_title(" iii. results ")

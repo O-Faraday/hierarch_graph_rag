@@ -48,6 +48,7 @@ def _group_points(points: list[Any]) -> list[dict[str, Any]]:
             {
                 "chunk_index": pl.get("chunk_index"),
                 "score": float(p.score),
+                **({"vector_score": float(p.vector_score)} if getattr(p, "vector_score", None) is not None else {}),
                 "page_no": pl.get("page_no"),
                 "kinds": pl.get("kinds"),
                 "text": pl.get("text"),
@@ -67,18 +68,25 @@ def search_steps(
     model_id: str = config.EMBED_MODEL_ID,
     min_score: float | None = None,
     run_key: str | None = None,
+    rerank: bool | None = None,
+    reranker: Any | None = None,
+    candidates: int | None = None,
 ) -> Iterator[dict[str, Any]]:
     """Search as a generator of step events ``{"step", "seconds", "data"}``.
 
-    Steps: ``embed`` (query vector), ``vector_search`` (the ``k`` raw chunks), ``group``
-    (chunks grouped by section). The UI consumes it incrementally; ``search_hits`` drains it.
+    Steps: ``embed`` (query vector), ``vector_search`` (the raw chunks: ``k``, or ``candidates`` when reranking),
+    ``rerank`` (only when reranking: the best ``k`` after the cross-encoder), ``group`` (chunks grouped by section).
+    ``rerank=None`` follows ``HGRAG_RERANK``; a ``reranker`` object (anything with ``predict(pairs)``) is loaded from
+    ``HGRAG_RERANK_MODEL`` when omitted. The UI consumes it incrementally; ``search_hits`` drains it.
     The whole search is one MLflow step (``search``) when ``run_key`` is given.
     """
     if not query.strip():
         raise ValueError("empty query")
+    use_rerank = config.RERANK if rerank is None else rerank
+    n_fetch = max(k, candidates or config.RERANK_CANDIDATES) if use_rerank else k
 
-    with track_step(tracking.RETRIEVAL, "search", run_key, query=query, k=k,
-                    collection=collection, model_id=model_id) as tr:
+    with track_step(tracking.RETRIEVAL, "search", run_key, query=query, k=k, collection=collection,
+                    model_id=model_id, rerank=use_rerank, **({"candidates": n_fetch} if use_rerank else {})) as tr:
         owns_client = client is None
         if client is None:
             from qdrant_client import QdrantClient
@@ -92,7 +100,8 @@ def search_steps(
                 from .indexing import load_embedder
 
                 embedder = load_embedder(model_id)
-            vector = embedder.encode([query], normalize_embeddings=True)[0].tolist()
+            query_prefix, _ = config.embed_prefixes(model_id)
+            vector = embedder.encode([query_prefix + query], normalize_embeddings=True)[0].tolist()
             dt = time.perf_counter() - t0
             tr.metrics(embed_s=dt, vector_dim=len(vector))
             yield {"step": "embed", "seconds": dt,
@@ -100,7 +109,7 @@ def search_steps(
 
             t0 = time.perf_counter()
             points = client.query_points(
-                collection_name=collection, query=vector, limit=k,
+                collection_name=collection, query=vector, limit=n_fetch,
                 with_payload=True, score_threshold=min_score,
             ).points
             dt = time.perf_counter() - t0
@@ -108,6 +117,19 @@ def search_steps(
             tr.metrics(qdrant_s=dt, n_chunks=len(raw),
                        **({"top_score": raw[0]["score"]} if raw else {}))
             yield {"step": "vector_search", "seconds": dt, "data": raw}
+
+            if use_rerank:
+                from .rerank import load_reranker, rerank_points
+
+                t0 = time.perf_counter()
+                if reranker is None:
+                    reranker = load_reranker(config.RERANK_MODEL)
+                points = rerank_points(query, points, reranker, k)
+                dt = time.perf_counter() - t0
+                reranked = [{"id": str(p.id), "score": p.score, "vector_score": p.vector_score, **(p.payload or {})}
+                            for p in points]
+                tr.metrics(rerank_s=dt, n_reranked=len(reranked), **({"top_rerank_score": reranked[0]["score"]} if reranked else {}))
+                yield {"step": "rerank", "seconds": dt, "data": reranked}
         finally:
             if owns_client:
                 client.close()

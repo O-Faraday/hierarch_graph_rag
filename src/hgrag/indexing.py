@@ -179,6 +179,13 @@ def ensure_collection(client: QdrantClient, name: str, dim: int) -> None:
             collection_name=name,
             vectors_config=VectorParams(size=dim, distance=Distance.COSINE),
         )
+        return
+    existing = client.get_collection(name).config.params.vectors
+    size = getattr(existing, "size", None)  # a single unnamed vector; anything else is not ours
+    if size is not None and size != dim:
+        raise ValueError(
+            f"collection {name!r} holds {size}-dimension vectors but the embedding model gives {dim}: "
+            f"index into another collection (HGRAG_COLLECTION) or Qdrant folder, or delete this one first")
 
 
 def _point_id(doc_id: str, chunk_index: int) -> str:
@@ -194,12 +201,15 @@ def index_chunks(
     source_pdf: str | None = None,
     collection: str = config.COLLECTION_NAME,
     batch_size: int = 32,
+    model_id: str = config.EMBED_MODEL_ID,
 ) -> int:
-    """Embed chunks and (re)write them in the collection. Idempotent per ``doc_id``."""
+    """Embed chunks and (re)write them in the collection. Idempotent per ``doc_id``.
+    ``model_id`` only selects the passage prefix the model expects (``config.embed_prefixes``)."""
     if not chunks:
         return 0
+    _, doc_prefix = config.embed_prefixes(model_id)
     vectors = embedder.encode(
-        [c["embed_text"] for c in chunks], batch_size=batch_size, normalize_embeddings=True
+        [doc_prefix + c["embed_text"] for c in chunks], batch_size=batch_size, normalize_embeddings=True
     )
     ensure_collection(client, collection, int(vectors.shape[1]))
     client.delete(
