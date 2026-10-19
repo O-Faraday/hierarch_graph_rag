@@ -180,6 +180,11 @@ Une section récupérée est « sur la référence » si un de ses chunks recouv
 la réponse générée, le commentaire du juge, un extrait de la section de référence, les 3 premières sections récupérées et le chemin du PDF
 (`data/ragbench/pdfs/<id arXiv>.pdf`). Pour un run existant : `uv run hgrag ragbench-report data/ragbench/runs/<run>`.
 
+Références litigieuses : `data/ragbench_disputed.json` liste les questions dont la réponse de référence a été vérifiée fausse
+dans le PDF (`{id: raison}`). Elles restent dans les métriques brutes ; `summary.json` donne en plus le bloc
+`excluding_disputed` (mêmes métriques sans elles) et `questions.md` les marque. `ragbench-report` recalcule aussi ce bloc
+pour un run existant.
+
 ### Niveaux de titres (chiffres romains) et légendes
 
 - Docling donne parfois de mauvais niveaux aux titres des articles scientifiques (`V. CONCLUSION` et `REFERENCES` rangés sous
@@ -392,6 +397,7 @@ jamais échouer un pipeline. Serveur distant : `MLFLOW_TRACKING_URI`.
 | `HGRAG_LLM_BASE_URL` | `https://api.anthropic.com` / `http://localhost:11434/v1` | Point d'accès |
 | `HGRAG_LLM_MAX_TOKENS` | `2000` | Longueur maximale de la réponse (réessai à ×2 dans ragbench si la réponse est vide ou coupée) |
 | `HGRAG_LLM_MAX_CONTEXT_CHARS` | `24000` | Budget de caractères des sources dans le prompt |
+| `HGRAG_RAGBENCH_DISPUTED` | `data/ragbench_disputed.json` | Questions du ragbench à référence fausse (vérifiée dans le PDF), exclues du bloc `excluding_disputed` |
 | `MLFLOW_TRACKING_URI` | SQLite `data/mlflow/mlflow.db` | Backend MLflow |
 
 Les options Docling (`HGRAG_TABLE_*`, `HGRAG_FORMULA_MODE=docling`, `HGRAG_CODE_ENRICHMENT`, `HGRAG_PICTURE_CLASSIFICATION`) sont enregistrées dans `manifest.json` (`parse_options`) ; `ragbench` ne réutilise un parsing que s'il a été fait avec les mêmes options.

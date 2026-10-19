@@ -1,0 +1,5 @@
+{
+  "95e992a3-cef6-4163-bea2-1cfd82759123": "2408.02322v2 Table 1: seq->seq 7.7 / 7.6 < seq->jump 12.5 / 11.7, the reference answer 'Yes' (seq->seq higher) is inverted",
+  "fba7de5d-f300-487b-8bca-5749b979d505": "2408.02322v2 Table 1: seq->jump has the higher gains (12.5 vs 7.7), the reference says lower",
+  "787cdb32-9ce8-4128-a21a-a85668a8f0de": "2409.13333v2 6.1: the lighter second attempts are the counterfactual WITHOUT pressure; the reference attributes them to pressure"
+}

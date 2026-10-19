@@ -206,6 +206,32 @@ def test_qa_report_sorted_by_increasing_score(tmp_path):
     assert ragbench.write_qa_report(run, tmp_path).read_text(encoding="utf-8").index("bad") < 400
 
 
+def test_disputed_references_get_their_own_metrics_and_are_flagged(tmp_path, monkeypatch):
+    def row(qid, score, rank):
+        return {"id": qid, "paper": "2409.1", "source": "text", "type": "extractive", "question": "q", "expected_answer": "a",
+                "answer": "b", "score": score, "section_rank": rank, "doc_rank": 1, "context_recall": 0.5}
+
+    rows = [row("ok", 5, 1), row("wrong-ref", 1, 1), row("miss", 3, None)]
+    s = ragbench.summarize(rows, 10, {"wrong-ref": "table says otherwise", "not-in-run": "x"})
+    assert s["n"] == 3 and s["mean_score"] == 3.0  # the raw metrics keep every question
+    x = s["excluding_disputed"]
+    assert x["n"] == 2 and x["excluded"] == ["wrong-ref"] and x["mean_score"] == 4.0 and x["section_hit_at_1"] == 0.5
+    assert "without 1 disputed reference(s)" in ragbench.format_summary(s)
+    assert "excluding_disputed" not in ragbench.summarize(rows, 10, {})
+
+    disputed = tmp_path / "disputed.json"
+    disputed.write_text(json.dumps({"wrong-ref": "table says otherwise"}), encoding="utf-8")
+    monkeypatch.setattr(config, "RAGBENCH_DISPUTED", disputed)
+    run = tmp_path / "run"
+    run.mkdir()
+    (run / "results.jsonl").write_text("\n".join(json.dumps(r) for r in rows), encoding="utf-8")
+    (run / "summary.json").write_text(json.dumps({**ragbench.summarize(rows, 10), "config": {"key": "k"}}), encoding="utf-8")
+    md = ragbench.write_qa_report(run, tmp_path).read_text(encoding="utf-8")
+    assert "DISPUTED REFERENCE" in md and "**Disputed reference:** table says otherwise" in md
+    new = json.loads((run / "summary.json").read_text(encoding="utf-8"))
+    assert new["excluding_disputed"]["n"] == 2 and new["config"] == {"key": "k"}
+
+
 def test_judge_reply_with_unescaped_quotes_is_still_read():
     from hgrag import evaluation
 

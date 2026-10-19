@@ -68,6 +68,10 @@ RERANK_MODEL = os.environ.get("HGRAG_RERANK_MODEL", "cross-encoder/ms-marco-Mini
 RERANK_CANDIDATES = int(os.environ.get("HGRAG_RERANK_CANDIDATES", "30"))
 RERANK_MAX_LENGTH = int(os.environ.get("HGRAG_RERANK_MAX_LENGTH", "512"))
 
+# Open RAG Bench questions whose reference answer was checked against the PDF and found wrong ({query id: reason}):
+# the ragbench summary also reports the metrics without them ("excluding_disputed").
+RAGBENCH_DISPUTED = Path(os.environ.get("HGRAG_RAGBENCH_DISPUTED", PROJECT_ROOT / "data" / "ragbench_disputed.json"))
+
 # Paragraph chunks with fewer words than this are dropped (chart labels, stray words...).
 MIN_CHUNK_WORDS = int(os.environ.get("HGRAG_MIN_CHUNK_WORDS", "3"))
 # Prose chunks (text, paragraph, list item, footnote) with fewer words than this are dropped as well: a date line or an

@@ -136,7 +136,7 @@ def main() -> None:
     de.add_argument("--output-dir", default=str(config.OUTPUT_DIR))
     de.add_argument("--model", help="figure model, e.g. hf:Qwen/Qwen3-VL-30B-A3B-Instruct (default HGRAG_FIGURE_VLM)")
     de.add_argument("--force", action="store_true", help="redo the descriptions that already exist")
-    rr = sub.add_parser("ragbench-report", help="rebuild questions.md (question, expected, answer, comment; lowest score first) from a ragbench run")
+    rr = sub.add_parser("ragbench-report", help="rebuild questions.md (lowest score first) and the disputed-reference metrics of a ragbench run")
     rr.add_argument("run_dir", help="e.g. data/ragbench/runs/20261015T203656-d39c3b")
     rb = sub.add_parser("ragbench", help="validate the pipeline on a sample of Open RAG Bench (arXiv PDFs, tables, figures)")
     rb.add_argument("--docs", type=int, default=10, help="number of papers in the sample (10, 100, ...)")

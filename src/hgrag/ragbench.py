@@ -318,7 +318,26 @@ def _rate(rows: list[dict[str, Any]], key: str, k: int | None = None) -> float |
     return round(sum(1 for r in rows if r[key] is not None and r[key] <= k) / len(rows), 3)
 
 
-def summarize(results: list[dict[str, Any]], k_sections: int) -> dict[str, Any]:
+def load_disputed(path: str | Path | None = None) -> dict[str, str]:
+    """{query id: reason} of the questions whose reference answer is wrong (checked in the PDF); {} if no file."""
+    p = Path(path or config.RAGBENCH_DISPUTED)
+    try:
+        return json.loads(p.read_text(encoding="utf-8")) if p.is_file() else {}
+    except ValueError as exc:
+        raise RagBenchError(f"{p} is not valid JSON: {exc}") from exc
+
+
+def summarize(results: list[dict[str, Any]], k_sections: int, disputed: dict[str, str] | None = None) -> dict[str, Any]:
+    """Metrics on every question; with ``disputed``, also ``excluding_disputed`` (the same without those questions)."""
+    out = _summarize(results, k_sections)
+    excluded = [r for r in results if r["id"] in (disputed or {})]
+    if excluded:
+        out["excluding_disputed"] = {**_summarize([r for r in results if r["id"] not in disputed], k_sections),
+                                     "excluded": [r["id"] for r in excluded]}
+    return out
+
+
+def _summarize(results: list[dict[str, Any]], k_sections: int) -> dict[str, Any]:
     def block(rows: list[dict[str, Any]]) -> dict[str, Any]:
         rec = [r["context_recall"] for r in rows if r["context_recall"] is not None]
         out = {"n": len(rows), "doc_hit_at_1": _rate(rows, "doc_rank", 1), f"doc_hit_at_{k_sections}": _rate(rows, "doc_rank", k_sections),
@@ -346,6 +365,10 @@ def format_summary(s: dict[str, Any]) -> str:
              f"context recall {s['context_recall']} ({s['pct_context_recall_50']} ≥ 50 %)"]
     if "mean_score" in s:
         lines.append(f"answers: mean score {s['mean_score']}/5, {s['pct_score_4_plus']} ≥ 4")
+    if (x := s.get("excluding_disputed")):
+        lines.append(f"without {len(x['excluded'])} disputed reference(s): {x['n']} questions · section hit@1 {x['section_hit_at_1']} · "
+                     f"hit@{k} {x[f'section_hit_at_{k}']} · MRR {x['mrr']}"
+                     + (f" · mean score {x['mean_score']}/5, {x['pct_score_4_plus']} ≥ 4" if "mean_score" in x else ""))
     for name, group in (("source", s["by_source"]), ("type", s["by_type"])):
         for key, b in group.items():
             lines.append(f"  {name} {key:<17} n={b['n']:<4} section hit@1 {b['section_hit_at_1']}  hit@{k} {b[f'section_hit_at_{k}']}  "
@@ -363,18 +386,22 @@ def _sort_key(r: dict[str, Any]) -> tuple:
     return (-1 if score is None else score, -1 if rec is None else rec)
 
 
-def qa_report(results: list[dict[str, Any]], pdf_dir: Path, *, top: int = 3) -> str:
+def qa_report(results: list[dict[str, Any]], pdf_dir: Path, *, top: int = 3, disputed: dict[str, str] | None = None) -> str:
     """One Markdown document: every question with expected answer, generated answer and judge comment.
 
     Ordered by increasing judge score (then by increasing context recall; without --generate the recall alone orders them).
     """
     rows = sorted(results, key=_sort_key)
+    disputed = disputed or {}
     lines = [f"# Questions, expected and generated answers ({len(rows)}), lowest score first", ""]
     for n, r in enumerate(rows, start=1):
         score = r.get("score")
         lines += [f"## {n}. {r['id']} - score {'n/a' if score is None else score} - recall {r.get('context_recall')} - "
-                  f"section rank {r.get('section_rank')}", "",
-                  f"{r['source']} / {r['type']} - PDF `{pdf_dir / (safe_name(r['paper']) + '.pdf')}`", "",
+                  f"section rank {r.get('section_rank')}" + (" - DISPUTED REFERENCE" if r["id"] in disputed else ""), "",
+                  f"{r['source']} / {r['type']} - PDF `{pdf_dir / (safe_name(r['paper']) + '.pdf')}`", ""]
+        if r["id"] in disputed:
+            lines += [f"**Disputed reference:** {disputed[r['id']]}", ""]
+        lines += [
                   f"**Question:** {r['question']}", "", f"**Expected answer:** {r.get('expected_answer', '')}", ""]
         if r.get("answer") is not None:
             lines += [f"**Answer:** {r['answer']}", ""]
@@ -393,14 +420,22 @@ def qa_report(results: list[dict[str, Any]], pdf_dir: Path, *, top: int = 3) -> 
 
 
 def write_qa_report(run_dir: str | Path, pdf_dir: str | Path | None = None) -> Path:
-    """(Re)build ``questions.md`` from the ``results.jsonl`` of an existing run."""
+    """(Re)build ``questions.md`` from the ``results.jsonl`` of an existing run, and the summary's disputed block."""
     run_dir = Path(run_dir)
     f = run_dir / "results.jsonl"
     if not f.exists():
         raise RagBenchError(f"{f} not found")
     results = [json.loads(line) for line in f.read_text(encoding="utf-8").splitlines() if line.strip()]
+    disputed = load_disputed()
     out = run_dir / "questions.md"
-    out.write_text(qa_report(results, Path(pdf_dir or RAGBENCH_DIR / "pdfs")), encoding="utf-8")
+    out.write_text(qa_report(results, Path(pdf_dir or RAGBENCH_DIR / "pdfs"), disputed=disputed), encoding="utf-8")
+    sf = run_dir / "summary.json"
+    if sf.exists():
+        old = json.loads(sf.read_text(encoding="utf-8"))
+        summary = {**summarize(results, old.get("k_sections", 10), disputed),
+                   **{k: old[k] for k in ("config", "failed") if k in old}}
+        sf.write_text(json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8")
+        (run_dir / "report.md").write_text("# Open RAG Bench\n\n```\n" + format_summary(summary) + "\n```\n", encoding="utf-8")
     return out
 
 
@@ -475,7 +510,8 @@ def run(n_docs: int = 10, *, seed: int = 0, negatives: int = 0, sources: list[st
             emit(f"query {i}/{len(qids)}: doc rank {res['doc_rank']} · section rank {res['section_rank']} · recall {res['context_recall']}")
     finally:
         client.close()
-    summary = summarize(results, k_sections=k)
+    disputed = load_disputed()
+    summary = summarize(results, k_sections=k, disputed=disputed)
     summary["config"] = {"docs": n_docs, "seed": seed, "negatives": negatives, "sources": sources, "k_chunks": k, "section_base": base,
                          "described": describe, "generate": generate, "embed_model": config.EMBED_MODEL_ID,
                          "rerank": use_rerank, "rerank_model": config.RERANK_MODEL if use_rerank else None,
@@ -486,7 +522,7 @@ def run(n_docs: int = 10, *, seed: int = 0, negatives: int = 0, sources: list[st
     summary["failed"] = {"download": failed_pdf, "parse": store["stats"]["failed"],
                          "describe": store["stats"].get("describe_failed", {})}
     (dest / "results.jsonl").write_text("\n".join(json.dumps(r, ensure_ascii=False) for r in results) + "\n", encoding="utf-8")
-    (dest / "questions.md").write_text(qa_report(results, workdir / "pdfs"), encoding="utf-8")
+    (dest / "questions.md").write_text(qa_report(results, workdir / "pdfs", disputed=disputed), encoding="utf-8")
     (dest / "summary.json").write_text(json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8")
     (dest / "report.md").write_text("# Open RAG Bench\n\n```\n" + format_summary(summary) + "\n```\n", encoding="utf-8")
     if run_key:
