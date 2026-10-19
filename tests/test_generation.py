@@ -56,6 +56,12 @@ def test_prompt_numbers_sources_and_respects_budget():
     assert len(first_only["sources"]) == 1  # the best section is always kept
 
 
+def test_prompt_prefers_a_partial_answer_to_a_refusal():
+    system = generation.build_messages("q", SECTIONS)["system"]
+    assert "only when no source contains anything relevant" in system and "outside knowledge" in system
+    assert "only part of the question" in system and "approximate" in system and "yes or no" in system
+
+
 def test_anthropic_streaming_request_and_parsing(monkeypatch):
     seen = {}
 
