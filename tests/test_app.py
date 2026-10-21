@@ -214,3 +214,63 @@ def test_export_button_builds_a_zip(tmp_path, monkeypatch):
     next(b for b in at.button if b.label == "Prepare the analysis zip").click().run()
     assert not at.exception, at.exception
     assert any("x.zip" in str(c.value) for c in at.caption)
+
+
+def _ragbench_runs(tmp_path, monkeypatch):
+    import json
+
+    from hgrag import config, ragbench
+
+    monkeypatch.setattr(ragbench, "RAGBENCH_DIR", tmp_path)
+    disputed = tmp_path / "disputed.json"
+    disputed.write_text(json.dumps({"q-wrong-ref": "inverted table"}), encoding="utf-8")
+    monkeypatch.setattr(config, "RAGBENCH_DISPUTED", disputed)
+    run = tmp_path / "runs" / "20261019T000000-abc"
+    run.mkdir(parents=True)
+    base = {"paper": "2409.00001v1", "type": "extractive", "expected_answer": "Yes", "doc_rank": 1, "context_recall": 0.5,
+            "gold_text": "## 5 Results\n\nTable 1", "retrieved": [{"rank": 1, "paper": "2409.00001v1", "section_path": "p > 5 Results",
+                                                               "score": 0.7, "preview": "Table 1", "doc": True, "on_gold": True}]}
+    rows = [{**base, "id": "q-good", "source": "text", "question": "Good?", "answer": "Yes [1].", "score": 5,
+             "rationale": "matches", "section_rank": 1},
+            {**base, "id": "q-wrong-ref", "source": "text-table", "question": "Inverted?", "answer": "No [1].", "score": 1,
+             "rationale": "contradicts the ground truth", "section_rank": 1},
+            {**base, "id": "q-missed", "source": "text-image", "question": "Missed?", "answer": "Maybe.", "score": 2,
+             "rationale": "partial", "section_rank": None}]
+    (run / "results.jsonl").write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
+    (run / "summary.json").write_text(json.dumps({**ragbench.summarize(rows, 10), "config": {"key": "n3_s0_neg0"}}), encoding="utf-8")
+    return run
+
+
+def test_ragbench_pages_list_detail_decide_and_summarize(tmp_path, monkeypatch):
+    import json
+
+    run = _ragbench_runs(tmp_path, monkeypatch)
+    at = AppTest.from_file(str(APP / "views" / "rb_results.py"), default_timeout=30).run()
+    assert not at.exception, at.exception
+    assert at.selectbox[0].value == "n3_s0_neg0" and at.selectbox[1].value == run.name
+    table = at.dataframe[0].value
+    assert list(table["id"]) == ["q-wrong-", "q-missed", "q-good"]  # lowest score first
+    assert not dict(zip(table["id"], table["kept"]))["q-wrong-"]  # disputed: excluded by default
+    assert "Section not retrieved" in list(table["diagnosis"])
+
+    detail = AppTest.from_file(str(APP / "views" / "rb_detail.py"), default_timeout=30)
+    detail.session_state["rb_run"] = str(run)
+    detail.session_state["rb_qid"] = "q-missed"
+    detail.run()
+    assert not detail.exception, detail.exception
+    assert any("Section not retrieved" in str(m.value) for m in detail.get("metric"))
+    detail.checkbox(key="rb_keep_q-missed").uncheck()
+    detail.text_area(key="rb_note_q-missed").input("generic question")
+    next(b for b in detail.button if b.label == "Save").click().run()
+    assert not detail.exception, detail.exception
+    saved = json.loads((run / "review.json").read_text(encoding="utf-8"))
+    assert saved["q-missed"] == {"keep": False, "note": "generic question"} and saved["q-wrong-ref"]["keep"] is False
+
+    summary = AppTest.from_file(str(APP / "views" / "rb_summary.py"), default_timeout=30)
+    summary.session_state["rb_run"] = str(run)
+    summary.run()
+    assert not summary.exception, summary.exception
+    metrics = summary.dataframe[0].value.set_index("metric")
+    assert metrics.loc["n", "whole bench"] == 3 and metrics.loc["n", "kept selection"] == 1
+    assert metrics.loc["mean_score", "kept selection"] == 5.0
+    assert any("No failure left" in s.value for s in summary.success)

@@ -185,6 +185,19 @@ dans le PDF (`{id: raison}`). Elles restent dans les métriques brutes ; `summar
 `excluding_disputed` (mêmes métriques sans elles) et `questions.md` les marque. `ragbench-report` recalcule aussi ce bloc
 pour un run existant.
 
+**Analyse des runs dans l'app** (section *Ragbench* de `uv run streamlit run app/streamlit_app.py`) :
+
+| Page | Contenu |
+|---|---|
+| Results | choix du bench (`config.key`, ex. `n30_s0_neg30`) puis du run ; chiffres clés ; tableau triable et filtrable (source, type, diagnostic, note, gardée) ; une ligne sélectionnée ouvre son détail |
+| Question detail | note, rangs, réponses attendue et générée, commentaire du juge, diagnostic par règles et piste de correctif, section de référence et sections retrouvées ; case « Keep in the bench » et note |
+| Summary | bench complet contre sélection gardée (global, par source, par type), répartition des rangs, exclusions, pistes d'amélioration classées par effectif |
+
+Le diagnostic est fait par règles, hors ligne (`src/hgrag/ragbench_review.py`) : erreur, référence litigieuse, correct,
+papier absent, section absente, refus, lecture de figure, contradiction, section mal classée, réponse partielle. Les
+décisions « garder / exclure » et les notes sont propres au run (`<run>/review.json`) : elles ne changent ni
+`summary.json` ni les autres runs. Une question de `data/ragbench_disputed.json` part exclue.
+
 ### Niveaux de titres (chiffres romains) et légendes
 
 - Docling donne parfois de mauvais niveaux aux titres des articles scientifiques (`V. CONCLUSION` et `REFERENCES` rangés sous
