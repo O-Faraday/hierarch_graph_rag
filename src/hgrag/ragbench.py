@@ -310,6 +310,26 @@ def evaluate_query(qid: str, q: dict[str, Any], answer: str, gold: str, paper_id
     return res
 
 
+def _paths(res: dict[str, Any]) -> list[tuple[Any, str]]:
+    return [(h.get("paper"), h["section_path"] if isinstance(h["section_path"], str) else " > ".join(h["section_path"]))
+            for h in res.get("retrieved") or []]
+
+
+def _retrieved_paths(run_dir: Path) -> dict[str, list[tuple[Any, str]]]:
+    """{query id: retrieved (paper, section path) in order} of an existing run (unreadable lines skipped)."""
+    f = run_dir / "results.jsonl"
+    if not f.is_file():
+        raise RagBenchError(f"reference run: {f} not found")
+    out = {}
+    for line in f.read_text(encoding="utf-8").splitlines():
+        try:
+            r = json.loads(line)
+            out[r["id"]] = _paths(r)
+        except (ValueError, KeyError, TypeError):
+            continue
+    return out
+
+
 def _rate(rows: list[dict[str, Any]], key: str, k: int | None = None) -> float | None:
     if not rows:
         return None
@@ -444,8 +464,14 @@ def run(n_docs: int = 10, *, seed: int = 0, negatives: int = 0, sources: list[st
         max_queries: int | None = None, workdir: str | Path | None = None, describe: bool = False,
         generate: bool = False, judge_model: str | None = None, prepare_only: bool = False, source: Any = None,
         embedder: Any = None, parse: Callable[..., Any] | None = None, pause: float = 3.0, section_base: int | None = None,
-        rerank: bool | None = None, reranker: Any = None, candidates: int | None = None, track: bool = True, on_progress: Callable[[str], None] | None = None) -> dict[str, Any]:
+        rerank: bool | None = None, reranker: Any = None, candidates: int | None = None, gen_model: str | None = None,
+        reference_run: str | Path | None = None, track: bool = True,
+        on_progress: Callable[[str], None] | None = None) -> dict[str, Any]:
+    """``gen_model``: generation model (default HGRAG_LLM_MODEL), the judge stays HGRAG_JUDGE_MODEL / ``judge_model``.
+    ``reference_run``: a previous run dir of the same sample; every question records ``context_same`` (same retrieved
+    sections, in the same order), so a change of model can be compared on an unchanged context."""
     workdir = Path(workdir or RAGBENCH_DIR)
+    reference = _retrieved_paths(Path(reference_run)) if reference_run else None
     src = source or HFSource(workdir / "meta")
     emit = on_progress or (lambda _m: None)
     queries, qrels, answers, pdf_urls = (src.json(n) for n in ("queries.json", "qrels.json", "answers.json", "pdf_urls.json"))
@@ -470,7 +496,7 @@ def run(n_docs: int = 10, *, seed: int = 0, negatives: int = 0, sources: list[st
     stem_to_paper = {safe_name(pid): pid for pid in pdfs}
     gen_cfg = judge_cfg = None
     if generate:
-        gen_cfg = LLMConfig(provider="anthropic")
+        gen_cfg = LLMConfig(provider="anthropic", model=gen_model or "")
         from .evaluation import judge_config
 
         judge_cfg = judge_config(judge_model)
@@ -506,6 +532,8 @@ def run(n_docs: int = 10, *, seed: int = 0, negatives: int = 0, sources: list[st
             res = evaluate_query(qid, queries[qid], answers.get(qid, ""), gold, rel["doc_id"], client=client, embedder=embedder,
                                  output_dir=store["output_dir"], collection=store["collection"], k=k, stem_to_paper=stem_to_paper,
                                  gen_cfg=gen_cfg, judge_cfg=judge_cfg, rerank=use_rerank, reranker=reranker, candidates=candidates)
+            if reference is not None:
+                res["context_same"] = reference.get(qid) == _paths(res)
             results.append(res)
             emit(f"query {i}/{len(qids)}: doc rank {res['doc_rank']} · section rank {res['section_rank']} · recall {res['context_recall']}")
     finally:
@@ -516,6 +544,9 @@ def run(n_docs: int = 10, *, seed: int = 0, negatives: int = 0, sources: list[st
                          "described": describe, "generate": generate, "embed_model": config.EMBED_MODEL_ID,
                          "rerank": use_rerank, "rerank_model": config.RERANK_MODEL if use_rerank else None,
                          "rerank_candidates": (candidates or config.RERANK_CANDIDATES) if use_rerank else None,
+                         "gen_model": gen_cfg.model if gen_cfg else None, "judge_model": judge_cfg.model if judge_cfg else None,
+                         "reference_run": str(reference_run) if reference_run else None,
+                         "context_changed": sum(not r.get("context_same", True) for r in results) if reference is not None else None,
                          "chunk_labels": list(config.CHUNK_LABELS), "n_pdf_failed": len(failed_pdf), "n_describe_failed": len(store["stats"].get("describe_failed", {})), "n_parse_failed": len(store["stats"]["failed"]),
                          "parsed": store["stats"]["parsed"], "reused": store["stats"]["reused"], "papers_indexed": len(store["dirs"]),
                          "points_in_collection": store["index"]["points_in_collection"], "key": key}

@@ -154,6 +154,8 @@ uv run hgrag ragbench --docs 30 --sources text-table,text-table-image   # seulem
 uv run hgrag ragbench --docs 10 --generate                       # + réponses Claude jugées (descriptions HF actives si HF_TOKEN)
 uv run hgrag ragbench --docs 10 --no-describe                    # sans descriptions de figures/tableaux
 uv run hgrag ragbench --docs 100 --prepare-only                  # télécharger/parser/indexer sans évaluer (à laisser tourner)
+uv run hgrag ragbench --docs 30 --negatives 30 -k 10 --generate --gen-model claude-sonnet-5-5 \
+    --reference-run data/ragbench/runs/<run>                     # autre modèle de génération, même juge, contexte vérifié identique
 ```
 
 Étapes : téléchargement des PDF (arXiv, 1 requête / 3 s, `data/ragbench/pdfs`), parsing Docling **mis en cache** par document

@@ -153,6 +153,9 @@ def main() -> None:
                     help="describe figures and tables first with the HF API (default: on when HF_TOKEN is set; --no-describe to skip)")
     rb.add_argument("--generate", action="store_true", help="also generate the answers (Claude) and judge them against the gold answer")
     rb.add_argument("--judge-model")
+    rb.add_argument("--gen-model", help="generation model, e.g. claude-sonnet-5-5 (default HGRAG_LLM_MODEL); the judge is unchanged")
+    rb.add_argument("--reference-run", help="previous run dir of the same sample: flags every question whose retrieved "
+                    "sections differ (compare models on the same context)")
     rb.add_argument("--prepare-only", action="store_true", help="download, parse and index, without evaluating")
     rb.add_argument("--section-base", type=int, choices=(0, 1), help="base of the benchmark's section indices (default: detected)")
     rb.add_argument("--pause", type=float, default=3.0, help="seconds between arXiv downloads")
@@ -224,7 +227,8 @@ def main() -> None:
                                sources=args.sources.split(",") if args.sources else None, workdir=args.workdir,
                                describe=args.describe, generate=args.generate, judge_model=args.judge_model,
                                prepare_only=args.prepare_only, section_base=args.section_base, pause=args.pause,
-                               rerank=args.rerank, candidates=args.candidates, track=not args.no_mlflow, on_progress=lambda m: print(m, flush=True))
+                               rerank=args.rerank, candidates=args.candidates, gen_model=args.gen_model,
+                               reference_run=args.reference_run, track=not args.no_mlflow, on_progress=lambda m: print(m, flush=True))
         except ragbench.RagBenchError as exc:
             print(f"error: {exc}")
             raise SystemExit(2)
@@ -232,6 +236,8 @@ def main() -> None:
             print(f"prepared {res['key']} ({len(res['store']['dirs'])} papers indexed)")
             return
         print("\n" + ragbench.format_summary(res["summary"]))
+        if args.reference_run:
+            print(f"context changed against the reference run for {res['summary']['config']['context_changed']} question(s)")
         failed = res["summary"]["failed"]
         if failed["download"] or failed["parse"]:
             print(f"skipped: {len(failed['download'])} download(s), {len(failed['parse'])} parse failure(s) (see summary.json)")

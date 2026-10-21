@@ -149,6 +149,25 @@ def test_run_on_the_control_documents(bench, monkeypatch):
     assert again["summary"]["config"]["reused"] == 3 and again["summary"]["config"]["parsed"] == 0
 
 
+def test_reference_run_flags_questions_whose_context_changed(bench, monkeypatch):
+    work, src, parse = bench
+    monkeypatch.setattr(ragbench, "fetch_pdfs", lambda ids, urls, d, **kw: ({p: d / f"{p}.pdf" for p in ids if (d / f"{p}.pdf").exists()}, {}))
+    first = ragbench.run(3, workdir=work, source=src, embedder=BagOfWordsEmbedder(), parse=parse, track=False)
+    rows = [json.loads(line) for line in (first["dir"] / "results.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
+    rows[0]["retrieved"] = rows[0]["retrieved"][::-1] + [{"paper": "x", "section_path": "other"}]  # q changed in the reference
+    ref = work / "ref"
+    ref.mkdir()
+    (ref / "results.jsonl").write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
+    again = ragbench.run(3, workdir=work, source=src, embedder=BagOfWordsEmbedder(), parse=parse, track=False, reference_run=ref)
+    same = {r["id"]: r["context_same"] for r in again["results"]}
+    assert same[rows[0]["id"]] is False and sum(same.values()) == 2
+    cfg = again["summary"]["config"]
+    assert cfg["context_changed"] == 1 and cfg["reference_run"] == str(ref) and cfg["gen_model"] is None
+    with pytest.raises(ragbench.RagBenchError):
+        ragbench.run(3, workdir=work, source=src, embedder=BagOfWordsEmbedder(), parse=parse, track=False,
+                     reference_run=work / "missing")
+
+
 def test_wrong_gold_gives_a_miss(bench, monkeypatch):
     work, src, parse = bench
     src.files["corpus/2401.0001.json"]["sections"][1]["text"] = "nothing here matches the question at all, really not a word"
