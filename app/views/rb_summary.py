@@ -24,28 +24,34 @@ if run_dir is None:
     st.stop()
 data = rv.load(run_dir)
 rows, review, k = data["rows"], data["review"], data["k"]
-cmp = ragbench_review.compare(rows, review, k)
+refined = any(r.get("refine_score") is not None for r in rows)
+cmp = ragbench_review.compare(rows, review, k, corrected=True)  # refined score where it exists
+first = ragbench_review.compare(rows, review, k) if refined else cmp  # first judge only
 METRICS = ["n", "doc_hit_at_1", "section_hit_at_1", f"section_hit_at_{k}", "mrr", "context_recall", "mean_score", "pct_score_4_plus"]
-refined = "mean_refined_score" in cmp["all"]
-if refined:
-    METRICS += ["mean_refined_score", "pct_refined_4_plus"]
 
 # ---- whole vs kept -------------------------------------------------------------------------------
 ui.step_header(1, "Whole bench and kept selection", f"{len(cmp['kept']['excluded'])} question(s) excluded")
-table = pd.DataFrame({"metric": METRICS, "whole bench": [cmp["all"].get(m) for m in METRICS],
-                      "kept selection": [cmp["kept"].get(m) for m in METRICS]})
+if refined:
+    st.caption("Scores: the **corrected** score (second opinion) where the question was judged again, the first "
+               "judge's elsewhere. The first judge's alone are in the last two rows, for reference.")
+names = {"mean_score": "mean_score (corrected)", "pct_score_4_plus": "pct_score_4_plus (corrected)"} if refined else {}
+lines = [(names.get(m, m), cmp["all"].get(m), cmp["kept"].get(m)) for m in METRICS]
+if refined:
+    lines += [(f"{m} (first judge)", first["all"].get(m), first["kept"].get(m)) for m in ("mean_score", "pct_score_4_plus")]
+table = pd.DataFrame(lines, columns=["metric", "whole bench", "kept selection"])
 table["difference"] = [None if a is None or b is None or m == "n" else round(b - a, 3)
-                       for m, a, b in zip(METRICS, table["whole bench"], table["kept selection"])]
+                       for m, a, b in zip(table["metric"], table["whole bench"], table["kept selection"])]
 st.dataframe(table, hide_index=True, width="stretch")
 
+score_label = "score (corrected)" if refined else "score"
 for title, group in (("By source", "by_source"), ("By type", "by_type")):
     st.markdown(f"**{title}**")
     st.dataframe(pd.DataFrame([
-        {"group": g, "n (whole)": b["n"], "section hit@1 (whole)": b["section_hit_at_1"], "score (whole)": b.get("mean_score"),
+        {"group": g, "n (whole)": b["n"], "section hit@1 (whole)": b["section_hit_at_1"], f"{score_label} (whole)": b.get("mean_score"),
          "n (kept)": cmp["kept"][group].get(g, {}).get("n"), "section hit@1 (kept)": cmp["kept"][group].get(g, {}).get("section_hit_at_1"),
-         "score (kept)": cmp["kept"][group].get(g, {}).get("mean_score"),
-         **({"refined (whole)": b.get("mean_refined_score"),
-             "refined (kept)": cmp["kept"][group].get(g, {}).get("mean_refined_score")} if refined else {})}
+         f"{score_label} (kept)": cmp["kept"][group].get(g, {}).get("mean_score"),
+         **({"first judge (whole)": first["all"][group].get(g, {}).get("mean_score"),
+             "first judge (kept)": first["kept"][group].get(g, {}).get("mean_score")} if refined else {})}
         for g, b in cmp["all"][group].items()]), hide_index=True, width="stretch")
 
 # ---- first judge vs second opinion ---------------------------------------------------------------
@@ -62,7 +68,7 @@ else:
     c[2].metric("mean score, refined", ref["mean_after"], delta=round(ref["mean_after"] - ref["mean_before"], 2))
     c[3].metric("raised to ≥ 4", ref["n_raised_to_4_plus"])
     st.caption(f"Model `{info.get('model', '?')}` · context judged good from {info.get('context_ok', '?')}/5 · "
-               f"{ref['n_errors']} error(s). Whole-bench means are in the table above (`mean_refined_score`). "
+               f"{ref['n_errors']} error(s). Whole bench and kept selection with the corrected scores: table 1. "
                "Home-made measure: read the rationales before trusting a gain.")
     left, right = st.columns(2)
     with left:

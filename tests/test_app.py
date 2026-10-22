@@ -331,7 +331,11 @@ def test_ragbench_summary_compares_scores_with_their_refinement(tmp_path, monkey
     summary.run()
     assert not summary.exception, summary.exception
     metrics = summary.dataframe[0].value.set_index("metric")
-    assert metrics.loc["mean_score", "whole bench"] == 2.67 and metrics.loc["mean_refined_score", "whole bench"] == 3.67
+    # corrected scores where they exist: q-good 5, q-wrong-ref 1 -> 4, q-missed 2 (context: kept); q-wrong-ref is excluded
+    assert metrics.loc["mean_score (corrected)", "whole bench"] == 3.67 and metrics.loc["mean_score (first judge)", "whole bench"] == 2.67
+    assert metrics.loc["mean_score (corrected)", "kept selection"] == 3.5 and metrics.loc["pct_score_4_plus (corrected)", "whole bench"] == 0.667
+    by_source = summary.dataframe[1].value.set_index("group")
+    assert by_source.loc["text-table", "score (corrected) (whole)"] == 4.0 and by_source.loc["text-table", "first judge (whole)"] == 1.0
     m = {x.label: x.value for x in summary.metric}
     assert m["questions judged again"] == "2" and m["mean score, refined"] == "3.0" and m["raised to ≥ 4"] == "1"
     detail = next(d.value for d in summary.dataframe if "gain" in d.value.columns)

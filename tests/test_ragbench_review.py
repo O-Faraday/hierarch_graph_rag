@@ -97,3 +97,15 @@ def test_refine_comparison_matrix_causes_and_gains():
     assert c["matrix"] == {1: {1: 0, 2: 1, 3: 0, 4: 0, 5: 0}, 2: {1: 0, 2: 0, 3: 0, 4: 0, 5: 1}, 3: {1: 0, 2: 0, 3: 1, 4: 0, 5: 0}}
     assert [x["id"] for x in c["rows"]] == ["a", "c", "b"] and c["rows"][0]["gain"] == 3
     assert rr.refine_comparison([{**base, "id": "d", "score": 5}]) == {"n": 0, "n_errors": 0}
+
+
+def test_compare_uses_the_corrected_score_where_it_exists():
+    base = {"paper": "p", "source": "text", "type": "extractive", "question": "q", "doc_rank": 1, "section_rank": 1,
+            "context_recall": 1.0}
+    rows = [{**base, "id": "a", "score": 2, "refine_score": 5}, {**base, "id": "b", "score": 3}, {**base, "id": "c", "score": 1, "refine_score": 4}]
+    review = {"a": {"keep": True}, "b": {"keep": True}, "c": {"keep": False}}
+    first, corrected = rr.compare(rows, review, 10), rr.compare(rows, review, 10, corrected=True)
+    assert first["all"]["mean_score"] == 2.0 and corrected["all"]["mean_score"] == 4.0
+    assert first["kept"]["mean_score"] == 2.5 and corrected["kept"]["mean_score"] == 4.0
+    assert corrected["kept"]["by_source"]["text"]["pct_score_4_plus"] == 0.5
+    assert rows[0]["score"] == 2  # the rows themselves are not changed

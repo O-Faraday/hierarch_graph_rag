@@ -155,9 +155,16 @@ def excluded(review: dict[str, dict[str, Any]]) -> dict[str, str]:
     return {qid: v.get("note") or "excluded" for qid, v in review.items() if not v.get("keep", True)}
 
 
-def compare(rows: list[dict[str, Any]], review: dict[str, dict[str, Any]], k: int) -> dict[str, Any]:
-    """{"all": metrics of every question, "kept": metrics without the excluded ones} (ragbench.summarize)."""
-    s = ragbench.summarize(rows, k, excluded(review))
+def corrected_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The rows with ``score`` replaced by the second opinion (``refine_score``) where there is one."""
+    return [{**r, "score": r["refine_score"]} if r.get("refine_score") is not None else r for r in rows]
+
+
+def compare(rows: list[dict[str, Any]], review: dict[str, dict[str, Any]], k: int, *, corrected: bool = False) -> dict[str, Any]:
+    """{"all": metrics of every question, "kept": metrics without the excluded ones} (ragbench.summarize).
+
+    ``corrected``: score metrics on the refined score where it exists, else the first judge's."""
+    s = ragbench.summarize(corrected_rows(rows) if corrected else rows, k, excluded(review))
     kept = s.pop("excluding_disputed", None)
     if kept is None:
         kept = {key: v for key, v in s.items() if key not in ("k_sections", "n_errors")}

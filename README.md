@@ -211,7 +211,7 @@ reprend où il s'est arrêté (`--force` pour tout refaire). Cette note affinée
 |---|---|
 | Results | choix du bench (`config.key`, ex. `n30_s0_neg30`) puis du run ; chiffres clés ; second avis sur les notes sous un seuil (bouton *Run the judges*) ; tableau triable et filtrable (source, type, diagnostic, note, gardée) ; une ligne sélectionnée ouvre son détail |
 | Question detail | note, rangs, réponses attendue et générée, commentaire du juge, diagnostic par règles et piste de correctif, section de référence et sections retrouvées ; case « Keep in the bench » et note |
-| Summary | bench complet contre sélection gardée (global, par source, par type, avec la note affinée si le run a été rejugé) ; notes du premier juge contre second avis (moyennes, matrice note → note affinée, causes, détail par question) ; répartition des rangs, exclusions, pistes d'amélioration classées par effectif |
+| Summary | bench complet contre sélection gardée (global, par source, par type), sur la note corrigée là où le second avis existe, la note du premier juge restant affichée en référence ; notes du premier juge contre second avis (moyennes, matrice note → note affinée, causes, détail par question) ; répartition des rangs, exclusions, pistes d'amélioration classées par effectif |
 
 Le diagnostic est fait par règles, hors ligne (`src/hgrag/ragbench_review.py`) : erreur, référence litigieuse, correct,
 papier absent, section absente, refus, lecture de figure, contradiction, section mal classée, réponse partielle. Les
