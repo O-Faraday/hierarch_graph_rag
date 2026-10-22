@@ -82,3 +82,18 @@ def test_improvements_ranked_by_size_without_ok():
     assert [x["category"] for x in leads] == ["section_missed", "refusal"]
     assert leads[0]["n"] == 2 and leads[0]["share"] == 0.5 and "text-image 1" in leads[0]["sources"]
     assert rr.rank_distribution(rows) == {"1": 2, "2-3": 0, "4-10": 0, "absent": 2}
+
+
+def test_refine_comparison_matrix_causes_and_gains():
+    base = {"source": "text-image", "type": "extractive", "question": "q"}
+    rows = [{**base, "id": "a", "score": 2, "refine_score": 5, "refine_cause": "reference", "context_score": 5},
+            {**base, "id": "b", "score": 3, "refine_score": 3, "refine_cause": "context", "context_score": 2},
+            {**base, "id": "c", "score": 1, "refine_score": 2, "refine_cause": "generation", "context_score": 4},
+            {**base, "id": "d", "score": 5},
+            {**base, "id": "e", "score": 2, "refine_error": "JudgeError: no JSON"}]
+    c = rr.refine_comparison(rows)
+    assert c["n"] == 3 and c["n_errors"] == 1 and c["mean_before"] == 2.0 and c["mean_after"] == 3.33
+    assert c["n_raised_to_4_plus"] == 1 and c["causes"] == {"reference": 1, "context": 1, "generation": 1}
+    assert c["matrix"] == {1: {1: 0, 2: 1, 3: 0, 4: 0, 5: 0}, 2: {1: 0, 2: 0, 3: 0, 4: 0, 5: 1}, 3: {1: 0, 2: 0, 3: 1, 4: 0, 5: 0}}
+    assert [x["id"] for x in c["rows"]] == ["a", "c", "b"] and c["rows"][0]["gain"] == 3
+    assert rr.refine_comparison([{**base, "id": "d", "score": 5}]) == {"n": 0, "n_errors": 0}

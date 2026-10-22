@@ -306,3 +306,34 @@ def test_ragbench_results_page_runs_the_refine_judges(tmp_path, monkeypatch):
     assert any("judged again by m" in s.value for s in at.success)
     table = at.dataframe[0].value
     assert dict(zip(table["id"], table["cause"]))["q-wrong-"] == "reference"
+
+
+def test_ragbench_summary_compares_scores_with_their_refinement(tmp_path, monkeypatch):
+    import json
+
+    from hgrag import ragbench
+
+    run = _ragbench_runs(tmp_path, monkeypatch)
+    summary = AppTest.from_file(str(APP / "views" / "rb_summary.py"), default_timeout=30)
+    summary.session_state["rb_run"] = str(run)
+    summary.run()
+    assert not summary.exception, summary.exception
+    assert any("No question refined" in i.value for i in summary.info)
+
+    rows = [json.loads(x) for x in (run / "results.jsonl").read_text(encoding="utf-8").splitlines()]
+    extra = {"q-wrong-ref": {"context_score": 5, "refine_score": 4, "refine_cause": "reference", "refine_rationale": "PDF says No"},
+             "q-missed": {"context_score": 2, "refine_score": 2, "refine_cause": "context"}}
+    for r in rows:
+        r.update(extra.get(r["id"], {}))
+    (run / "results.jsonl").write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
+    (run / "summary.json").write_text(json.dumps({**ragbench.summarize(rows, 10), "config": {"key": "n3_s0_neg0"},
+                                                  "refine": {"model": "m", "threshold": 4, "context_ok": 4}}), encoding="utf-8")
+    summary.run()
+    assert not summary.exception, summary.exception
+    metrics = summary.dataframe[0].value.set_index("metric")
+    assert metrics.loc["mean_score", "whole bench"] == 2.67 and metrics.loc["mean_refined_score", "whole bench"] == 3.67
+    m = {x.label: x.value for x in summary.metric}
+    assert m["questions judged again"] == "2" and m["mean score, refined"] == "3.0" and m["raised to ≥ 4"] == "1"
+    detail = next(d.value for d in summary.dataframe if "gain" in d.value.columns)
+    assert list(detail["id"]) == ["q-wrong-", "q-missed"] and list(detail["gain"]) == [3, 0]
+    assert "Reference wrong or imprecise" in list(detail["cause"])

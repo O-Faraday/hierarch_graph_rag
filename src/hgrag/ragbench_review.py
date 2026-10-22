@@ -172,3 +172,33 @@ def rank_distribution(rows: list[dict[str, Any]]) -> dict[str, int]:
 
 def pdf_path(row: dict[str, Any]) -> Path:
     return ragbench.RAGBENCH_DIR / "pdfs" / (ragbench.safe_name(row["paper"]) + ".pdf")
+
+
+# ------------------------------------------------------------------------------------------- refine
+REFINE_CAUSES = {"reference": "Reference wrong or imprecise", "judge": "First judge too strict",
+                 "generation": "Generation error", "context": "Context insufficient", "none": "First score stands"}
+
+
+def refine_comparison(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """First judge against the second opinion (hgrag.refine), on the questions that were judged again.
+
+    ``matrix``: {first score: {refined score: count}}; ``rows``: one line per refined question, largest gain first."""
+    refined = [r for r in rows if r.get("refine_score") is not None and r.get("score") is not None]
+    out: dict[str, Any] = {"n": len(refined), "n_errors": sum(1 for r in rows if r.get("refine_error"))}
+    if not refined:
+        return out
+    before = [r["score"] for r in refined]
+    after = [r["refine_score"] for r in refined]
+    out.update(mean_before=round(sum(before) / len(before), 2), mean_after=round(sum(after) / len(after), 2),
+               n_raised_to_4_plus=sum(1 for b, a in zip(before, after) if b < 4 <= a),
+               causes={c: n for c, n in Counter(r.get("refine_cause") or "none" for r in refined).most_common()})
+    matrix: dict[int, dict[int, int]] = {s: {t: 0 for t in range(1, 6)} for s in range(1, 6)}
+    for b, a in zip(before, after):
+        matrix[b][a] += 1
+    out["matrix"] = {s: v for s, v in matrix.items() if any(v.values())}
+    out["rows"] = sorted(({"id": r["id"], "source": r["source"], "type": r["type"], "score": r["score"],
+                           "refined": r["refine_score"], "gain": r["refine_score"] - r["score"],
+                           "context": r.get("context_score"), "cause": r.get("refine_cause"),
+                           "rationale": r.get("refine_rationale") or "", "question": r["question"]} for r in refined),
+                         key=lambda x: (-x["gain"], x["score"]))
+    return out
