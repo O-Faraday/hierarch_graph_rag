@@ -28,6 +28,7 @@ from typing import Any, Callable
 import requests
 
 from . import config, generation, tracking
+from .keywords import has_keywords
 from .evaluation import JudgeError, _clean_dir, judge_answer
 from .generation import GenerationError, LLMConfig
 from .ids import compute_doc_id, pdf_stem
@@ -535,6 +536,7 @@ def run(n_docs: int = 10, *, seed: int = 0, negatives: int = 0, sources: list[st
     dest = workdir / "runs" / (run_key or time.strftime("%Y%m%dT%H%M%S"))
     dest.mkdir(parents=True, exist_ok=True)
     client = open_store(store["qdrant_path"])
+    store["hybrid"] = has_keywords(client, store["collection"])  # stores indexed before the hybrid search: dense only
     results: list[dict[str, Any]] = []
     try:
         for i, qid in enumerate(qids, start=1):
@@ -559,6 +561,7 @@ def run(n_docs: int = 10, *, seed: int = 0, negatives: int = 0, sources: list[st
     summary = summarize(results, k_sections=k, disputed=disputed)
     summary["config"] = {"docs": n_docs, "seed": seed, "negatives": negatives, "sources": sources, "k_chunks": k, "section_base": base,
                          "described": describe, "generate": generate, "embed_model": config.EMBED_MODEL_ID,
+                         "keyword_weight": config.KEYWORD_WEIGHT if store["hybrid"] else 0.0,
                          "rerank": use_rerank, "rerank_model": config.RERANK_MODEL if use_rerank else None,
                          "rerank_candidates": (candidates or config.RERANK_CANDIDATES) if use_rerank else None,
                          "gen_model": gen_cfg.model if gen_cfg else None, "judge_model": judge_cfg.model if judge_cfg else None,

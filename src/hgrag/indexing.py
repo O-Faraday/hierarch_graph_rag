@@ -19,11 +19,13 @@ from qdrant_client.models import (
     Filter,
     FilterSelector,
     MatchValue,
+    Modifier,
     PointStruct,
+    SparseVectorParams,
     VectorParams,
 )
 
-from . import config
+from . import config, keywords
 from .hierarchy import SectionNode, section_index
 
 logger = logging.getLogger(__name__)
@@ -50,7 +52,9 @@ class Embedder(Protocol):
 def load_embedder(model_id: str = config.EMBED_MODEL_ID):
     from sentence_transformers import SentenceTransformer
 
-    return SentenceTransformer(model_id)
+    # Qwen3-Embedding pools the last token: left padding, as its model card recommends
+    kwargs = {"tokenizer_kwargs": {"padding_side": "left"}} if "qwen3-embedding" in model_id.lower() else {}
+    return SentenceTransformer(model_id, **kwargs)
 
 
 def make_chunker(
@@ -174,10 +178,13 @@ def figure_chunks(root: SectionNode, doc_id: str, start_index: int = 0) -> list[
 
 
 def ensure_collection(client: QdrantClient, name: str, dim: int) -> None:
+    """New collections get the dense vector (unnamed) and the BM25 keyword vector (``keywords.SPARSE_NAME``, IDF
+    applied by Qdrant); a collection made before the hybrid search keeps its single dense vector."""
     if not client.collection_exists(name):
         client.create_collection(
             collection_name=name,
             vectors_config=VectorParams(size=dim, distance=Distance.COSINE),
+            sparse_vectors_config={keywords.SPARSE_NAME: SparseVectorParams(modifier=Modifier.IDF)},
         )
         return
     existing = client.get_collection(name).config.params.vectors
@@ -212,6 +219,7 @@ def index_chunks(
         [doc_prefix + c["embed_text"] for c in chunks], batch_size=batch_size, normalize_embeddings=True
     )
     ensure_collection(client, collection, int(vectors.shape[1]))
+    hybrid = keywords.has_keywords(client, collection)
     client.delete(
         collection_name=collection,
         points_selector=FilterSelector(
@@ -221,7 +229,7 @@ def index_chunks(
     points = [
         PointStruct(
             id=_point_id(doc_id, c["chunk_index"]),
-            vector=vec.tolist(),
+            vector=_vectors(vec.tolist(), keywords.document_vector(c["embed_text"]) if hybrid else None),
             payload={
                 **{k: v for k, v in c.items() if k != "embed_text"},
                 "source_pdf": source_pdf,
@@ -231,6 +239,10 @@ def index_chunks(
     ]
     client.upsert(collection_name=collection, points=points, wait=True)
     return len(points)
+
+
+def _vectors(dense: list[float], sparse: Any) -> Any:
+    return {"": dense, keywords.SPARSE_NAME: sparse} if sparse is not None else dense
 
 
 def open_store(path: str | Path = config.QDRANT_PATH) -> QdrantClient:

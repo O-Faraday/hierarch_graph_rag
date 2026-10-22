@@ -354,7 +354,7 @@ de 3 mots sont écartés. Chaque point Qdrant porte `doc_id`, `section_ref`, `se
 `page_no`, `text`… ; ids déterministes, ré-indexation idempotente par document.
 
 ### Retrieval
-1. La requête est embeddée avec le même modèle (préfixe de requête compris), les `HGRAG_RERANK_CANDIDATES` chunks les plus proches sont lus ; un cross-encoder les reclasse et garde les `k` meilleurs (`--no-rerank` / `HGRAG_RERANK=0` pour s'en passer).
+1. La requête est embeddée avec le même modèle (préfixe de requête compris), les `HGRAG_RERANK_CANDIDATES` chunks les plus proches sont lus. **Recherche hybride** : chaque chunk porte aussi un vecteur creux BM25 (mots-clés, IDF calculé par Qdrant) ; les deux listes de candidats sont fusionnées avec `HGRAG_KEYWORD_WEIGHT` (30 % mots-clés, 70 % dense, scores normalisés min-max), ce qui fait remonter les termes rares (noms de lois, symboles) qu'un embedding dense dilue. Une collection indexée avant cet ajout reste en recherche dense seule ; un cross-encoder les reclasse et garde les `k` meilleurs (`--no-rerank` / `HGRAG_RERANK=0` pour s'en passer).
 2. Regroupement par section (`doc_id` + `section_ref`), meilleur score par section.
 3. Chaque section est reconstruite depuis `hierarchy.json` avec **tous** ses éléments (paragraphes,
    listes, tableaux, figures avec légende + description VLM + PNG, notes), en parallèle (pool de
@@ -397,7 +397,9 @@ jamais échouer un pipeline. Serveur distant : `MLFLOW_TRACKING_URI`.
 | `HGRAG_QDRANT_PATH` | `data/qdrant` | Stockage Qdrant |
 | `HGRAG_COLLECTION` | `hgrag_chunks` | Nom de la collection |
 | `HGRAG_EMBED_MODEL` | `BAAI/bge-base-en-v1.5` | Modèle d'embedding. Changer de modèle change la taille des vecteurs : réindexer dans un autre dossier/collection (le ragbench le fait seul, `data/ragbench/<échantillon>/qdrant-<modèle>`) ; `all-MiniLM-L6-v2` reste utilisable |
-| `HGRAG_EMBED_QUERY_PREFIX` / `HGRAG_EMBED_DOC_PREFIX` | selon le modèle | Préfixes d'entraînement (bge : instruction sur la requête ; e5 : `query: ` / `passage: `). `""` pour les désactiver |
+| `HGRAG_EMBED_QUERY_PREFIX` / `HGRAG_EMBED_DOC_PREFIX` | selon le modèle | Préfixes d'entraînement (bge : instruction sur la requête ; e5 : `query: ` / `passage: ` ; Qwen3-Embedding : `Instruct: <tâche>\nQuery:`). `""` pour les désactiver |
+| `HGRAG_QWEN3_TASK` | `Given a question about a scientific or technical document, retrieve the passages that answer it` | Instruction de tâche de `Qwen/Qwen3-Embedding-0.6B` (en anglais, comme le conseille la fiche du modèle) |
+| `HGRAG_KEYWORD_WEIGHT` | `0.3` | Part du score mots-clés (BM25) dans le classement des candidats ; `0` = dense seul |
 | `HGRAG_CHUNK_MAX_TOKENS` | `256` | Taille maximale des chunks (jamais au-delà de la fenêtre du modèle) |
 | `HGRAG_RERANK` | `1` | Reclassement par cross-encoder : la recherche vectorielle lit `HGRAG_RERANK_CANDIDATES` chunks, le cross-encoder garde les `k` meilleurs |
 | `HGRAG_RERANK_MODEL` | `cross-encoder/ms-marco-MiniLM-L12-v2` | Cross-encoder (rapide sur CPU). Plus précis mais plus lourd : `BAAI/bge-reranker-base` |

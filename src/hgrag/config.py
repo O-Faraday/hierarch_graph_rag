@@ -49,6 +49,11 @@ EMBED_MODEL_ID = os.environ.get("HGRAG_EMBED_MODEL", "BAAI/bge-base-en-v1.5")
 CHUNK_MAX_TOKENS = int(os.environ.get("HGRAG_CHUNK_MAX_TOKENS", "256"))
 
 
+# Qwen3-Embedding: one-sentence task description put before every query (in English, as the model card advises).
+QWEN3_TASK = os.environ.get("HGRAG_QWEN3_TASK",
+                            "Given a question about a scientific or technical document, retrieve the passages that answer it")
+
+
 def embed_prefixes(model_id: str = EMBED_MODEL_ID) -> tuple[str, str]:
     """(query prefix, passage prefix) the model was trained with. Overridable: HGRAG_EMBED_QUERY_PREFIX / _DOC_PREFIX."""
     name = model_id.lower()
@@ -56,6 +61,8 @@ def embed_prefixes(model_id: str = EMBED_MODEL_ID) -> tuple[str, str]:
         query, doc = "Represent this sentence for searching relevant passages: ", ""
     elif "e5-" in name or name.endswith("/e5"):
         query, doc = "query: ", "passage: "
+    elif "qwen3-embedding" in name:  # "Instruct: {task}\nQuery:{query}" on the query only (model card)
+        query, doc = f"Instruct: {QWEN3_TASK}\nQuery:", ""
     else:
         query, doc = "", ""
     return (os.environ.get("HGRAG_EMBED_QUERY_PREFIX", query), os.environ.get("HGRAG_EMBED_DOC_PREFIX", doc))
@@ -67,6 +74,9 @@ RERANK = os.environ.get("HGRAG_RERANK", "1").strip().lower() in ("1", "true", "y
 RERANK_MODEL = os.environ.get("HGRAG_RERANK_MODEL", "cross-encoder/ms-marco-MiniLM-L12-v2")
 RERANK_CANDIDATES = int(os.environ.get("HGRAG_RERANK_CANDIDATES", "30"))
 RERANK_MAX_LENGTH = int(os.environ.get("HGRAG_RERANK_MAX_LENGTH", "512"))
+# Hybrid search: share of the BM25 keyword score in the candidate ranking (min-max normalised scores, the rest is the
+# dense similarity). 0 = dense only. Only for collections indexed with keyword vectors (keywords.has_keywords).
+KEYWORD_WEIGHT = float(os.environ.get("HGRAG_KEYWORD_WEIGHT", "0.3"))
 
 # Open RAG Bench questions whose reference answer was checked against the PDF and found wrong ({query id: reason}):
 # the ragbench summary also reports the metrics without them ("excluding_disputed").

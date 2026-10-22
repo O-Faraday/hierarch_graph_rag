@@ -14,9 +14,10 @@ import time
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
-from . import config, tracking
+from . import config, keywords, tracking
 from .tracking import track_step
 
 logger = logging.getLogger(__name__)
@@ -25,6 +26,27 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Vector search
 # ---------------------------------------------------------------------------
+def _min_max(points: list[Any]) -> dict[Any, float]:
+    scores = [float(p.score) for p in points]
+    lo, hi = (min(scores), max(scores)) if scores else (0.0, 0.0)
+    return {p.id: (float(p.score) - lo) / (hi - lo) if hi > lo else 1.0 for p in points}
+
+
+def fuse(dense: list[Any], kw: list[Any], weight: float, limit: int) -> list[Any]:
+    """Hybrid ranking: ``(1 - weight) * dense + weight * keyword``, each score min-max normalised over its own list
+    (a chunk absent from a list gets 0 there). Points keep their payload and carry ``dense_score``/``keyword_score``."""
+    d, k = _min_max(dense), _min_max(kw)
+    raw_d = {p.id: float(p.score) for p in dense}
+    raw_k = {p.id: float(p.score) for p in kw}
+    by_id = {p.id: p for p in kw} | {p.id: p for p in dense}
+    fused = {i: (1 - weight) * d.get(i, 0.0) + weight * k.get(i, 0.0) for i in by_id}
+    best = sorted(fused, key=lambda i: fused[i], reverse=True)[:limit]
+    return [SimpleNamespace(id=i, payload=by_id[i].payload, score=fused[i], dense_score=raw_d.get(i),
+                            keyword_score=raw_k.get(i)) for i in best]
+
+
+def _part_scores(p: Any) -> dict[str, float]:
+    return {k: getattr(p, k) for k in ("dense_score", "keyword_score") if getattr(p, k, None) is not None}
 def _group_points(points: list[Any]) -> list[dict[str, Any]]:
     grouped: dict[tuple[str, str], dict[str, Any]] = {}
     for p in points:  # already sorted by decreasing similarity
@@ -71,10 +93,13 @@ def search_steps(
     rerank: bool | None = None,
     reranker: Any | None = None,
     candidates: int | None = None,
+    keyword_weight: float | None = None,
 ) -> Iterator[dict[str, Any]]:
     """Search as a generator of step events ``{"step", "seconds", "data"}``.
 
-    Steps: ``embed`` (query vector), ``vector_search`` (the raw chunks: ``k``, or ``candidates`` when reranking),
+    Steps: ``embed`` (query vector), ``vector_search`` (the raw chunks: ``k``, or ``candidates`` when reranking; on a
+    collection with keyword vectors, the dense and BM25 lists fused with ``keyword_weight``, default
+    ``HGRAG_KEYWORD_WEIGHT``, each chunk carrying ``dense_score`` and ``keyword_score``),
     ``rerank`` (only when reranking: the best ``k`` after the cross-encoder), ``group`` (chunks grouped by section).
     ``rerank=None`` follows ``HGRAG_RERANK``; a ``reranker`` object (anything with ``predict(pairs)``) is loaded from
     ``HGRAG_RERANK_MODEL`` when omitted. The UI consumes it incrementally; ``search_hits`` drains it.
@@ -112,9 +137,15 @@ def search_steps(
                 collection_name=collection, query=vector, limit=n_fetch,
                 with_payload=True, score_threshold=min_score,
             ).points
+            weight = config.KEYWORD_WEIGHT if keyword_weight is None else keyword_weight
+            sparse = keywords.query_vector(query) if weight > 0 and keywords.has_keywords(client, collection) else None
+            if sparse is not None:
+                kw_points = client.query_points(collection_name=collection, query=sparse, using=keywords.SPARSE_NAME,
+                                                limit=n_fetch, with_payload=True).points
+                points = fuse(points, kw_points, weight, n_fetch)
             dt = time.perf_counter() - t0
-            raw = [{"id": str(p.id), "score": float(p.score), **(p.payload or {})} for p in points]
-            tr.metrics(qdrant_s=dt, n_chunks=len(raw),
+            raw = [{"id": str(p.id), "score": float(p.score), **_part_scores(p), **(p.payload or {})} for p in points]
+            tr.metrics(qdrant_s=dt, n_chunks=len(raw), keyword_weight=weight if sparse is not None else 0.0,
                        **({"top_score": raw[0]["score"]} if raw else {}))
             yield {"step": "vector_search", "seconds": dt, "data": raw}
 
