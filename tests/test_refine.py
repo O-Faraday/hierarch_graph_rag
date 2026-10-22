@@ -125,3 +125,27 @@ def test_cli_ragbench_refine(monkeypatch, tmp_path, capsys):
         cli.main()
     assert exc.value.code == 0 and seen["threshold"] == 3 and seen["force"] is True
     assert "judged again by m" in capsys.readouterr().out
+
+
+def test_results_are_written_although_windows_refuses_the_replace(tmp_path, monkeypatch):
+    real = refine.os.replace
+    refused = {"n": 0}
+
+    def flaky(src, dst):  # another program holds results.jsonl for a moment
+        refused["n"] += 1
+        if refused["n"] <= 2:
+            raise PermissionError(5, "Access denied")
+        real(src, dst)
+
+    monkeypatch.setattr(refine.os, "replace", flaky)
+    monkeypatch.setattr(refine.time, "sleep", lambda s: None)
+    refine._write_rows(tmp_path, [{"id": "a"}])
+    assert json.loads((tmp_path / "results.jsonl").read_text(encoding="utf-8")) == {"id": "a"} and refused["n"] == 3
+
+    def locked(src, dst):
+        raise PermissionError(5, "Access denied")
+
+    monkeypatch.setattr(refine.os, "replace", locked)
+    refine._write_rows(tmp_path, [{"id": "b"}])  # last resort: written in place, no temporary file left
+    assert json.loads((tmp_path / "results.jsonl").read_text(encoding="utf-8")) == {"id": "b"}
+    assert not (tmp_path / "results.jsonl.tmp").exists()

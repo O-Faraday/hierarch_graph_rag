@@ -228,11 +228,21 @@ def refine_row(row: dict[str, Any], cfg: LLMConfig, *, output_dir: Path, pdf_dir
 
 
 # ---------------------------------------------------------------------------------------------- run
-def _write_rows(run_dir: Path, rows: list[dict[str, Any]]) -> None:
+def _write_rows(run_dir: Path, rows: list[dict[str, Any]], *, retries: int = 8, pause: float = 0.25) -> None:
+    """Temporary file then replace. On Windows the replace is refused while another program (antivirus, indexer,
+    editor) holds results.jsonl open for a moment: retry, then write the file in place as a last resort."""
     f = run_dir / "results.jsonl"
     tmp = f.with_suffix(".jsonl.tmp")
-    tmp.write_text("\n".join(json.dumps(r, ensure_ascii=False) for r in rows) + "\n", encoding="utf-8")
-    os.replace(tmp, f)
+    text = "\n".join(json.dumps(r, ensure_ascii=False) for r in rows) + "\n"
+    tmp.write_text(text, encoding="utf-8")
+    for attempt in range(retries):
+        try:
+            os.replace(tmp, f)
+            return
+        except PermissionError:
+            time.sleep(pause * (attempt + 1))
+    f.write_text(text, encoding="utf-8")  # not atomic, but the run goes on; raises if the file stays locked
+    tmp.unlink(missing_ok=True)
 
 
 def refine_run(run_dir: str | Path, *, threshold: int | None = None, model: str | None = None, api_key: str | None = None,
