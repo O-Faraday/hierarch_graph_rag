@@ -373,12 +373,12 @@ def test_compare_page_lists_regressions_and_opens_the_detail(tmp_path, monkeypat
     assert metrics.loc["n", "new"] == 2  # q-wrong-ref is disputed: left out by default
     m = {x.label: x.value for x in at.metric}
     assert m["regressed"] == "1" and m["fixed"] == "1" and m["section lost"] == "1" and m["section gained"] == "1"
-    table = at.dataframe[2].value
+    table = at.dataframe[3].value
     assert list(table["id"]) == ["q-missed", "q-good"]  # fixed first, then regressed
     assert list(table["status"]) == ["Fixed (now ≥ 4)", "Regressed (now < 4)"]
     at.session_state["rb_cmp_status"] = ["regressed"]
     at.run()
-    assert list(at.dataframe[2].value["id"]) == ["q-good"]
+    assert list(at.dataframe[3].value["id"]) == ["q-good"]
 
     detail = AppTest.from_file(str(APP / "views" / "rb_detail.py"), default_timeout=30)
     detail.session_state["rb_run"] = str(new)

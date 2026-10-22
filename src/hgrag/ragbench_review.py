@@ -250,14 +250,43 @@ def config_diff(a: dict[str, Any], b: dict[str, Any]) -> list[tuple[str, Any, An
     return [(k, a.get(k), b.get(k)) for k in CONFIG_KEYS if a.get(k) != b.get(k)]
 
 
+def generator_mismatch(a: dict[str, Any], b: dict[str, Any]) -> tuple[str, str] | None:
+    """(reference model, new model) when both runs recorded their generation model and it differs. Older runs did not
+    record it: no warning then, as the default may have been the same."""
+    ga, gb = a.get("gen_model"), b.get("gen_model")
+    return (ga, gb) if ga and gb and ga != gb else None
+
+
+RETRIEVAL_CHANGES = {"section gained": "Section found now", "rank better": "Section ranked higher",
+                     "section lost": "Section lost", "rank worse": "Section ranked lower",
+                     "other sections": "Same section rank, other sections changed", "same context": "Same context"}
+
+
+def retrieval_change(a: dict[str, Any], b: dict[str, Any]) -> str:
+    """What the retrieval changed for one question between two runs (keys of RETRIEVAL_CHANGES)."""
+    ra, rb = a.get("section_rank"), b.get("section_rank")
+    if ra is None and rb is not None:
+        return "section gained"
+    if ra is not None and rb is None:
+        return "section lost"
+    if ra is not None and rb < ra:
+        return "rank better"
+    if ra is not None and rb > ra:
+        return "rank worse"
+    return "same context" if ragbench._paths(a) == ragbench._paths(b) else "other sections"
+
+
 def compare_runs(ref: list[dict[str, Any]], new: list[dict[str, Any]], k: int,
-                 disputed: dict[str, str] | None = None) -> dict[str, Any]:
+                 disputed: dict[str, str] | None = None, *, corrected: bool = True) -> dict[str, Any]:
     """Two runs of the same sample on their common questions (``disputed`` ones left out when given).
 
     ``metrics``: (name, reference, new, difference), score metrics both first judge and corrected (refined score where
-    it exists). ``questions``: one line per question, a status from the corrected scores (fixed, regressed, better,
-    worse, same) and the section found or lost; largest moves first."""
+    it exists). ``questions``: one line per question, a status (fixed, regressed, better, worse, same) from the
+    corrected scores, or from the first judge's only (``corrected=False``: the second opinion may not cover the same
+    questions in both runs), and what the retrieval changed; largest moves first. ``by_retrieval``: the score moves
+    per retrieval change. Under "same context" they are the noise of the generation and the judge."""
     a, b = {r["id"]: r for r in ref}, {r["id"]: r for r in new}
+    score = _effective if corrected else (lambda r: r.get("score"))
     common = [q for q in b if q in a and q not in (disputed or {})]
     ra, rb = [a[q] for q in common], [b[q] for q in common]
     metrics = []
@@ -271,7 +300,7 @@ def compare_runs(ref: list[dict[str, Any]], new: list[dict[str, Any]], k: int,
             metrics.append((m + label, x, y, None if x is None or y is None or m == "n" else round(y - x, 3)))
     questions = []
     for q in common:
-        x, y = _effective(a[q]), _effective(b[q])
+        x, y = score(a[q]), score(b[q])
         if x is None or y is None:
             status = "same"
         elif x < 4 <= y:
@@ -285,11 +314,18 @@ def compare_runs(ref: list[dict[str, Any]], new: list[dict[str, Any]], k: int,
                           "score_ref": x, "score_new": y, "gain": None if x is None or y is None else y - x,
                           "status": status, "rank_ref": a[q].get("section_rank"), "rank_new": b[q].get("section_rank"),
                           "section": "gained" if found_b and not found_a else "lost" if found_a and not found_b else "",
-                          "cause_new": b[q].get("refine_cause")})
+                          "retrieval": retrieval_change(a[q], b[q]), "cause_new": b[q].get("refine_cause")})
     order = list(STATUSES)
     questions.sort(key=lambda x: (order.index(x["status"]), -abs(x["gain"] or 0)))
     counts = Counter(x["status"] for x in questions)
+    by_retrieval: dict[str, dict[str, int]] = {}
+    for x in questions:
+        move = "same" if not x["gain"] else "up" if x["gain"] > 0 else "down"
+        cell = by_retrieval.setdefault(x["retrieval"], {"n": 0, "up": 0, "down": 0, "same": 0})
+        cell["n"] += 1
+        cell[move] += 1
     return {"n_common": len(common), "only_ref": len(set(a) - set(b)), "only_new": len(set(b) - set(a)),
             "metrics": metrics, "questions": questions, "counts": {s: counts.get(s, 0) for s in STATUSES},
+            "by_retrieval": {k_: by_retrieval[k_] for k_ in RETRIEVAL_CHANGES if k_ in by_retrieval},
             "sections": {"gained": sum(x["section"] == "gained" for x in questions),
                          "lost": sum(x["section"] == "lost" for x in questions)}}
