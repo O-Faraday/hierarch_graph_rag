@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import json
 import sys
 import types
+from pathlib import Path
 
 import mlflow
 import pytest
@@ -27,7 +29,7 @@ def env(tmp_path, monkeypatch):
 
 def _patch_steps(monkeypatch, fail_parse=()):
     def parse_step(pdf, *, converter=None, run_key=None, describe_pictures=True):
-        name = pdf.split("/")[-1]
+        name = Path(pdf).name  # not split("/"): Windows paths use backslashes
         with tracking.track_step(tracking.INDEXING, "parse", run_key, item=name) as tr:
             if name in fail_parse:
                 raise ValueError("corrupt pdf")
@@ -110,9 +112,9 @@ def test_partial_rerun_reuses_disk_and_limits_documents(env, monkeypatch, tmp_pa
         d = out / compute_doc_id(pdfs / n)
         d.mkdir(parents=True)
         (d / "document.json").write_text("{}", encoding="utf-8")
-        (d / "manifest.json").write_text(
-            '{"doc_id": "%s", "source_pdf": "%s", "doc_dir": "%s", "n_figures": 0}'
-            % (d.name, pdfs / n, str(d).replace("\\", "/")), encoding="utf-8")
+        (d / "manifest.json").write_text(json.dumps(  # json.dumps: Windows paths hold backslashes
+            {"doc_id": d.name, "source_pdf": str(pdfs / n), "doc_dir": str(d).replace("\\", "/"), "n_figures": 0}),
+            encoding="utf-8")
     calls = {"parse": [], "hier": [], "index": []}
 
     def parse_step(*a, **k):

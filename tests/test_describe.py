@@ -153,7 +153,7 @@ def test_described_tables_are_indexed_with_their_description(parsed, tmp_path, m
     ctrl = tmp_path / "ctrl"
     shutil.copytree(CONTROL, ctrl, ignore=shutil.ignore_patterns("parsed"))
     shutil.copytree(CONTROL / "parsed", ctrl / "parsed", dirs_exist_ok=False)
-    shutil.rmtree(ctrl / "parsed" / parsed.name)
+    evaluation._clean_dir(ctrl / "parsed" / parsed.name)  # copied files can be read-only on Windows
     shutil.copytree(parsed, ctrl / "parsed" / parsed.name)
     store = evaluation.build_store(ctrl, workdir=tmp_path / "store")
     aurora = next(v for k, v in store["index"]["documents"].items() if k.startswith("01_"))
