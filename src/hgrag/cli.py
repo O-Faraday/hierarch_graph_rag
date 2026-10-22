@@ -163,7 +163,7 @@ def main() -> None:
                     help="describe figures and tables first with the HF API (default: on when HF_TOKEN is set; --no-describe to skip)")
     rb.add_argument("--generate", action="store_true", help="also generate the answers (Claude) and judge them against the gold answer")
     rb.add_argument("--judge-model")
-    rb.add_argument("--gen-model", help="generation model, e.g. claude-sonnet-5-5 (default HGRAG_LLM_MODEL); the judge is unchanged")
+    rb.add_argument("--gen-model", help="generation model (default HGRAG_LLM_MODEL, claude-haiku-5-5); the judge is unchanged")
     rb.add_argument("--reference-run", help="previous run dir of the same sample: flags every question whose retrieved "
                     "sections differ (compare models on the same context)")
     rb.add_argument("--prepare-only", action="store_true", help="download, parse and index, without evaluating")

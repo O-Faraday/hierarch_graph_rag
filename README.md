@@ -154,7 +154,7 @@ uv run hgrag ragbench --docs 30 --sources text-table,text-table-image   # seulem
 uv run hgrag ragbench --docs 10 --generate                       # + réponses Claude jugées (descriptions HF actives si HF_TOKEN)
 uv run hgrag ragbench --docs 10 --no-describe                    # sans descriptions de figures/tableaux
 uv run hgrag ragbench --docs 100 --prepare-only                  # télécharger/parser/indexer sans évaluer (à laisser tourner)
-uv run hgrag ragbench --docs 30 --negatives 30 -k 10 --generate --gen-model claude-sonnet-5-5 \
+uv run hgrag ragbench --docs 30 --negatives 30 -k 10 --generate --gen-model <modèle> \
     --reference-run data/ragbench/runs/<run>                     # autre modèle de génération, même juge, contexte vérifié identique
 uv run hgrag ragbench --docs 30 --negatives 30 -k 10 --generate --questions ee9ea96b,1ccbaf52   # seulement ces questions (ids ou préfixes)
 ```
@@ -201,8 +201,8 @@ question notée sous le seuil (`--threshold`, défaut 4, donc de 1 à 3) :
    et la cause est `context`.
 
 `score` n'est jamais écrasé : `summary.json` ajoute `mean_refined_score`, `pct_refined_4_plus` et `refine_causes`, et
-`questions.md` montre les deux avis. Modèle : `claude-sonnet-5-5` (`HGRAG_REFINE_MODEL`), avec repli serveur en cas de
-refus ; le PDF, les figures et le contexte sont mis en cache entre les deux appels d'une question. Coût : le PDF entier
+`questions.md` montre les deux avis. Modèle : `claude-haiku-5-5` (`HGRAG_REFINE_MODEL`), comme la génération et le premier juge (repli serveur en cas de
+refus seulement avec Sonnet ou Opus) ; le PDF, les figures et le contexte sont mis en cache entre les deux appels d'une question. Coût : le PDF entier
 est envoyé (≈ 30 à 60 k tokens par question). `results.jsonl` est réécrit après chaque question : un run interrompu
 reprend où il s'est arrêté (`--force` pour tout refaire). Cette note affinée reste une mesure maison.
 
@@ -425,7 +425,7 @@ jamais échouer un pipeline. Serveur distant : `MLFLOW_TRACKING_URI`.
 | `HGRAG_LLM_SEND_IMAGES` / `HGRAG_LLM_MAX_IMAGES` | `1` (Claude) / `6` | Figures envoyées comme images au LLM de réponse |
 | `HF_TOKEN` | — | Jeton HF pour `hgrag vlm-bench` (router d'inférence) |
 | `HGRAG_JUDGE_MODEL` | `claude-haiku-5-5` | Modèle du juge de `hgrag eval` |
-| `HGRAG_REFINE_MODEL` | `claude-sonnet-5-5` | Modèle des juges de contexte et de génération (`hgrag ragbench-refine`) |
+| `HGRAG_REFINE_MODEL` | `claude-haiku-5-5` | Modèle des juges de contexte et de génération (`hgrag ragbench-refine`) |
 | `HGRAG_REFINE_THRESHOLD` | `4` | Questions notées strictement en dessous jugées à nouveau |
 | `HGRAG_REFINE_CONTEXT_OK` | `4` | `context_score` minimal pour lancer le juge de génération |
 | `HGRAG_EVAL_DIR` | `data/eval` | Résultats et store du benchmark |

@@ -149,3 +149,12 @@ def test_results_are_written_although_windows_refuses_the_replace(tmp_path, monk
     refine._write_rows(tmp_path, [{"id": "b"}])  # last resort: written in place, no temporary file left
     assert json.loads((tmp_path / "results.jsonl").read_text(encoding="utf-8")) == {"id": "b"}
     assert not (tmp_path / "results.jsonl.tmp").exists()
+
+
+def test_refine_judges_default_to_haiku_like_the_generation_and_the_first_judge(monkeypatch):
+    from hgrag import config, evaluation
+
+    cfg = refine.refine_config()
+    assert cfg.model == config.REFINE_MODEL == "claude-haiku-5-5" and cfg.fallbacks is None
+    assert evaluation.judge_config().model == "claude-haiku-5-5"
+    assert generation.DEFAULT_MODELS["anthropic"] == "claude-haiku-5-5"
