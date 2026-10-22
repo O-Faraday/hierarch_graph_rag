@@ -28,6 +28,7 @@ PROVIDERS = ("anthropic", "openai")
 DEFAULT_MODELS = {"anthropic": "claude-haiku-5-5", "openai": "llama3.1"}
 DEFAULT_URLS = {"anthropic": "https://api.anthropic.com", "openai": "http://localhost:11434/v1"}
 ANTHROPIC_VERSION = "2023-06-01"
+FALLBACK_BETA = "server-side-fallback-2026-07-01"  # with fallbacks="default"
 
 SYSTEM_PROMPT = (
     "You answer questions about a corpus of documents using ONLY the numbered sources provided by the user. "
@@ -67,6 +68,7 @@ class LLMConfig:
     max_image_edge: int = 1568
     max_context_chars: int = int(os.environ.get("HGRAG_LLM_MAX_CONTEXT_CHARS", "24000"))
     timeout: float = 120.0
+    fallbacks: str | None = None  # Claude only: "default" re-runs a refused request on a fallback model
 
     def __post_init__(self) -> None:
         if self.provider not in PROVIDERS:
@@ -178,10 +180,12 @@ def _stream_anthropic(cfg: LLMConfig, system: str, user: Any) -> Iterator[dict[s
     try:
         resp = requests.post(
             f"{cfg.base_url}/v1/messages", stream=True, timeout=cfg.timeout,
-            headers={"x-api-key": cfg.api_key, "anthropic-version": ANTHROPIC_VERSION, "content-type": "application/json"},
+            headers={"x-api-key": cfg.api_key, "anthropic-version": ANTHROPIC_VERSION, "content-type": "application/json",
+                     **({"anthropic-beta": FALLBACK_BETA} if cfg.fallbacks else {})},
             json={"model": cfg.model, "max_tokens": cfg.max_tokens, "stream": True, "system": system,
                   "messages": [{"role": "user", "content": user}],
-                  **({"temperature": cfg.temperature} if cfg.temperature is not None else {})},
+                  **({"temperature": cfg.temperature} if cfg.temperature is not None else {}),
+                  **({"fallbacks": cfg.fallbacks} if cfg.fallbacks else {})},
         )
     except requests.RequestException as exc:
         raise GenerationError(f"cannot reach {cfg.base_url}: {exc}") from exc
@@ -192,7 +196,11 @@ def _stream_anthropic(cfg: LLMConfig, system: str, user: Any) -> Iterator[dict[s
         if kind == "content_block_delta" and data["delta"].get("type") == "text_delta":
             yield {"text": data["delta"]["text"]}
         elif kind == "message_start":
-            usage["input_tokens"] = data["message"].get("usage", {}).get("input_tokens", 0)
+            start = data["message"].get("usage", {})
+            usage["input_tokens"] = start.get("input_tokens", 0)
+            for key in ("cache_read_input_tokens", "cache_creation_input_tokens"):
+                if start.get(key):
+                    usage[key] = start[key]
         elif kind == "message_delta":
             usage["output_tokens"] = data.get("usage", {}).get("output_tokens", 0)
             usage["stop_reason"] = data["delta"].get("stop_reason")
@@ -232,8 +240,8 @@ def stream_completion(cfg: LLMConfig, system: str, user: Any) -> Iterator[dict[s
     return (_stream_anthropic if cfg.provider == "anthropic" else _stream_openai)(cfg, system, user)
 
 
-def complete(cfg: LLMConfig, system: str, user: str, *, max_tokens: int | None = None) -> tuple[str, dict[str, Any]]:
-    """Non-streaming convenience (used by the judge): full text and usage."""
+def complete(cfg: LLMConfig, system: str, user: Any, *, max_tokens: int | None = None) -> tuple[str, dict[str, Any]]:
+    """Non-streaming convenience (used by the judges): full text and usage. ``user``: a string or content parts."""
     saved = cfg.max_tokens
     cfg.max_tokens = max_tokens or saved
     try:

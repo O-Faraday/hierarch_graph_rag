@@ -28,6 +28,7 @@ Répondre en **français**, de façon concise. Code, noms, commentaires et messa
 | `src/hgrag/retrieval.py`, `rerank.py` | Recherche par étapes, reranking, reconstruction des sections |
 | `src/hgrag/generation.py`, `evaluation.py` | Réponse LLM, juge |
 | `src/hgrag/ragbench.py` | Validation sur Open RAG Bench (rapports, `questions.md`) |
+| `src/hgrag/refine.py` | Second avis sur les mauvaises notes : juge de contexte (PDF entier), puis juge de génération |
 | `src/hgrag/config.py` | Toute la configuration (`HGRAG_*`) |
 | `src/hgrag/cli.py` | Commande `hgrag` |
 | `app/` | Application Streamlit (`views/` : pipeline, query, vlm) |
@@ -40,7 +41,7 @@ Répondre en **français**, de façon concise. Code, noms, commentaires et messa
 uv sync                                   # installer
 uv run pytest -q                          # tests (≈ 45 s, hors ligne, aucun modèle réel)
 uv run streamlit run app/streamlit_app.py # application
-uv run hgrag --help                       # run, query, verify, bundle, eval, describe, vlm-bench, ragbench, ragbench-report, mlflow-ui
+uv run hgrag --help                       # run, query, verify, bundle, eval, describe, vlm-bench, ragbench, ragbench-report, ragbench-refine, mlflow-ui
 uv run hgrag ragbench --docs 30 --negatives 30 -k 10 --generate   # validation (tourne chez l'utilisateur, pas dans le bac à sable)
 ```
 

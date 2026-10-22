@@ -21,7 +21,7 @@ import random
 import re
 import statistics
 import time
-from collections import defaultdict
+from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any, Callable
 
@@ -279,7 +279,8 @@ def evaluate_query(qid: str, q: dict[str, Any], answer: str, gold: str, paper_id
         sec_sh = shingles(rec["text"]) if same else set()
         covered |= sec_sh & gold_sh
         best = max(h["hits"], key=lambda c: c.get("score") or 0, default={})
-        retrieved.append({"rank": i, "paper": pid, "section_path": h["section_path"], "score": round(h["score"], 4),
+        retrieved.append({"rank": i, "paper": pid, "doc_id": h["doc_id"], "section_ref": h["section_ref"],
+                          "section_path": h["section_path"], "score": round(h["score"], 4),
                           "preview": (best.get("text") or "")[:300],
                           "doc": same, "on_gold": on_gold, "on_gold_by": "text" if by_text else ("title" if by_title else None),
                           "recall_so_far": round(len(covered) / len(gold_sh), 3) if gold_sh else None})
@@ -368,6 +369,10 @@ def _summarize(results: list[dict[str, Any]], k_sections: int) -> dict[str, Any]
         scored = [r["score"] for r in rows if r.get("score") is not None]
         if scored:
             out.update(mean_score=round(statistics.fmean(scored), 2), pct_score_4_plus=round(sum(s >= 4 for s in scored) / len(scored), 3))
+        if any(r.get("refine_score") is not None for r in rows):  # second opinion (hgrag.refine): score kept where not refined
+            refined = [r["refine_score"] if r.get("refine_score") is not None else r["score"] for r in rows if r.get("score") is not None]
+            out.update(mean_refined_score=round(statistics.fmean(refined), 2),
+                       pct_refined_4_plus=round(sum(s >= 4 for s in refined) / len(refined), 3))
         return out
 
     out = block(results)
@@ -375,6 +380,9 @@ def _summarize(results: list[dict[str, Any]], k_sections: int) -> dict[str, Any]
     out["n_errors"] = sum(1 for r in results if r.get("error"))
     out["by_source"] = {s: block([r for r in results if r["source"] == s]) for s in SOURCES if any(r["source"] == s for r in results)}
     out["by_type"] = {t: block([r for r in results if r["type"] == t]) for t in sorted({r["type"] for r in results})}
+    causes = Counter(r["refine_cause"] for r in results if r.get("refine_cause"))
+    if causes:
+        out["refine_causes"] = dict(causes.most_common())
     return out
 
 
@@ -385,6 +393,9 @@ def format_summary(s: dict[str, Any]) -> str:
              f"context recall {s['context_recall']} ({s['pct_context_recall_50']} ≥ 50 %)"]
     if "mean_score" in s:
         lines.append(f"answers: mean score {s['mean_score']}/5, {s['pct_score_4_plus']} ≥ 4")
+    if "mean_refined_score" in s:
+        lines.append(f"refined (second opinion on the low scores): mean {s['mean_refined_score']}/5, {s['pct_refined_4_plus']} ≥ 4 · "
+                     "causes " + ", ".join(f"{c} {n}" for c, n in s.get("refine_causes", {}).items()))
     if (x := s.get("excluding_disputed")):
         lines.append(f"without {len(x['excluded'])} disputed reference(s): {x['n']} questions · section hit@1 {x['section_hit_at_1']} · "
                      f"hit@{k} {x[f'section_hit_at_{k}']} · MRR {x['mrr']}"
@@ -427,6 +438,12 @@ def qa_report(results: list[dict[str, Any]], pdf_dir: Path, *, top: int = 3, dis
             lines += [f"**Answer:** {r['answer']}", ""]
         if r.get("rationale"):
             lines += [f"**Comment (judge):** {r['rationale']}", ""]
+        if r.get("context_score") is not None:
+            lines += [f"**Context judge:** {r['context_score']}/5 - {r.get('context_rationale', '')}", ""]
+        if r.get("refine_score") is not None:
+            lines += [f"**Refined score:** {r['refine_score']} (cause: {r.get('refine_cause')}) - {r.get('refine_rationale', '')}", ""]
+        if r.get("refine_error"):
+            lines += [f"**Refine error:** {r['refine_error']}", ""]
         if r.get("error"):
             lines += [f"**Error:** {r['error']}", ""]
         if r.get("gold_text"):
@@ -453,7 +470,7 @@ def write_qa_report(run_dir: str | Path, pdf_dir: str | Path | None = None) -> P
     if sf.exists():
         old = json.loads(sf.read_text(encoding="utf-8"))
         summary = {**summarize(results, old.get("k_sections", 10), disputed),
-                   **{k: old[k] for k in ("config", "failed") if k in old}}
+                   **{k: old[k] for k in ("config", "failed", "refine") if k in old}}
         sf.write_text(json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8")
         (run_dir / "report.md").write_text("# Open RAG Bench\n\n```\n" + format_summary(summary) + "\n```\n", encoding="utf-8")
     return out

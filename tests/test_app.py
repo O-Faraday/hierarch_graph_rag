@@ -274,3 +274,35 @@ def test_ragbench_pages_list_detail_decide_and_summarize(tmp_path, monkeypatch):
     assert metrics.loc["n", "whole bench"] == 3 and metrics.loc["n", "kept selection"] == 1
     assert metrics.loc["mean_score", "kept selection"] == 5.0
     assert any("No failure left" in s.value for s in summary.success)
+
+
+def test_ragbench_results_page_runs_the_refine_judges(tmp_path, monkeypatch):
+    import json
+
+    from hgrag import refine
+
+    run = _ragbench_runs(tmp_path, monkeypatch)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "k")
+    seen = {}
+
+    def fake_refine(run_dir, **kw):
+        seen.update(run_dir=run_dir, **kw)
+        rows = [json.loads(x) for x in (run / "results.jsonl").read_text(encoding="utf-8").splitlines()]
+        for r in rows:
+            if r["score"] < kw["threshold"]:
+                r.update(context_score=5, refine_score=4, refine_cause="reference")
+        (run / "results.jsonl").write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
+        kw["on_progress"](1, 1, "done")
+        return {"n_candidates": 2, "model": "m", "seconds": 1.0, "n_errors": 0}
+
+    monkeypatch.setattr(refine, "refine_run", fake_refine)
+    at = AppTest.from_file(str(APP / "views" / "rb_results.py"), default_timeout=30).run()
+    assert not at.exception, at.exception
+    assert at.number_input(key="rb_refine_threshold").value == 4
+    at.number_input(key="rb_refine_threshold").set_value(3).run()
+    next(b for b in at.button if b.label == "Run the judges").click().run()
+    assert not at.exception, at.exception
+    assert seen["threshold"] == 3 and seen["run_dir"] == run and seen["force"] is False
+    assert any("judged again by m" in s.value for s in at.success)
+    table = at.dataframe[0].value
+    assert dict(zip(table["id"], table["cause"]))["q-wrong-"] == "reference"

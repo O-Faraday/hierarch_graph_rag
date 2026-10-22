@@ -124,3 +124,9 @@ CHUNK_LABELS = tuple(
 # Evaluation: frozen Docling outputs of the control PDFs, and the LLM judge.
 EVAL_DIR = Path(os.environ.get("HGRAG_EVAL_DIR", PROJECT_ROOT / "data" / "eval"))
 JUDGE_MODEL = os.environ.get("HGRAG_JUDGE_MODEL", "claude-haiku-5-5")
+# Second opinion on the low judge scores of a ragbench run (hgrag.refine): context judge on the whole PDF, then
+# generation judge. Questions scored strictly below REFINE_THRESHOLD are judged again; the generation judge runs only
+# when the context scores at least REFINE_CONTEXT_OK.
+REFINE_MODEL = os.environ.get("HGRAG_REFINE_MODEL", "claude-sonnet-5-5")
+REFINE_THRESHOLD = int(os.environ.get("HGRAG_REFINE_THRESHOLD", "4"))
+REFINE_CONTEXT_OK = int(os.environ.get("HGRAG_REFINE_CONTEXT_OK", "4"))

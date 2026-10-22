@@ -187,11 +187,29 @@ dans le PDF (`{id: raison}`). Elles restent dans les métriques brutes ; `summar
 `excluding_disputed` (mêmes métriques sans elles) et `questions.md` les marque. `ragbench-report` recalcule aussi ce bloc
 pour un run existant.
 
+**Second avis sur les mauvaises notes** (`uv run hgrag ragbench-refine data/ragbench/runs/<run>`, ou le bouton
+*Run the judges* de la page *Results*). Le premier juge ne voit que la question, la référence et la réponse : il ne
+distingue ni un échec de recherche d'un échec de génération, ni une référence fausse d'une réponse fausse. Pour chaque
+question notée sous le seuil (`--threshold`, défaut 4, donc de 1 à 3) :
+
+1. un **juge de contexte** lit le PDF entier et le contexte reçu par le générateur (sections et figures, reconstruites
+   depuis le run, sans rien régénérer) et donne `context_score` (1-5) ;
+2. si `context_score ≥ HGRAG_REFINE_CONTEXT_OK` (4), un **juge de génération** renote la réponse avec le PDF et le
+   contexte sous les yeux (tolérance sur les valeurs lues sur un graphique, le PDF prime sur une référence imprécise) :
+   `refine_score` et `refine_cause` (`reference`, `judge`, `generation`, `none`) ; sinon `refine_score` garde la note
+   et la cause est `context`.
+
+`score` n'est jamais écrasé : `summary.json` ajoute `mean_refined_score`, `pct_refined_4_plus` et `refine_causes`, et
+`questions.md` montre les deux avis. Modèle : `claude-sonnet-5-5` (`HGRAG_REFINE_MODEL`), avec repli serveur en cas de
+refus ; le PDF, les figures et le contexte sont mis en cache entre les deux appels d'une question. Coût : le PDF entier
+est envoyé (≈ 30 à 60 k tokens par question). `results.jsonl` est réécrit après chaque question : un run interrompu
+reprend où il s'est arrêté (`--force` pour tout refaire). Cette note affinée reste une mesure maison.
+
 **Analyse des runs dans l'app** (section *Ragbench* de `uv run streamlit run app/streamlit_app.py`) :
 
 | Page | Contenu |
 |---|---|
-| Results | choix du bench (`config.key`, ex. `n30_s0_neg30`) puis du run ; chiffres clés ; tableau triable et filtrable (source, type, diagnostic, note, gardée) ; une ligne sélectionnée ouvre son détail |
+| Results | choix du bench (`config.key`, ex. `n30_s0_neg30`) puis du run ; chiffres clés ; second avis sur les notes sous un seuil (bouton *Run the judges*) ; tableau triable et filtrable (source, type, diagnostic, note, gardée) ; une ligne sélectionnée ouvre son détail |
 | Question detail | note, rangs, réponses attendue et générée, commentaire du juge, diagnostic par règles et piste de correctif, section de référence et sections retrouvées ; case « Keep in the bench » et note |
 | Summary | bench complet contre sélection gardée (global, par source, par type), répartition des rangs, exclusions, pistes d'amélioration classées par effectif |
 
@@ -402,6 +420,9 @@ jamais échouer un pipeline. Serveur distant : `MLFLOW_TRACKING_URI`.
 | `HGRAG_LLM_SEND_IMAGES` / `HGRAG_LLM_MAX_IMAGES` | `1` (Claude) / `6` | Figures envoyées comme images au LLM de réponse |
 | `HF_TOKEN` | — | Jeton HF pour `hgrag vlm-bench` (router d'inférence) |
 | `HGRAG_JUDGE_MODEL` | `claude-haiku-5-5` | Modèle du juge de `hgrag eval` |
+| `HGRAG_REFINE_MODEL` | `claude-sonnet-5-5` | Modèle des juges de contexte et de génération (`hgrag ragbench-refine`) |
+| `HGRAG_REFINE_THRESHOLD` | `4` | Questions notées strictement en dessous jugées à nouveau |
+| `HGRAG_REFINE_CONTEXT_OK` | `4` | `context_score` minimal pour lancer le juge de génération |
 | `HGRAG_EVAL_DIR` | `data/eval` | Résultats et store du benchmark |
 | `HF_HUB_OFFLINE` | — | `1` = ne plus contacter Hugging Face (modèles déjà en cache) |
 | `HGRAG_RUNS_DIR` | `data/runs` | Statuts et logs des runs de l'app |

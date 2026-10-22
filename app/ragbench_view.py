@@ -13,14 +13,15 @@ PAGES = {"results": "views/rb_results.py", "detail": "views/rb_detail.py", "summ
 
 
 @st.cache_data(show_spinner=False)
-def _load(run_dir: str, _mtime: float) -> dict[str, Any]:
+def _load(run_dir: str, _stamp: tuple[int, int]) -> dict[str, Any]:
     rows, problems = ragbench_review.load_results(run_dir)
     return {"rows": rows, "problems": problems, "summary": ragbench_review.load_summary(run_dir)}
 
 
 def load(run_dir: Path) -> dict[str, Any]:
     """Rows, problems and summary of a run (cached until results.jsonl changes), the review and the diagnoses."""
-    data = _load(str(run_dir), (run_dir / "results.jsonl").stat().st_mtime)
+    st_ = (run_dir / "results.jsonl").stat()  # size too: two quick writes can share an mtime (Windows)
+    data = _load(str(run_dir), (st_.st_mtime_ns, st_.st_size))
     disputed = ragbench.load_disputed()
     rows = data["rows"]
     return {**data, "dir": run_dir, "k": data["summary"].get("k_sections", 10), "disputed": disputed,
@@ -58,3 +59,8 @@ def pick_run(*, picker: bool) -> Path | None:
 
 def short(qid: str) -> str:
     return qid[:8]
+
+
+def clear_cache() -> None:
+    """After a change of results.jsonl made by this page (refine judges)."""
+    _load.clear()

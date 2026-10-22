@@ -138,6 +138,15 @@ def main() -> None:
     de.add_argument("--force", action="store_true", help="redo the descriptions that already exist")
     rr = sub.add_parser("ragbench-report", help="rebuild questions.md (lowest score first) and the disputed-reference metrics of a ragbench run")
     rr.add_argument("run_dir", help="e.g. data/ragbench/runs/20261015T203656-d39c3b")
+    rf = sub.add_parser("ragbench-refine", help="second opinion on the low judge scores of a ragbench run: context judge "
+                        "(whole PDF vs retrieved context), then generation judge if the context is good")
+    rf.add_argument("run_dir", help="e.g. data/ragbench/runs/20261021T105327-aed359")
+    rf.add_argument("--threshold", type=int, default=config.REFINE_THRESHOLD,
+                    help=f"judge again the questions scored strictly below (default {config.REFINE_THRESHOLD}, HGRAG_REFINE_THRESHOLD)")
+    rf.add_argument("--model", help=f"model of both judges (default {config.REFINE_MODEL}, HGRAG_REFINE_MODEL)")
+    rf.add_argument("--workers", type=int, default=4)
+    rf.add_argument("--force", action="store_true", help="judge again the questions already refined")
+    rf.add_argument("--workdir", default=None, help="default data/ragbench")
     rb = sub.add_parser("ragbench", help="validate the pipeline on a sample of Open RAG Bench (arXiv PDFs, tables, figures)")
     rb.add_argument("--docs", type=int, default=10, help="number of papers in the sample (10, 100, ...)")
     rb.add_argument("--seed", type=int, default=0, help="same seed = same sample")
@@ -218,6 +227,20 @@ def main() -> None:
             print(f"error: {exc}")
             raise SystemExit(2)
         return
+
+    if args.cmd == "ragbench-refine":
+        from . import ragbench, refine
+
+        try:
+            res = refine.refine_run(args.run_dir, threshold=args.threshold, model=args.model, workers=args.workers,
+                                    force=args.force, workdir=args.workdir, on_progress=lambda n, t, m: print(m, flush=True))
+        except ragbench.RagBenchError as exc:
+            print(f"error: {exc}")
+            raise SystemExit(2)
+        summary = json.loads((Path(args.run_dir) / "summary.json").read_text(encoding="utf-8"))
+        print(f"\n{res['n_candidates']} question(s) judged again by {res['model']} in {res['seconds']} s, {res['n_errors']} error(s)")
+        print(ragbench.format_summary(summary))
+        raise SystemExit(1 if res["n_errors"] else 0)
 
     if args.cmd == "ragbench":
         from . import ragbench
