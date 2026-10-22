@@ -98,3 +98,12 @@ def test_ragbench_store_folder_depends_on_the_model():
 
     assert qdrant_dirname("sentence-transformers/all-MiniLM-L6-v2") == "qdrant"
     assert qdrant_dirname("BAAI/bge-base-en-v1.5") == "qdrant-baai-bge-base-en-v1-5"
+
+
+def test_reranker_reads_the_generated_formula_reading_and_table_description():
+    formula = {"headings": ["4 Series", "4.7 Envelope"], "text": r"$$E(t)=\pm C$$",
+               "formula_reading": "If the ratio is negative, the envelope takes both signs."}
+    assert pair_text(formula).split("\n") == ["4 Series", "4.7 Envelope", "If the ratio is negative, the envelope takes both signs.",
+                                              r"$$E(t)=\pm C$$"]
+    table = {"text": "| a | b |", "table_description": "Ablation of the enhancement components."}
+    assert pair_text(table) == "Ablation of the enhancement components.\n| a | b |"

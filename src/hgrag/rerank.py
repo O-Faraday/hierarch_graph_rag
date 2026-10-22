@@ -24,9 +24,11 @@ def load_reranker(model_id: str = config.RERANK_MODEL) -> Any:
 
 
 def pair_text(payload: dict[str, Any]) -> str:
-    """What the cross-encoder reads for a chunk: its two closest headings, then the text."""
+    """What the cross-encoder reads for a chunk: its two closest headings, the generated table description or formula
+    reading if any (a LaTeX formula or a table in Markdown alone scores near 0), then the text."""
     headings = [h for h in (payload.get("headings") or []) if h][-2:]
-    return "\n".join([*headings, payload.get("text") or ""])
+    generated = [payload[k] for k in ("table_description", "formula_reading") if payload.get(k)]
+    return "\n".join([*headings, *generated, payload.get("text") or ""])
 
 
 def rerank_points(query: str, points: list[Any], reranker: Any, top_k: int, *, batch_size: int = 16) -> list[Any]:
