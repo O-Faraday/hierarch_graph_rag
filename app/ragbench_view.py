@@ -13,7 +13,7 @@ PAGES = {"results": "views/rb_results.py", "detail": "views/rb_detail.py", "summ
 
 
 @st.cache_data(show_spinner=False)
-def _load(run_dir: str, _stamp: tuple[int, int]) -> dict[str, Any]:
+def _load(run_dir: str, stamp: tuple[int, int]) -> dict[str, Any]:  # stamp is part of the cache key (no leading _)
     rows, problems = ragbench_review.load_results(run_dir)
     return {"rows": rows, "problems": problems, "summary": ragbench_review.load_summary(run_dir)}
 
