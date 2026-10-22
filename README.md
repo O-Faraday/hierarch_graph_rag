@@ -210,9 +210,10 @@ reprend où il s'est arrêté (`--force` pour tout refaire). Cette note affinée
 
 | Page | Contenu |
 |---|---|
-| Results | choix du bench (`config.key`, ex. `n30_s0_neg30`) puis du run ; chiffres clés ; second avis sur les notes sous un seuil (bouton *Run the judges*) ; tableau triable et filtrable (source, type, diagnostic, note, gardée) ; une ligne sélectionnée ouvre son détail |
+| Results | choix du bench (`config.key`, ex. `n30_s0_neg30`) puis du run (y compris ceux d'un autre dossier de travail, `data/ragbench/<nom>/runs`, préfixés de son nom) ; chiffres clés ; second avis sur les notes sous un seuil (bouton *Run the judges*) ; tableau triable et filtrable (source, type, diagnostic, note, gardée) ; une ligne sélectionnée ouvre son détail |
 | Question detail | note, rangs, réponses attendue et générée, commentaire du juge, diagnostic par règles et piste de correctif, section de référence et sections retrouvées ; case « Keep in the bench » et note |
 | Summary | bench complet contre sélection gardée (global, par source, par type), sur la note corrigée là où le second avis existe, la note du premier juge restant affichée en référence ; notes du premier juge contre second avis (moyennes, matrice note → note affinée, causes, détail par question) ; répartition des rangs, exclusions, pistes d'amélioration classées par effectif |
+| Compare runs | un run de référence (par défaut le `--reference-run` du nouveau) et un nouveau run du même bench : réglages qui diffèrent, métriques côte à côte avec l'écart (premier juge et notes corrigées), questions corrigées / en recul / meilleures / moins bonnes, sections gagnées ou perdues ; une ligne ouvre la question dans le nouveau run |
 
 Le diagnostic est fait par règles, hors ligne (`src/hgrag/ragbench_review.py`) : erreur, référence litigieuse, correct,
 papier absent, section absente, refus, lecture de figure, contradiction, section mal classée, réponse partielle. Les

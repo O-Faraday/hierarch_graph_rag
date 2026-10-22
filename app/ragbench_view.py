@@ -9,7 +9,8 @@ import streamlit as st
 
 from hgrag import ragbench, ragbench_review
 
-PAGES = {"results": "views/rb_results.py", "detail": "views/rb_detail.py", "summary": "views/rb_summary.py"}
+PAGES = {"results": "views/rb_results.py", "detail": "views/rb_detail.py", "summary": "views/rb_summary.py",
+         "compare": "views/rb_compare.py"}
 
 
 @st.cache_data(show_spinner=False)
@@ -42,9 +43,9 @@ def pick_run(*, picker: bool) -> Path | None:
         c1, c2 = st.columns([1, 2])
         key = c1.selectbox("Bench", keys, index=keys.index(cur_key), help="Sample key: papers, seed, negatives")
         runs = benches[key]
-        names = [r.name for r in runs]
-        idx = names.index(current.name) if current in runs else 0
-        name = c2.selectbox("Run", names, index=idx, help="Latest first")
+        names = [ragbench_review.run_label(r) for r in runs]
+        idx = runs.index(current) if current in runs else 0
+        name = c2.selectbox("Run", names, index=idx, help="Latest first; runs of another workdir show its name")
         chosen = runs[names.index(name)]
         if chosen != current:
             st.session_state["rb_run"] = str(chosen)
@@ -53,7 +54,7 @@ def pick_run(*, picker: bool) -> Path | None:
     if current is None or not current.is_dir():
         current = next(iter(benches.values()))[0]
         st.session_state["rb_run"] = str(current)
-    st.caption(f"Run `{current.name}` · change it on the Results page.")
+    st.caption(f"Run `{ragbench_review.run_label(current)}` · change it on the Results page.")
     return current
 
 

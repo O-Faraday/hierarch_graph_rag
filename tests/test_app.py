@@ -341,3 +341,52 @@ def test_ragbench_summary_compares_scores_with_their_refinement(tmp_path, monkey
     detail = next(d.value for d in summary.dataframe if "gain" in d.value.columns)
     assert list(detail["id"]) == ["q-wrong-", "q-missed"] and list(detail["gain"]) == [3, 0]
     assert "Reference wrong or imprecise" in list(detail["cause"])
+
+
+def test_compare_page_lists_regressions_and_opens_the_detail(tmp_path, monkeypatch):
+    import json
+
+    from hgrag import ragbench
+
+    run = _ragbench_runs(tmp_path, monkeypatch)
+    rows = [json.loads(x) for x in (run / "results.jsonl").read_text(encoding="utf-8").splitlines()]
+    new = tmp_path / "check_full" / "runs" / "20261022T000000-new"  # another workdir: listed too
+    new.mkdir(parents=True)
+    moved = {"q-good": {"score": 2, "section_rank": None}, "q-missed": {"score": 5, "section_rank": 1},
+             "q-wrong-ref": {"score": 5}}
+    for r in rows:
+        r.update(moved[r["id"]])
+    rows[0].update(context_score=2, refine_score=2, refine_cause="context", context_rationale="no section 5",
+                   refine_rationale="kept", context_same=False)
+    (new / "results.jsonl").write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
+    (new / "summary.json").write_text(json.dumps({**ragbench.summarize(rows, 10), "config": {
+        "key": "n3_s0_neg0", "keyword_weight": 0.3, "reference_run": str(run)}}), encoding="utf-8")
+
+    at = AppTest.from_file(str(APP / "views" / "rb_compare.py"), default_timeout=30)
+    at.session_state["rb_run"] = str(new)
+    at.run()
+    assert not at.exception, at.exception
+    assert at.selectbox[1].value == run.name and at.selectbox[2].value == "check_full / 20261022T000000-new"
+    settings = at.dataframe[0].value
+    assert list(settings["setting"]) == ["keyword_weight"] and list(settings["new"]) == ["0.3"]
+    metrics = at.dataframe[1].value.set_index("metric")
+    assert metrics.loc["n", "new"] == 2  # q-wrong-ref is disputed: left out by default
+    m = {x.label: x.value for x in at.metric}
+    assert m["regressed"] == "1" and m["fixed"] == "1" and m["section lost"] == "1" and m["section gained"] == "1"
+    table = at.dataframe[2].value
+    assert list(table["id"]) == ["q-missed", "q-good"]  # fixed first, then regressed
+    assert list(table["status"]) == ["Fixed (now ≥ 4)", "Regressed (now < 4)"]
+    at.session_state["rb_cmp_status"] = ["regressed"]
+    at.run()
+    assert list(at.dataframe[2].value["id"]) == ["q-good"]
+
+    detail = AppTest.from_file(str(APP / "views" / "rb_detail.py"), default_timeout=30)
+    detail.session_state["rb_run"] = str(new)
+    detail.session_state["rb_qid"] = "q-good"
+    detail.run()
+    assert not detail.exception, detail.exception
+    md = " ".join(str(x.value) for x in detail.markdown)
+    assert "Second opinion" in md and "no section 5" in md
+    assert any("differ from the reference run" in str(c.value) for c in detail.caption)
+    labels = {x.label for x in detail.metric}
+    assert {"refined /5", "context /5", "cause"} <= labels

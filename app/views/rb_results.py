@@ -64,6 +64,7 @@ with st.expander("Second opinion on the low scores", icon=":material/gavel:"):
         bar = st.progress(0.0, text="Starting…")
         try:
             res = refine.refine_run(run_dir, threshold=int(threshold), force=force, api_key=an_key or None,
+                                    workdir=ragbench_review.run_workdir(run_dir),
                                     on_progress=lambda n, total, msg: bar.progress(n / total, text=msg))
         except ragbench.RagBenchError as exc:
             st.error(str(exc))

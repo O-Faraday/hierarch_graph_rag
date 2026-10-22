@@ -46,19 +46,39 @@ _FIGURE = re.compile(r"\b(chart|plot|graph|figure|curve|bar|axis|approximate(ly)
 
 # --------------------------------------------------------------------------------------------- runs
 def list_benches(runs_dir: str | Path | None = None) -> dict[str, list[Path]]:
-    """{sample key: [run dirs, latest first]} for the runs that have a summary.json and a results.jsonl."""
-    runs_dir = Path(runs_dir or ragbench.RAGBENCH_DIR / "runs")
+    """{sample key: [run dirs, latest first]} for the runs that have a summary.json and a results.jsonl.
+
+    Default: the runs of ``data/ragbench/runs`` and of every other workdir below it (``data/ragbench/<name>/runs``,
+    e.g. a check from scratch made with ``--workdir``)."""
+    if runs_dir is not None:
+        dirs = [Path(runs_dir)]
+    else:
+        root = ragbench.RAGBENCH_DIR
+        dirs = [root / "runs", *sorted(p for p in root.glob("*/runs") if p.is_dir())]
     out: dict[str, list[Path]] = defaultdict(list)
-    if not runs_dir.is_dir():
-        return {}
-    for d in sorted((p for p in runs_dir.iterdir() if p.is_dir()), key=lambda p: p.name, reverse=True):
-        try:
-            key = json.loads((d / "summary.json").read_text(encoding="utf-8"))["config"]["key"]
-        except (OSError, ValueError, KeyError, TypeError):
+    for runs in dirs:
+        if not runs.is_dir():
             continue
-        if (d / "results.jsonl").is_file():
-            out[key].append(d)
-    return dict(out)
+        for d in (p for p in runs.iterdir() if p.is_dir()):
+            try:
+                key = json.loads((d / "summary.json").read_text(encoding="utf-8"))["config"]["key"]
+            except (OSError, ValueError, KeyError, TypeError):
+                continue
+            if (d / "results.jsonl").is_file():
+                out[key].append(d)
+    return {k: sorted(v, key=lambda p: p.name, reverse=True) for k, v in out.items()}
+
+
+def run_workdir(run_dir: str | Path) -> Path:
+    """The ragbench workdir of a run (``<workdir>/runs/<run>``): its PDFs, Docling outputs and stores."""
+    return Path(run_dir).parent.parent
+
+
+def run_label(run_dir: str | Path) -> str:
+    """Run name, prefixed with its workdir when it is not the default one."""
+    run_dir = Path(run_dir)
+    wd = run_workdir(run_dir)
+    return run_dir.name if wd.resolve() == Path(ragbench.RAGBENCH_DIR).resolve() else f"{wd.name} / {run_dir.name}"
 
 
 def load_summary(run_dir: str | Path) -> dict[str, Any]:
@@ -177,8 +197,8 @@ def rank_distribution(rows: list[dict[str, Any]]) -> dict[str, int]:
     return {"1": cnt[1], "2-3": cnt[2] + cnt[3], "4-10": sum(cnt[i] for i in range(4, 11)), "absent": cnt[None]}
 
 
-def pdf_path(row: dict[str, Any]) -> Path:
-    return ragbench.RAGBENCH_DIR / "pdfs" / (ragbench.safe_name(row["paper"]) + ".pdf")
+def pdf_path(row: dict[str, Any], workdir: str | Path | None = None) -> Path:
+    return Path(workdir or ragbench.RAGBENCH_DIR) / "pdfs" / (ragbench.safe_name(row["paper"]) + ".pdf")
 
 
 # ------------------------------------------------------------------------------------------- refine
@@ -209,3 +229,67 @@ def refine_comparison(rows: list[dict[str, Any]]) -> dict[str, Any]:
                            "rationale": r.get("refine_rationale") or "", "question": r["question"]} for r in refined),
                          key=lambda x: (-x["gain"], x["score"]))
     return out
+
+
+# ------------------------------------------------------------------------------------------ compare
+COMPARE_METRICS = ("n", "doc_hit_at_1", "section_hit_at_1", "section_hit_at_{k}", "mrr", "context_recall",
+                   "mean_score", "pct_score_4_plus")
+CONFIG_KEYS = ("embed_model", "keyword_weight", "rerank", "rerank_model", "rerank_candidates", "k_chunks", "gen_model",
+               "judge_model", "described", "questions")
+STATUSES = {"fixed": "Fixed (now ≥ 4)", "regressed": "Regressed (now < 4)", "better": "Better", "worse": "Worse",
+            "same": "Same"}
+
+
+def _effective(r: dict[str, Any]) -> int | None:
+    """The refined score where the question was judged again, else the first judge's."""
+    return r["refine_score"] if r.get("refine_score") is not None else r.get("score")
+
+
+def config_diff(a: dict[str, Any], b: dict[str, Any]) -> list[tuple[str, Any, Any]]:
+    """The settings that differ between two run configs (summary.json "config")."""
+    return [(k, a.get(k), b.get(k)) for k in CONFIG_KEYS if a.get(k) != b.get(k)]
+
+
+def compare_runs(ref: list[dict[str, Any]], new: list[dict[str, Any]], k: int,
+                 disputed: dict[str, str] | None = None) -> dict[str, Any]:
+    """Two runs of the same sample on their common questions (``disputed`` ones left out when given).
+
+    ``metrics``: (name, reference, new, difference), score metrics both first judge and corrected (refined score where
+    it exists). ``questions``: one line per question, a status from the corrected scores (fixed, regressed, better,
+    worse, same) and the section found or lost; largest moves first."""
+    a, b = {r["id"]: r for r in ref}, {r["id"]: r for r in new}
+    common = [q for q in b if q in a and q not in (disputed or {})]
+    ra, rb = [a[q] for q in common], [b[q] for q in common]
+    metrics = []
+    for label, xs, ys in (("", ra, rb), (" (corrected)", corrected_rows(ra), corrected_rows(rb))):
+        sa, sb = ragbench.summarize(xs, k), ragbench.summarize(ys, k)
+        for m in COMPARE_METRICS:
+            m = m.format(k=k)
+            if label and m not in ("mean_score", "pct_score_4_plus"):
+                continue
+            x, y = sa.get(m), sb.get(m)
+            metrics.append((m + label, x, y, None if x is None or y is None or m == "n" else round(y - x, 3)))
+    questions = []
+    for q in common:
+        x, y = _effective(a[q]), _effective(b[q])
+        if x is None or y is None:
+            status = "same"
+        elif x < 4 <= y:
+            status = "fixed"
+        elif x >= 4 > y:
+            status = "regressed"
+        else:
+            status = "better" if y > x else "worse" if y < x else "same"
+        found_a, found_b = a[q].get("section_rank") is not None, b[q].get("section_rank") is not None
+        questions.append({"id": q, "source": b[q]["source"], "type": b[q]["type"], "question": b[q]["question"],
+                          "score_ref": x, "score_new": y, "gain": None if x is None or y is None else y - x,
+                          "status": status, "rank_ref": a[q].get("section_rank"), "rank_new": b[q].get("section_rank"),
+                          "section": "gained" if found_b and not found_a else "lost" if found_a and not found_b else "",
+                          "cause_new": b[q].get("refine_cause")})
+    order = list(STATUSES)
+    questions.sort(key=lambda x: (order.index(x["status"]), -abs(x["gain"] or 0)))
+    counts = Counter(x["status"] for x in questions)
+    return {"n_common": len(common), "only_ref": len(set(a) - set(b)), "only_new": len(set(b) - set(a)),
+            "metrics": metrics, "questions": questions, "counts": {s: counts.get(s, 0) for s in STATUSES},
+            "sections": {"gained": sum(x["section"] == "gained" for x in questions),
+                         "lost": sum(x["section"] == "lost" for x in questions)}}

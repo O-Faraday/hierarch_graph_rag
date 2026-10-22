@@ -42,7 +42,8 @@ if n3.button("Next", icon=":material/arrow_forward:", disabled=pos >= len(order)
 
 # ---- header --------------------------------------------------------------------------------------
 st.subheader(f"{rv.short(qid)} · {r['paper']}")
-facts = [("score /5", r.get("score")), ("diagnosis", d["label"]), ("source", r["source"]), ("type", r["type"]),
+facts = [("score /5", r.get("score")), *([("refined /5", r["refine_score"])] if r.get("refine_score") is not None else []),
+         ("diagnosis", d["label"]), ("source", r["source"]), ("type", r["type"]),
          ("section rank", r.get("section_rank")), ("doc rank", r.get("doc_rank")), ("context recall", r.get("context_recall"))]
 for c, (label, v) in zip(st.columns(len(facts)), facts):
     c.metric(label, "–" if v is None else v)
@@ -59,6 +60,21 @@ if r.get("rationale"):
     st.markdown(f"**Judge.** {r['rationale']}")
 if r.get("error"):
     st.error(r["error"])
+if r.get("context_score") is not None or r.get("refine_error"):
+    with st.container(border=True):
+        st.markdown("**Second opinion** (context judge on the whole PDF, then generation judge)")
+        if r.get("refine_error"):
+            st.error(r["refine_error"])
+        else:
+            c1, c2, c3 = st.columns(3)
+            c1.metric("context /5", r.get("context_score"))
+            c2.metric("refined /5", r.get("refine_score"), delta=(r["refine_score"] - r["score"]) if r.get("score") is not None else None)
+            c3.metric("cause", ragbench_review.REFINE_CAUSES.get(r.get("refine_cause"), r.get("refine_cause") or "–"))
+            st.markdown(f"**Context judge.** {r.get('context_rationale', '')}")
+            st.markdown(f"**Generation judge.** {r.get('refine_rationale', '')}")
+if r.get("context_same") is False:
+    st.caption(":material/swap_horiz: The retrieved sections differ from the reference run "
+               f"(`{data['summary'].get('config', {}).get('reference_run')}`).")
 
 ui.step_header(1, "Diagnosis", d["label"])
 (st.success if d["category"] == "ok" else st.info)(d["fix"], icon=":material/lightbulb:")
@@ -80,7 +96,7 @@ if st.button("Save", type="primary", icon=":material/save:"):
 
 # ---- evidence ------------------------------------------------------------------------------------
 ui.step_header(3, "Evidence", "reference section and retrieved sections")
-pdf = ragbench_review.pdf_path(r)
+pdf = ragbench_review.pdf_path(r, ragbench_review.run_workdir(run_dir))
 st.caption(f"PDF: `{pdf}`" + ("" if pdf.exists() else " (not on disk)"))
 if r.get("gold_text"):
     with st.expander("Reference section (benchmark parse, excerpt)"):

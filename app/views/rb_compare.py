@@ -1,0 +1,110 @@
+"""Ragbench page 4: two runs of the same bench side by side (settings, metrics, questions that moved)."""
+
+from pathlib import Path
+
+import pandas as pd
+import ragbench_view as rv
+import streamlit as st
+import ui
+
+from hgrag import ragbench, ragbench_review
+
+ui.inject_css()
+ui.page_header(
+    "Compare runs",
+    "A reference run and a new run of the same bench, on their common questions: what changed in the settings, the "
+    "metrics with their difference, then every question that moved. Scores are the refined ones where the question "
+    "was judged again (second opinion), the first judge's elsewhere. Select a row to open it in Question detail.",
+)
+st.session_state.setdefault("rb_run", None)
+st.session_state.setdefault("rb_qid", None)
+
+benches = ragbench_review.list_benches()
+current = Path(st.session_state["rb_run"]) if st.session_state.get("rb_run") else None
+if not benches:
+    st.info("No ragbench run yet: `uv run hgrag ragbench --docs 30 --negatives 30 -k 10 --generate`.")
+    st.stop()
+keys = list(benches)
+key = st.selectbox("Bench", keys, index=next((i for i, k in enumerate(keys) if current in benches[k]), 0))
+runs = benches[key]
+if len(runs) < 2:
+    st.info("This bench has a single run: nothing to compare yet.")
+    st.stop()
+labels = [ragbench_review.run_label(r) for r in runs]
+new_default = runs.index(current) if current in runs else 0
+ref_cfg = ragbench_review.load_summary(runs[new_default]).get("config", {}).get("reference_run")
+ref_path = Path(ref_cfg).resolve() if ref_cfg else None
+ref_default = next((i for i, r in enumerate(runs) if ref_path and r.resolve() == ref_path),
+                   min(new_default + 1, len(runs) - 1))
+c1, c2 = st.columns(2)
+ref_label = c1.selectbox("Reference run", labels, index=ref_default, help="By default the --reference-run of the new run")
+new_label = c2.selectbox("New run", labels, index=new_default, help="By default the run chosen on the Results page")
+ref_dir, new_dir = runs[labels.index(ref_label)], runs[labels.index(new_label)]
+if ref_dir == new_dir:
+    st.info("Choose two different runs.")
+    st.stop()
+
+ref, new = rv.load(ref_dir), rv.load(new_dir)
+k = new["k"]
+
+# ---- settings ------------------------------------------------------------------------------------
+ui.step_header(1, "Settings", "what differs between the two runs")
+diff = ragbench_review.config_diff(ref["summary"].get("config", {}), new["summary"].get("config", {}))
+if diff:
+    st.dataframe(pd.DataFrame([{"setting": s, "reference": str(a), "new": str(b)} for s, a, b in diff]),
+                 hide_index=True, width="stretch")
+else:
+    st.caption("Same settings for the keys compared (embedder, keywords, reranker, models, descriptions).")
+
+# ---- metrics -------------------------------------------------------------------------------------
+st.session_state.setdefault("rb_cmp_nodisp", True)
+nodisp = st.toggle("Leave out the disputed references", key="rb_cmp_nodisp",
+                   help="Questions of data/ragbench_disputed.json, whose reference answer was found wrong in the PDF")
+cmp = ragbench_review.compare_runs(ref["rows"], new["rows"], k, ragbench.load_disputed() if nodisp else None)
+ui.step_header(2, "Metrics", f"{cmp['n_common']} common questions"
+               + (f" · {cmp['only_ref']} only in the reference" if cmp["only_ref"] else "")
+               + (f" · {cmp['only_new']} only in the new run" if cmp["only_new"] else ""))
+st.dataframe(pd.DataFrame(cmp["metrics"], columns=["metric", "reference", "new", "difference"]), hide_index=True,
+             width="stretch", column_config={"difference": st.column_config.NumberColumn("difference", format="%+.3f")})
+counts = cmp["counts"]
+facts = [("fixed", counts["fixed"], "now ≥ 4, was < 4"), ("regressed", counts["regressed"], "now < 4, was ≥ 4"),
+         ("better", counts["better"], "higher score"), ("worse", counts["worse"], "lower score"),
+         ("section gained", cmp["sections"]["gained"], "found now, absent before"),
+         ("section lost", cmp["sections"]["lost"], "absent now, found before")]
+for col, (label, v, tip) in zip(st.columns(len(facts)), facts):
+    col.metric(label, v, help=tip)
+
+# ---- questions -----------------------------------------------------------------------------------
+ui.step_header(3, "Questions that moved", "regressions first; select a row to open it")
+st.session_state.setdefault("rb_cmp_status", ["regressed", "fixed"])
+st.session_state.setdefault("rb_cmp_lost", True)
+f1, f2 = st.columns([3, 1])
+statuses = f1.multiselect("Status", list(ragbench_review.STATUSES), key="rb_cmp_status",
+                          format_func=ragbench_review.STATUSES.get)
+lost = f2.checkbox("Also every section lost", key="rb_cmp_lost")
+shown = [x for x in cmp["questions"] if x["status"] in statuses or (lost and x["section"] == "lost")]
+if not shown:
+    st.success("No question matches: nothing moved that way.")
+    st.stop()
+df = pd.DataFrame([{**x, "id": rv.short(x["id"]), "status": ragbench_review.STATUSES[x["status"]],
+                    "cause": ragbench_review.REFINE_CAUSES.get(x["cause_new"], x["cause_new"] or "")} for x in shown])
+event = st.dataframe(
+    df, hide_index=True, width="stretch", height=420, key="rb_cmp_table", on_select="rerun", selection_mode="single-row",
+    column_order=["id", "status", "source", "score_ref", "score_new", "gain", "rank_ref", "rank_new", "section", "cause",
+                  "question"],
+    column_config={"score_ref": st.column_config.NumberColumn("score (ref)", format="%d"),
+                   "score_new": st.column_config.NumberColumn("score (new)", format="%d"),
+                   "gain": st.column_config.NumberColumn("gain", format="%+d"),
+                   "rank_ref": st.column_config.NumberColumn("section rank (ref)", format="%d"),
+                   "rank_new": st.column_config.NumberColumn("section rank (new)", format="%d"),
+                   "cause": st.column_config.TextColumn("cause (new run)"),
+                   "question": st.column_config.TextColumn("question", width="large")},
+)
+if event.selection.rows:
+    pick = shown[event.selection.rows[0]]
+    c1, c2 = st.columns([3, 1])
+    c1.markdown(f"Selected: **{rv.short(pick['id'])}** · {pick['question']}")
+    if c2.button("Open in the new run", type="primary", icon=":material/arrow_forward:", width="stretch"):
+        st.session_state["rb_run"] = str(new_dir)
+        st.session_state["rb_qid"] = pick["id"]
+        st.switch_page(rv.PAGES["detail"])
