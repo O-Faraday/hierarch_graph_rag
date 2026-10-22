@@ -216,3 +216,54 @@ def test_formulas_are_transcribed_by_the_vision_model(tmp_path, monkeypatch):
     assert rec["latex"] == "E = mc^2" and rec["original_text"] == "garbled x"
     describe.describe_document(d, figures=False, tables=False, formulas=True, api_key="x")
     assert len(calls) == 1  # already transcribed: no second call
+
+
+def test_formula_reading_goes_into_the_embedding_text_only(tmp_path, monkeypatch):
+    """Each transcribed formula gets a plain-English reading (LaTeX + the sentences around it), added to the
+    embedding text of its chunk; the chunk text stays the LaTeX. Redone only when the LaTeX changes."""
+    from docling_core.transforms.chunker.hierarchical_chunker import HierarchicalChunker
+    from docling_core.types.doc import BoundingBox, CoordOrigin, DocItemLabel, DoclingDocument, ProvenanceItem, Size
+
+    from hgrag import describe
+    from hgrag.hierarchy import build_hierarchy
+    from hgrag.indexing import chunk_paragraphs
+
+    def prov():
+        return ProvenanceItem(page_no=1, bbox=BoundingBox(l=50, t=700, r=300, b=650, coord_origin=CoordOrigin.BOTTOMLEFT),
+                              charspan=(0, 1))
+
+    doc = DoclingDocument(name="t")
+    doc.add_page(page_no=1, size=Size(width=595, height=842))
+    h = doc.add_heading(text="4.7 Approximation of the Envelope", level=1, prov=prov())
+    doc.add_text(label=DocItemLabel.TEXT, text="The envelope E(t) is given by the following expression.", parent=h, prov=prov())
+    f = doc.add_text(label=DocItemLabel.FORMULA, text="E(t) = s C", orig="E(t) = s C", parent=h, prov=prov())
+    doc.add_text(label=DocItemLabel.TEXT, text="This behaves as an envelope for the waveform.", parent=h, prov=prov())
+    d = tmp_path / "doc"
+    d.mkdir()
+    (d / "formulas.json").write_text(json.dumps([{"self_ref": f.self_ref, "page_no": 1, "latex": r"E(t)=\pm C"}]))
+    prompts = []
+
+    def complete(cfg, system, user, max_tokens=None):
+        prompts.append(user)
+        return "The envelope is C in absolute value and takes both signs.", {}
+
+    monkeypatch.setattr(generation, "complete", complete)
+    stats = describe.read_formulas(d, doc, api_key="hf_x")
+    assert stats["n_read"] == 1 and "following expression" in prompts[0] and "behaves as an envelope" in prompts[0]
+    assert r"E(t)=\pm C" in prompts[0]
+    readings = describe.load_formula_readings(d)
+    assert readings == {f.self_ref: "The envelope is C in absolute value and takes both signs."}
+    describe.read_formulas(d, doc, api_key="hf_x")
+    assert len(prompts) == 1  # same LaTeX: kept
+    recs = json.loads((d / "formulas.json").read_text())
+    recs[0]["latex"] = r"E(t)=C"
+    (d / "formulas.json").write_text(json.dumps(recs))
+    describe.read_formulas(d, doc, api_key="hf_x")
+    assert len(prompts) == 2  # LaTeX changed: read again
+
+    root = build_hierarchy(doc, doc_title="x")
+    chunks = chunk_paragraphs(doc, HierarchicalChunker(), root, "d", min_words=0, formula_readings=readings)
+    form = [c for c in chunks if "formula" in c["kinds"]]
+    assert form and all("takes both signs" in c["embed_text"] and "takes both signs" not in c["text"] for c in form)
+    assert form[0]["formula_reading"].startswith("The envelope") and form[0]["embed_text"].startswith("4.7 Approximation")
+    assert all("formula_reading" not in c for c in chunks if "formula" not in c["kinds"])

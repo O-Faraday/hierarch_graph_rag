@@ -106,6 +106,8 @@ TABLE_CELL_MATCHING = _flag("HGRAG_TABLE_CELL_MATCHING", True)
 # "docling" = Docling's CodeFormulaV2 on CPU (about a minute per formula), "off".
 FORMULA_MODE = os.environ.get("HGRAG_FORMULA_MODE", "vlm").strip().lower()
 FORMULA_VLM = os.environ.get("HGRAG_FORMULA_VLM", "")  # empty = the figure model
+# After the LaTeX, a plain-English reading of each formula (HGRAG_TABLE_MODEL, text only), added to the embedding text.
+FORMULA_READING = _flag("HGRAG_FORMULA_READING", True)
 FORMULA_ENRICHMENT = FORMULA_MODE == "docling"  # Docling's own enrichment (the model is run by Docling on CPU)
 CODE_ENRICHMENT = _flag("HGRAG_CODE_ENRICHMENT", False)  # code blocks: language + indentation (CodeFormulaV2 on CPU: ~3 min per item)
 PICTURE_CLASSIFICATION = _flag("HGRAG_PICTURE_CLASSIFICATION", False)  # figure type (chart, diagram...) in the metadata

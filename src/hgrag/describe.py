@@ -6,6 +6,8 @@ Runs after the Docling parsing (Docling is not involved) and writes the text nex
   the text is stored in ``figures.json`` (``description.text``) and becomes one chunk of its own;
 * formulas: the crop of each formula goes to the same vision model, which returns LaTeX (``formulas.json``);
   ``document.json`` is updated, so the formula chunks and the reconstructed sections carry the LaTeX;
+  each formula then gets a plain-English ``reading`` (text model, the LaTeX and the sentences around it), added to
+  the embedding text of its chunk (``HGRAG_FORMULA_READING``);
 * tables: the table as Markdown goes to the model (``HGRAG_TABLE_MODEL``, text only: the numbers come from
   Docling's extraction, not from reading pixels); the text is stored in ``tables.json`` and is **added to the
   embedding text of the table chunks** (the raw rows stay the chunk text).
@@ -237,6 +239,83 @@ def transcribe_formulas(doc_dir: str | Path, doc: Any, pdf_path: str | Path, *, 
             "errors": errors, "seconds": round(time.perf_counter() - t0, 1)}
 
 
+FORMULA_READING_SYSTEM = ("You explain mathematical formulas from scientific papers in plain English so that they can be "
+                          "indexed and searched.")
+FORMULA_READING_PROMPT = (
+    "Explain in at most two plain-English sentences what this formula states, calling its symbols by the names the "
+    "surrounding text gives them. Spell out its cases, conditions and limits in words (for example 'for positive values "
+    "of the parameter', 'in the limit of large n'). No LaTeX, no symbols that the words do not explain, nothing that the "
+    "formula and the text do not give.\n\nText before:\n{before}\n\nFormula (LaTeX):\n{latex}\n\nText after:\n{after}"
+)
+FORMULA_CONTEXT_CHARS = 600  # characters of text taken before and after the formula
+
+
+def formula_context(doc: Any, items: list[Any]) -> dict[str, tuple[str, str]]:
+    """``self_ref -> (text before, text after)``: the nearest non-formula text items in reading order."""
+    from docling_core.types.doc import DocItemLabel, TextItem
+
+    seq = [it for it, _d in doc.iterate_items() if isinstance(it, TextItem)]
+    pos = {it.self_ref: i for i, it in enumerate(seq)}
+    out = {}
+    for item in items:
+        i = pos.get(item.self_ref)
+        if i is None:
+            out[item.self_ref] = ("", "")
+            continue
+        before = next((t.text for t in reversed(seq[:i]) if t.label != DocItemLabel.FORMULA and t.text.strip()), "")
+        after = next((t.text for t in seq[i + 1:] if t.label != DocItemLabel.FORMULA and t.text.strip()), "")
+        out[item.self_ref] = (before[-FORMULA_CONTEXT_CHARS:], after[:FORMULA_CONTEXT_CHARS])
+    return out
+
+
+def read_formulas(doc_dir: str | Path, doc: Any, *, spec: str | None = None, force: bool = False, workers: int = 4,
+                  api_key: str | None = None) -> dict[str, Any]:
+    """Add to each transcribed formula of ``formulas.json`` a plain-English ``reading`` (text model, LaTeX and the
+    sentences around it), added to the embedding text of the formula chunks: a question that paraphrases a formula
+    ("when the ratio is negative") shares no word with its LaTeX. A reading is redone only if the LaTeX changed."""
+    doc_dir = Path(doc_dir)
+    path = doc_dir / "formulas.json"
+    if not path.exists():
+        return {"model": None, "n_todo": 0, "n_read": 0, "errors": [], "seconds": 0.0}
+    spec = spec or config.TABLE_MODEL
+    cfg = vlm_bench.model_config(spec, api_key, max_tokens=300)
+    if spec.startswith("hf:") and not cfg.api_key:
+        raise GenerationError("HF_TOKEN is not set: add it to .env to read the formulas.")
+    recs = json.loads(path.read_text(encoding="utf-8"))
+    todo = [r for r in recs if r.get("latex") and (force or not r.get("reading") or r.get("reading_of") != table_hash(r["latex"]))]
+    items = {i.self_ref: i for i in formula_items(doc)}
+    context = formula_context(doc, [items[r["self_ref"]] for r in todo if r["self_ref"] in items])
+    errors: list[str] = []
+    t0 = time.perf_counter()
+
+    def work(rec: dict[str, Any]) -> None:
+        before, after = context.get(rec["self_ref"], ("", ""))
+        try:
+            text, _usage = generation.complete(cfg, FORMULA_READING_SYSTEM, FORMULA_READING_PROMPT.format(
+                before=before or "(none)", latex=rec["latex"], after=after or "(none)"), max_tokens=300)
+            text = vlm_bench.clean_description(text)
+            if not text:
+                raise GenerationError("empty reading")
+            rec["reading"] = {"text": text, "created_by": spec}
+            rec["reading_of"] = table_hash(rec["latex"])
+        except Exception as exc:  # noqa: BLE001
+            errors.append(f"{rec['self_ref']}: {exc}")
+
+    with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
+        list(pool.map(work, todo))
+    path.write_text(json.dumps(recs, indent=2, ensure_ascii=False), encoding="utf-8")
+    return {"model": spec, "n_todo": len(todo), "n_read": len(todo) - len(errors), "errors": errors,
+            "seconds": round(time.perf_counter() - t0, 1)}
+
+
+def load_formula_readings(doc_dir: str | Path) -> dict[str, str]:
+    """``self_ref -> reading`` of the formulas, if ``formulas.json`` has them (used by the chunker)."""
+    path = Path(doc_dir) / "formulas.json"
+    if not path.exists():
+        return {}
+    return {r["self_ref"]: r["reading"]["text"] for r in json.loads(path.read_text(encoding="utf-8")) if r.get("reading")}
+
+
 def describe_document(doc_dir: str | Path, *, spec: str | None = None, force: bool = False, workers: int = 4,
                       api_key: str | None = None, figures: bool = True, tables: bool = True,
                       formulas: bool | None = None) -> dict[str, Any]:
@@ -276,6 +355,11 @@ def describe_document(doc_dir: str | Path, *, spec: str | None = None, force: bo
             manifest["n_formulas_transcribed"] = stats["n_transcribed"]
             manifest["formula_vlm"] = stats
             problems += stats["errors"]
+            if config.FORMULA_READING:
+                stats = read_formulas(doc_dir, doc, force=force, workers=workers, api_key=api_key)
+                manifest["n_formulas_read"] = len(load_formula_readings(doc_dir))
+                manifest["formula_reading"] = stats
+                problems += stats["errors"]
     (doc_dir / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     if problems:
         logger.warning("%s: %d item(s) not described: %s", doc_dir.name, len(problems), problems)

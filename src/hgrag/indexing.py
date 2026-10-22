@@ -89,6 +89,7 @@ def chunk_paragraphs(
     stats: dict[str, Any] | None = None,
     labels: Sequence[str] | set[DocItemLabel] | None = None,
     table_descriptions: dict[str, str] | None = None,
+    formula_readings: dict[str, str] | None = None,
 ) -> list[dict[str, Any]]:
     """Decompose the textual elements (``labels``, default ``HGRAG_CHUNK_LABELS``) into chunks.
 
@@ -125,9 +126,11 @@ def chunk_paragraphs(
         embed_text = f"{heading_prefix}\n{chunk.text}" if heading_prefix else chunk.text
         description = next((table_descriptions[r.self_ref] for r in resolved
                             if table_descriptions and r.self_ref in table_descriptions), None)
-        if description:  # generated description first: a long table is truncated by the encoder, not the description
-            embed_text = (f"{heading_prefix}\n{description}\n{chunk.text}" if heading_prefix
-                          else f"{description}\n{chunk.text}")
+        reading = next((formula_readings[r.self_ref] for r in resolved
+                        if formula_readings and r.self_ref in formula_readings), None)
+        if description or reading:  # generated text first: a long table is truncated by the encoder, not the description
+            embed_text = "\n".join([*([heading_prefix] if heading_prefix else []),
+                                    *(x for x in (description, reading) if x), chunk.text])
         section = by_ref.get(first.self_ref)
         page_no = first.prov[0].page_no if first.prov else None
         out.append(
@@ -137,6 +140,7 @@ def chunk_paragraphs(
                 "text": chunk.text,
                 "embed_text": embed_text,
                 **({"table_description": description} if description else {}),
+                **({"formula_reading": reading} if reading else {}),
                 "kinds": sorted(labels_),
                 "headings": list(chunk.meta.headings or []),
                 "element_refs": [r.self_ref for r in resolved],

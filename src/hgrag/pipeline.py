@@ -145,7 +145,7 @@ def index_documents(
 
 
 def _index_documents(doc_dirs, qdrant_path, collection, model_id) -> dict[str, Any]:
-    from .describe import load_table_descriptions
+    from .describe import load_formula_readings, load_table_descriptions
     from .indexing import chunk_paragraphs, figure_chunks, index_chunks, load_embedder, make_chunker, open_store
 
     t0 = time.perf_counter()
@@ -166,7 +166,8 @@ def _index_documents(doc_dirs, qdrant_path, collection, model_id) -> dict[str, A
             root = build_hierarchy(doc, figures, doc_title=pdf_stem(manifest["source_pdf"]), table_descriptions=tdesc)
             t = time.perf_counter()
             cstats: dict[str, Any] = {}
-            chunks = chunk_paragraphs(doc, chunker, root, manifest["doc_id"], stats=cstats, table_descriptions=tdesc)
+            chunks = chunk_paragraphs(doc, chunker, root, manifest["doc_id"], stats=cstats, table_descriptions=tdesc,
+                                      formula_readings=load_formula_readings(doc_dir))
             fig_chunks = figure_chunks(root, manifest["doc_id"], start_index=len(chunks))  # described figures
             chunks += fig_chunks
             seconds["seconds_chunk"] += time.perf_counter() - t

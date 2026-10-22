@@ -156,6 +156,7 @@ uv run hgrag ragbench --docs 10 --no-describe                    # sans descript
 uv run hgrag ragbench --docs 100 --prepare-only                  # télécharger/parser/indexer sans évaluer (à laisser tourner)
 uv run hgrag ragbench --docs 30 --negatives 30 -k 10 --generate --gen-model claude-sonnet-5-5 \
     --reference-run data/ragbench/runs/<run>                     # autre modèle de génération, même juge, contexte vérifié identique
+uv run hgrag ragbench --docs 30 --negatives 30 -k 10 --generate --questions ee9ea96b,1ccbaf52   # seulement ces questions (ids ou préfixes)
 ```
 
 Étapes : téléchargement des PDF (arXiv, 1 requête / 3 s, `data/ragbench/pdfs`), parsing Docling **mis en cache** par document
@@ -416,6 +417,7 @@ jamais échouer un pipeline. Serveur distant : `MLFLOW_TRACKING_URI`.
 | `HGRAG_TABLE_CELL_MATCHING` | `1` | Associe les cellules détectées au texte du PDF |
 | `HGRAG_FORMULA_MODE` | `vlm` | Formules → LaTeX : `vlm` = modèle de vision par l'API après le parsing (quelques secondes par formule, `formulas.json`), `docling` = CodeFormulaV2 exécuté par Docling sur CPU (≈ 1 min par formule), `off` |
 | `HGRAG_FORMULA_VLM` | = `HGRAG_FIGURE_VLM` | Modèle utilisé pour les formules en mode `vlm` |
+| `HGRAG_FORMULA_READING` | `1` | Après le LaTeX, une lecture de chaque formule en anglais courant (`HGRAG_TABLE_MODEL`, texte seul : le LaTeX et les phrases autour), ajoutée au texte vectorisé du chunk de formule (`formulas.json`, `reading`). Une question qui paraphrase une formule (« quand le rapport est négatif ») n'a aucun mot commun avec son LaTeX |
 | `HGRAG_CODE_ENRICHMENT` | `0` | Blocs de code : langage et indentation. Désactivé : Docling exécute CodeFormulaV2 sur CPU (≈ 170 s par bloc) et boucle souvent sur des blocs mal détectés (`TailRepetitionStopper`) |
 | `HGRAG_PICTURE_CLASSIFICATION` | `0` | Type de figure (graphique, schéma…) dans les métadonnées |
 | `HGRAG_TABLE_IMAGES` | `0` | Exporte une image PNG de chaque tableau |
