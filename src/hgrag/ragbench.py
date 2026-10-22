@@ -483,7 +483,7 @@ def run(n_docs: int = 10, *, seed: int = 0, negatives: int = 0, sources: list[st
         generate: bool = False, judge_model: str | None = None, prepare_only: bool = False, source: Any = None,
         embedder: Any = None, parse: Callable[..., Any] | None = None, pause: float = 3.0, section_base: int | None = None,
         rerank: bool | None = None, reranker: Any = None, candidates: int | None = None, gen_model: str | None = None,
-        reference_run: str | Path | None = None, track: bool = True,
+        reference_run: str | Path | None = None, track: bool = True, questions: list[str] | None = None,
         on_progress: Callable[[str], None] | None = None) -> dict[str, Any]:
     """``gen_model``: generation model (default HGRAG_LLM_MODEL), the judge stays HGRAG_JUDGE_MODEL / ``judge_model``.
     ``reference_run``: a previous run dir of the same sample; every question records ``context_same`` (same retrieved
@@ -508,7 +508,8 @@ def run(n_docs: int = 10, *, seed: int = 0, negatives: int = 0, sources: list[st
     for pid in sample["golden"]:
         if pid in store["dirs"]:
             corpus[pid] = src.json(f"corpus/{pid}.json")
-    qids = [q for q in sample["query_ids"] if qrels[q]["doc_id"] in corpus]
+    qids = [q for q in sample["query_ids"] if qrels[q]["doc_id"] in corpus
+            and (not questions or any(q.startswith(p) for p in questions))]  # ids or id prefixes (the 8 shown in the app)
     base = section_base if section_base is not None else detect_base(
         qrels, {p: len(c.get("sections") or []) for p, c in corpus.items()}, qids)
     stem_to_paper = {safe_name(pid): pid for pid in pdfs}
@@ -565,7 +566,7 @@ def run(n_docs: int = 10, *, seed: int = 0, negatives: int = 0, sources: list[st
                          "rerank": use_rerank, "rerank_model": config.RERANK_MODEL if use_rerank else None,
                          "rerank_candidates": (candidates or config.RERANK_CANDIDATES) if use_rerank else None,
                          "gen_model": gen_cfg.model if gen_cfg else None, "judge_model": judge_cfg.model if judge_cfg else None,
-                         "reference_run": str(reference_run) if reference_run else None,
+                         "reference_run": str(reference_run) if reference_run else None, "questions": questions,
                          "context_changed": sum(not r.get("context_same", True) for r in results) if reference is not None else None,
                          "chunk_labels": list(config.CHUNK_LABELS), "n_pdf_failed": len(failed_pdf), "n_describe_failed": len(store["stats"].get("describe_failed", {})), "n_parse_failed": len(store["stats"]["failed"]),
                          "parsed": store["stats"]["parsed"], "reused": store["stats"]["reused"], "papers_indexed": len(store["dirs"]),

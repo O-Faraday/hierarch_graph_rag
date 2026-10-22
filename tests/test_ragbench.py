@@ -326,3 +326,11 @@ def test_offline_cache_error_gets_a_hint(tmp_path):
 def test_section_title_matches_gold_even_when_the_latex_differs():
     assert ragbench._norm_title("3.2.2 Response to a higher rival") == ragbench._norm_title("# 3.2.2 Response to a higher rival".lstrip("#"))
     assert ragbench._norm_title("III. RESULTS") == ragbench._norm_title(" iii. results ")
+
+
+def test_questions_option_keeps_only_the_given_ids(bench, monkeypatch):
+    work, src, parse = bench
+    monkeypatch.setattr(ragbench, "fetch_pdfs", lambda ids, urls, d, **kw: ({p: d / f"{p}.pdf" for p in ids if (d / f"{p}.pdf").exists()}, {}))
+    res = ragbench.run(3, workdir=work, source=src, embedder=BagOfWordsEmbedder(), parse=parse, track=False, questions=["q2", "q3"])
+    assert sorted(r["id"] for r in res["results"]) == ["q2", "q3"] and res["summary"]["config"]["questions"] == ["q2", "q3"]
+    assert res["summary"]["config"]["keyword_weight"] == 0.3  # a fresh store is hybrid

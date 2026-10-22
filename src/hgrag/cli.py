@@ -153,6 +153,7 @@ def main() -> None:
     rb.add_argument("--negatives", type=int, default=0, help="extra papers without any question (distractors)")
     rb.add_argument("--sources", help="keep papers with questions of these kinds: text,text-image,text-table,text-table-image")
     rb.add_argument("--max-queries", type=int, help="cap the number of questions")
+    rb.add_argument("--questions", help="only these questions: comma-separated ids or id prefixes (e.g. ee9ea96b,1ccbaf52)")
     rb.add_argument("-k", type=int, default=5, help="chunks retrieved per question")
     rb.add_argument("--rerank", action=argparse.BooleanOptionalAction, default=config.RERANK,
                     help=f"cross-encoder reranking of the candidate chunks ({config.RERANK_MODEL}; HGRAG_RERANK)")
@@ -251,7 +252,8 @@ def main() -> None:
                                describe=args.describe, generate=args.generate, judge_model=args.judge_model,
                                prepare_only=args.prepare_only, section_base=args.section_base, pause=args.pause,
                                rerank=args.rerank, candidates=args.candidates, gen_model=args.gen_model,
-                               reference_run=args.reference_run, track=not args.no_mlflow, on_progress=lambda m: print(m, flush=True))
+                               reference_run=args.reference_run, track=not args.no_mlflow, on_progress=lambda m: print(m, flush=True),
+                               questions=args.questions.split(",") if args.questions else None)
         except ragbench.RagBenchError as exc:
             print(f"error: {exc}")
             raise SystemExit(2)
