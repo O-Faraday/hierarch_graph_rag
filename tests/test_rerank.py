@@ -107,3 +107,40 @@ def test_reranker_reads_the_generated_formula_reading_and_table_description():
                                               r"$$E(t)=\pm C$$"]
     table = {"text": "| a | b |", "table_description": "Ablation of the enhancement components."}
     assert pair_text(table) == "Ablation of the enhancement components.\n| a | b |"
+
+
+def test_remote_reranker_through_the_hf_router(monkeypatch):
+    from hgrag import rerank
+
+    calls = []
+
+    class Resp:
+        def __init__(self, status, body):
+            self.status_code, self._body, self.text = status, body, str(body)
+
+        def json(self):
+            return self._body
+
+        def raise_for_status(self):
+            pass
+
+    replies = [Resp(503, "loading"), Resp(200, [{"score": 2.0, "index": 1}, {"score": -2.0, "index": 0}]),
+               Resp(200, [{"score": 0.0, "index": 0}])]
+
+    def post(url, headers, json, timeout):
+        calls.append((url, headers, json))
+        return replies.pop(0)
+
+    monkeypatch.setattr(rerank.requests, "post", post)
+    monkeypatch.setattr(rerank.time, "sleep", lambda s: None)
+    monkeypatch.setenv("HF_TOKEN", "hf_x")
+    rr = rerank.load_reranker.__wrapped__("hf:Qwen/Qwen3-Reranker-0.6B")
+    assert isinstance(rr, rerank.RemoteReranker)
+    scores = rr.predict([("q1", "a"), ("q1", "b"), ("q2", "c")])
+    assert scores[0] == pytest.approx(0.1192, abs=1e-3) and scores[1] == pytest.approx(0.8808, abs=1e-3) and scores[2] == 0.5
+    assert calls[0][0].endswith("/hf-inference/models/Qwen/Qwen3-Reranker-0.6B")  # first try failed (503), retried
+    assert calls[1][2] == {"inputs": {"query": "q1", "texts": ["a", "b"]}} and calls[2][2] == {"inputs": {"query": "q2", "texts": ["c"]}}
+    assert calls[1][1]["Authorization"] == "Bearer hf_x"
+    monkeypatch.delenv("HF_TOKEN")
+    with pytest.raises(RuntimeError, match="HF_TOKEN"):
+        rerank.RemoteReranker("x")

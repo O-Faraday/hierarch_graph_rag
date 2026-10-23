@@ -404,7 +404,7 @@ jamais échouer un pipeline. Serveur distant : `MLFLOW_TRACKING_URI`.
 | `HGRAG_KEYWORD_WEIGHT` | `0.3` | Part du score mots-clés (BM25) dans le classement des candidats ; `0` = dense seul |
 | `HGRAG_CHUNK_MAX_TOKENS` | `256` | Taille maximale des chunks (jamais au-delà de la fenêtre du modèle) |
 | `HGRAG_RERANK` | `1` | Reclassement par cross-encoder : la recherche vectorielle lit `HGRAG_RERANK_CANDIDATES` chunks, le cross-encoder garde les `k` meilleurs |
-| `HGRAG_RERANK_MODEL` | `cross-encoder/ms-marco-MiniLM-L12-v2` | Cross-encoder (rapide sur CPU). Plus précis mais plus lourd : `BAAI/bge-reranker-base` |
+| `HGRAG_RERANK_MODEL` | `cross-encoder/ms-marco-MiniLM-L12-v2` | Cross-encoder (rapide sur CPU : ~4 s par question). Plus lourds : `BAAI/bge-reranker-v2-m3` (~26 s par question sur CPU) ; `hf:<modèle>` appelle le routeur Hugging Face (tâche text-ranking, `HF_TOKEN`), par exemple `hf:Qwen/Qwen3-Reranker-0.6B`, trop lent en local (~5 min par question) |
 | `HGRAG_RERANK_CANDIDATES` / `HGRAG_RERANK_MAX_LENGTH` | `30` / `512` | Candidats reclassés / tokens lus par paire |
 | `HGRAG_MIN_CHUNK_WORDS` | `3` | Taille minimale d'un chunk (`0` = off) |
 | `HGRAG_CHUNK_LABELS` | `text,paragraph,list_item,footnote,formula,code,table,caption` | Éléments Docling qui deviennent des chunks (retirer `table`, `code`… pour restreindre) |
