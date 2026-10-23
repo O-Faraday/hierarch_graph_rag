@@ -220,6 +220,34 @@ papier absent, section absente, refus, lecture de figure, contradiction, section
 décisions « garder / exclure » et les notes sont propres au run (`<run>/review.json`) : elles ne changent ni
 `summary.json` ni les autres runs. Une question de `data/ragbench_disputed.json` part exclue.
 
+### 1.3 septies Contrôles de production, sans référence (assessments)
+
+```bash
+uv run hgrag assess --output-dir data/output            # contrôles déterministes de chaque document parsé
+uv run hgrag assess --output-dir data/output --judge    # + juges LLM sur un échantillon (ANTHROPIC_API_KEY)
+uv run hgrag assess --failed                            # liste chaque contrôle en échec, document par document
+```
+
+Chaque étape reçoit des contrôles qui tournent en production : ils ne demandent aucune réponse attendue. Chaque
+enregistrement (nom, valeur, réussi ou non, justification, élément visé) s'écrit dans `<doc>/assessments.json` et
+correspond à un `Feedback` MLflow (`Assessment.to_feedback()`, source `CODE` ou `LLM_JUDGE`), à rattacher à la trace de
+l'étape. Les juges tournent sur un échantillon déterministe (`HGRAG_ASSESS_SAMPLE`, au plus `HGRAG_ASSESS_MAX_JUDGED`
+éléments par document et par type).
+
+| Étape | Contrôle | Type | Échec si |
+|---|---|---|---|
+| parse | `text_coverage` | code | moins de `HGRAG_ASSESS_MIN_COVERAGE` (0,9) des mots de la couche texte du PDF retrouvés par Docling |
+| parse | `low_coverage_pages` | code | une page sous `HGRAG_ASSESS_MIN_PAGE_COVERAGE` (0,6) ; les pages sans couche texte (scans) ne sont pas notées |
+| parse | `headings`, `headings_per_page` | code | aucun titre de section, ou plus de `HGRAG_ASSESS_MAX_HEADINGS_PER_PAGE` (4) par page |
+| parse | `empty_formulas`, `empty_tables`, `figures_without_png` | code | une formule sans texte, un tableau sans cellules, une figure sans son PNG |
+| describe | `figure_descriptions`, `table_descriptions`, `formula_readings` | code | texte absent, refus (« I cannot… ») ou moins de `HGRAG_ASSESS_MIN_DESCRIPTION_WORDS` (15) mots |
+| describe | `latex_wellformed` | code | accolades, `\left`/`\right` ou environnements déséquilibrés, commande répétée en boucle, `<` du texte PDF perdu, `$` impair |
+| describe | `figure_fidelity` | juge (image) | note < `HGRAG_ASSESS_JUDGE_OK` (4) : affirmations que l'image contredit ou ne montre pas |
+| describe | `formula_latex`, `formula_reading` | juge (image) | note < 4 : LaTeX fidèle à l'image ; lecture fidèle à la formule et au texte qui l'entoure |
+
+Le juge (`HGRAG_ASSESS_JUDGE_MODEL`, Claude Haiku 5.5) réfléchit par défaut et sa réflexion compte dans `max_tokens` :
+il dispose de 4000 tokens. Ces contrôles sont des mesures maison, calibrées sur les 60 papiers de `check_full`.
+
 ### Niveaux de titres (chiffres romains) et légendes
 
 - Docling donne parfois de mauvais niveaux aux titres des articles scientifiques (`V. CONCLUSION` et `REFERENCES` rangés sous
@@ -320,6 +348,7 @@ avec leurs métadonnées. Les logs du run (`Log`) reprennent les mêmes chiffres
 | `src/hgrag/indexing.py` | Étapes 3-4 : chunks des éléments textuels, embeddings, Qdrant |
 | `src/hgrag/retrieval.py` | Retrieval : requête → chunks proches → sections reconstruites |
 | `src/hgrag/tracking.py` | Suivi MLflow : un run parent par exécution, un run enfant par étape |
+| `src/hgrag/assessments/` | Contrôles de production sans référence (`hgrag assess`), un module par étape |
 | `src/hgrag/pipeline.py`, `cli.py` | Étapes en fonctions, CLI (`run`, `query`, `mlflow-ui`) |
 | `src/hgrag/runner.py` | Exécuteur local (sous-processus) : graphe des tâches, `status.json`, log, annulation |
 | `scripts/make_control_pdfs.py`, `data/pdf_control/` | Les 3 PDF de contrôle et `expected.json` |
@@ -428,6 +457,13 @@ jamais échouer un pipeline. Serveur distant : `MLFLOW_TRACKING_URI`.
 | `HGRAG_REFINE_MODEL` | `claude-haiku-5-5` | Modèle des juges de contexte et de génération (`hgrag ragbench-refine`) |
 | `HGRAG_REFINE_THRESHOLD` | `4` | Questions notées strictement en dessous jugées à nouveau |
 | `HGRAG_REFINE_CONTEXT_OK` | `4` | `context_score` minimal pour lancer le juge de génération |
+| `HGRAG_ASSESS_MIN_COVERAGE` | `0.9` | `hgrag assess` : part minimale des mots de la couche texte du PDF retrouvés par Docling (document) |
+| `HGRAG_ASSESS_MIN_PAGE_COVERAGE` | `0.6` | Même mesure, page par page |
+| `HGRAG_ASSESS_MAX_HEADINGS_PER_PAGE` | `4` | Au-delà, des phrases ou des légendes sont probablement lues comme des titres |
+| `HGRAG_ASSESS_MIN_DESCRIPTION_WORDS` | `15` | Longueur minimale d'une description de figure ou de tableau, d'une lecture de formule |
+| `HGRAG_ASSESS_JUDGE_MODEL` | `HGRAG_JUDGE_MODEL` | Juge des figures et des formules (image) |
+| `HGRAG_ASSESS_SAMPLE` / `HGRAG_ASSESS_MAX_JUDGED` | `0.2` / `10` | Part des figures et formules jugées / plafond par document et par type |
+| `HGRAG_ASSESS_JUDGE_OK` | `4` | Note du juge (1-5) comptée comme réussie |
 | `HGRAG_EVAL_DIR` | `data/eval` | Résultats et store du benchmark |
 | `HF_HUB_OFFLINE` | — | `1` = ne plus contacter Hugging Face (modèles déjà en cache) |
 | `HGRAG_RUNS_DIR` | `data/runs` | Statuts et logs des runs de l'app |

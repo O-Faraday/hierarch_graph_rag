@@ -142,3 +142,14 @@ JUDGE_MODEL = os.environ.get("HGRAG_JUDGE_MODEL", "claude-haiku-5-5")
 REFINE_MODEL = os.environ.get("HGRAG_REFINE_MODEL", "claude-haiku-5-5")
 REFINE_THRESHOLD = int(os.environ.get("HGRAG_REFINE_THRESHOLD", "4"))
 REFINE_CONTEXT_OK = int(os.environ.get("HGRAG_REFINE_CONTEXT_OK", "4"))
+
+# Production assessments of the pipeline steps (hgrag.assessments): no reference answer involved. Deterministic checks
+# always run; the LLM judges (figures and formulas, vision) run on a sample of the items.
+ASSESS_MIN_COVERAGE = float(os.environ.get("HGRAG_ASSESS_MIN_COVERAGE", "0.9"))  # PDF text-layer words found by Docling
+ASSESS_MIN_PAGE_COVERAGE = float(os.environ.get("HGRAG_ASSESS_MIN_PAGE_COVERAGE", "0.6"))  # same, page by page
+ASSESS_MAX_HEADINGS_PER_PAGE = float(os.environ.get("HGRAG_ASSESS_MAX_HEADINGS_PER_PAGE", "4"))
+ASSESS_MIN_DESCRIPTION_WORDS = int(os.environ.get("HGRAG_ASSESS_MIN_DESCRIPTION_WORDS", "15"))
+ASSESS_JUDGE_MODEL = os.environ.get("HGRAG_ASSESS_JUDGE_MODEL", JUDGE_MODEL)
+ASSESS_SAMPLE = float(os.environ.get("HGRAG_ASSESS_SAMPLE", "0.2"))  # share of the figures / formulas judged
+ASSESS_MAX_JUDGED = int(os.environ.get("HGRAG_ASSESS_MAX_JUDGED", "10"))  # per document and per kind
+ASSESS_JUDGE_OK = int(os.environ.get("HGRAG_ASSESS_JUDGE_OK", "4"))  # judge score (1-5) counted as passed

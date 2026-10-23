@@ -136,6 +136,17 @@ def main() -> None:
     de.add_argument("--output-dir", default=str(config.OUTPUT_DIR))
     de.add_argument("--model", help="figure model, e.g. hf:Qwen/Qwen3-VL-30B-A3B-Instruct (default HGRAG_FIGURE_VLM)")
     de.add_argument("--force", action="store_true", help="redo the descriptions that already exist")
+    asx = sub.add_parser("assess", help="production checks of the parsed documents (no reference): parsing coverage and "
+                         "labels, descriptions; LLM judges on a sample with --judge")
+    asx.add_argument("doc_dirs", nargs="*", help="parsed document dirs (default: every one under --output-dir)")
+    asx.add_argument("--output-dir", default=str(config.OUTPUT_DIR))
+    asx.add_argument("--steps", default="parse,describe", help="comma-separated: parse, describe")
+    asx.add_argument("--judge", action="store_true", help="also run the LLM judges (figures, formulas) on a sample")
+    asx.add_argument("--sample", type=float, help=f"share of the items judged (default {config.ASSESS_SAMPLE}, HGRAG_ASSESS_SAMPLE)")
+    asx.add_argument("--max-judged", type=int, help=f"per document and kind (default {config.ASSESS_MAX_JUDGED})")
+    asx.add_argument("--judge-model", help=f"default {config.ASSESS_JUDGE_MODEL} (HGRAG_ASSESS_JUDGE_MODEL)")
+    asx.add_argument("--workers", type=int, default=4)
+    asx.add_argument("--failed", action="store_true", help="list every failed check, document by document")
     rr = sub.add_parser("ragbench-report", help="rebuild questions.md (lowest score first) and the disputed-reference metrics of a ragbench run")
     rr.add_argument("run_dir", help="e.g. data/ragbench/runs/20261015T203656-d39c3b")
     rf = sub.add_parser("ragbench-refine", help="second opinion on the low judge scores of a ragbench run: context judge "
@@ -218,6 +229,34 @@ def main() -> None:
             failed += bool(bad)
         print("Next: rebuild hierarchy + index (app: 'Rebuild hierarchy + index') so the descriptions are searchable.")
         raise SystemExit(1 if failed else 0)
+
+    if args.cmd == "assess":
+        from . import assessments
+
+        dirs = [Path(d) for d in args.doc_dirs] or sorted(p.parent for p in Path(args.output_dir).glob("*/document.json"))
+        if not dirs:
+            raise SystemExit(f"No parsed document in {args.output_dir}: run the parse step first.")
+        steps = tuple(s.strip() for s in args.steps.split(",") if s.strip())
+        records, failures = [], []
+        for d in dirs:
+            res = assessments.assess_document(d, steps=steps, judge=args.judge, sample=args.sample,
+                                              max_judged=args.max_judged, judge_model=args.judge_model, workers=args.workers)
+            mine = [a for recs in res.values() for a in recs]
+            records += mine
+            bad = [a for a in mine if a.passed is False or a.error]
+            failures += [(d.name, a) for a in bad]
+            print(f"{d.name}: {len(mine)} check(s), {len(bad)} failed", flush=True)
+        print(f"\n{'check':<32} {'source':<10} {'n':>5} {'passed':>7} {'failed':>7} {'errors':>7} {'mean':>7}")
+        for row in assessments.summarize(records):
+            mean = "" if row["mean"] is None else row["mean"]
+            print(f"{row['name']:<32} {row['source']:<10} {row['n']:>5} {row['passed']:>7} {row['failed']:>7} "
+                  f"{row['errors']:>7} {mean:>7}")
+        if args.failed:
+            for name, a in failures:
+                where = f" [{a.target}]" if a.target else ""
+                print(f"{name} {a.name}{where}: {a.error or a.rationale}")
+        print("\nWritten to assessments.json in each document dir.")
+        return
 
     if args.cmd == "ragbench-report":
         from . import ragbench
