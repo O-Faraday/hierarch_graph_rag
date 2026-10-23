@@ -30,6 +30,12 @@ DEFAULT_URLS = {"anthropic": "https://api.anthropic.com", "openai": "http://loca
 ANTHROPIC_VERSION = "2023-06-01"
 FALLBACK_BETA = "server-side-fallback-2026-07-01"  # with fallbacks="default"
 
+
+def judge_thinking(model: str) -> str | None:
+    """Thinking setting of a judge: off for Claude Haiku (5.5 thinks by default, its thinking counts in max_tokens and
+    cut a third of the judge replies at 800 tokens), model default otherwise (Fable 5.1 rejects "disabled")."""
+    return "disabled" if "haiku" in model.lower() else None
+
 SYSTEM_PROMPT = (
     "You answer questions about a corpus of documents using ONLY the numbered sources provided by the user. "
     "Each source is a section of a document, rebuilt with all its paragraphs, lists, tables and figures.\n"
@@ -71,6 +77,7 @@ class LLMConfig:
     max_context_chars: int = int(os.environ.get("HGRAG_LLM_MAX_CONTEXT_CHARS", "48000"))
     timeout: float = 120.0
     fallbacks: str | None = None  # Claude only: "default" re-runs a refused request on a fallback model
+    thinking: str | None = None  # Claude only: "disabled" sends thinking {"type": "disabled"}; None = model default
 
     def __post_init__(self) -> None:
         if self.provider not in PROVIDERS:
@@ -187,7 +194,8 @@ def _stream_anthropic(cfg: LLMConfig, system: str, user: Any) -> Iterator[dict[s
             json={"model": cfg.model, "max_tokens": cfg.max_tokens, "stream": True, "system": system,
                   "messages": [{"role": "user", "content": user}],
                   **({"temperature": cfg.temperature} if cfg.temperature is not None else {}),
-                  **({"fallbacks": cfg.fallbacks} if cfg.fallbacks else {})},
+                  **({"fallbacks": cfg.fallbacks} if cfg.fallbacks else {}),
+                  **({"thinking": {"type": cfg.thinking}} if cfg.thinking else {})},
         )
     except requests.RequestException as exc:
         raise GenerationError(f"cannot reach {cfg.base_url}: {exc}") from exc

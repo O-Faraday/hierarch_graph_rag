@@ -158,3 +158,21 @@ def test_refine_judges_default_to_haiku_like_the_generation_and_the_first_judge(
     assert cfg.model == config.REFINE_MODEL == "claude-haiku-5-5" and cfg.fallbacks is None
     assert evaluation.judge_config().model == "claude-haiku-5-5"
     assert generation.DEFAULT_MODELS["anthropic"] == "claude-haiku-5-5"
+
+
+def test_haiku_judges_do_not_think(monkeypatch):
+    """Claude Haiku 5.5 thinks by default and its thinking counts in max_tokens: the judges on Haiku turn it off; the
+    answer generation and the judges on other models keep the model default (Fable 5.1 rejects "disabled")."""
+    from hgrag import evaluation
+    from hgrag.assessments import description
+
+    sent = []
+    monkeypatch.setattr(generation.requests, "post", lambda url, **kw: sent.append(kw["json"]) or FakeResponse(_anthropic_stream(["ok"])))
+    for cfg in (evaluation.judge_config(api_key="k"), refine.refine_config(api_key="k"),
+                description.judge_config(api_key="k")):
+        generation.complete(cfg, "s", "u")
+    assert [b.get("thinking") for b in sent] == [{"type": "disabled"}] * 3
+    sent.clear()
+    for cfg in (refine.refine_config("claude-sonnet-5-5", api_key="k"), generation.LLMConfig(provider="anthropic", api_key="k")):
+        generation.complete(cfg, "s", "u")
+    assert [("thinking" in b) for b in sent] == [False, False]

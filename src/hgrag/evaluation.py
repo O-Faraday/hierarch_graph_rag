@@ -198,8 +198,9 @@ def judge_answer(cfg: LLMConfig, question: str, ground_truth: str, answer: str) 
 
 
 def judge_config(model: str | None = None, api_key: str | None = None) -> LLMConfig:
-    return LLMConfig(provider="anthropic", model=model or config.JUDGE_MODEL, max_tokens=600, send_images=False,
-                     api_key=api_key)
+    model = model or config.JUDGE_MODEL
+    return LLMConfig(provider="anthropic", model=model, max_tokens=600, send_images=False, api_key=api_key,
+                     thinking=generation.judge_thinking(model))
 
 
 # ------------------------------------------------------------------------------------------ run

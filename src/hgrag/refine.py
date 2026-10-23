@@ -98,7 +98,7 @@ Cause of the gap with the first score:
 def refine_config(model: str | None = None, api_key: str | None = None) -> LLMConfig:
     model = model or config.REFINE_MODEL
     return LLMConfig(provider="anthropic", model=model, max_tokens=8000, send_images=True, api_key=api_key, timeout=300.0,
-                     fallbacks="default" if model in FALLBACK_MODELS else None)
+                     fallbacks="default" if model in FALLBACK_MODELS else None, thinking=generation.judge_thinking(model))
 
 
 def candidates(rows: list[dict[str, Any]], threshold: int, force: bool = False) -> list[dict[str, Any]]:
