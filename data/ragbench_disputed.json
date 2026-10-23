@@ -1,5 +1,7 @@
 {
   "95e992a3-cef6-4163-bea2-1cfd82759123": "2408.02322v2 Table 1: seq->seq 7.7 / 7.6 < seq->jump 12.5 / 11.7, the reference answer 'Yes' (seq->seq higher) is inverted",
   "fba7de5d-f300-487b-8bca-5749b979d505": "2408.02322v2 Table 1: seq->jump has the higher gains (12.5 vs 7.7), the reference says lower",
-  "787cdb32-9ce8-4128-a21a-a85668a8f0de": "2409.13333v2 6.1: the lighter second attempts are the counterfactual WITHOUT pressure; the reference attributes them to pressure"
+  "787cdb32-9ce8-4128-a21a-a85668a8f0de": "2409.13333v2 6.1: the lighter second attempts are the counterfactual WITHOUT pressure; the reference attributes them to pressure",
+  "7bf89ca7-a14d-4a45-98f8-50100db9a10f": "2407.11761v3 Figure 1: grey-scale stacked bars without values, the Life Reins slices of IT and DE are about 1 % each; the reference 'Yes' cannot be checked in the PDF",
+  "0c695ab2-c477-4c7e-9742-20b2b7feb68c": "2408.07372v2: neither the PDF nor the reference section mentions second moments, variability or correlation between points; the reference answer is not grounded in the paper"
 }
