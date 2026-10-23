@@ -283,8 +283,9 @@ def compare_runs(ref: list[dict[str, Any]], new: list[dict[str, Any]], k: int,
     ``metrics``: (name, reference, new, difference), score metrics both first judge and corrected (refined score where
     it exists). ``questions``: one line per question, a status (fixed, regressed, better, worse, same) from the
     corrected scores, or from the first judge's only (``corrected=False``: the second opinion may not cover the same
-    questions in both runs), and what the retrieval changed; largest moves first. ``by_retrieval``: the score moves
-    per retrieval change. Under "same context" they are the noise of the generation and the judge."""
+    questions in both runs), and what the retrieval changed; largest moves first. ``by_retrieval``: per retrieval
+    change, the questions that crossed the threshold (fixed: < 4 -> >= 4, regressed: >= 4 -> < 4). Under "same
+    context" they are the noise of the generation and the judge."""
     a, b = {r["id"]: r for r in ref}, {r["id"]: r for r in new}
     score = _effective if corrected else (lambda r: r.get("score"))
     common = [q for q in b if q in a and q not in (disputed or {})]
@@ -319,11 +320,11 @@ def compare_runs(ref: list[dict[str, Any]], new: list[dict[str, Any]], k: int,
     questions.sort(key=lambda x: (order.index(x["status"]), -abs(x["gain"] or 0)))
     counts = Counter(x["status"] for x in questions)
     by_retrieval: dict[str, dict[str, int]] = {}
-    for x in questions:
-        move = "same" if not x["gain"] else "up" if x["gain"] > 0 else "down"
-        cell = by_retrieval.setdefault(x["retrieval"], {"n": 0, "up": 0, "down": 0, "same": 0})
+    for x in questions:  # only the moves across the 4/5 threshold count: a 5 -> 4 is the judge's own noise
+        cell = by_retrieval.setdefault(x["retrieval"], {"n": 0, "fixed": 0, "regressed": 0})
         cell["n"] += 1
-        cell[move] += 1
+        if x["status"] in ("fixed", "regressed"):
+            cell[x["status"]] += 1
     return {"n_common": len(common), "only_ref": len(set(a) - set(b)), "only_new": len(set(b) - set(a)),
             "metrics": metrics, "questions": questions, "counts": {s: counts.get(s, 0) for s in STATUSES},
             "by_retrieval": {k_: by_retrieval[k_] for k_ in RETRIEVAL_CHANGES if k_ in by_retrieval},

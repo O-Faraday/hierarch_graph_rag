@@ -372,7 +372,9 @@ def test_compare_page_lists_regressions_and_opens_the_detail(tmp_path, monkeypat
     metrics = at.dataframe[1].value.set_index("metric")
     assert metrics.loc["n", "new"] == 2  # q-wrong-ref is disputed: left out by default
     m = {x.label: x.value for x in at.metric}
-    assert m["regressed"] == "1" and m["fixed"] == "1" and m["section lost"] == "1" and m["section gained"] == "1"
+    assert m["≥ 4 → < 4"] == "1" and m["< 4 → ≥ 4"] == "1" and m["net"] == "0"
+    assert m["section lost"] == "1" and m["section gained"] == "1" and "better" not in m and "worse" not in m
+    assert list(at.dataframe[2].value.columns) == ["retrieval change", "questions", "< 4 → ≥ 4", "≥ 4 → < 4", "net"]
     table = at.dataframe[3].value
     assert list(table["id"]) == ["q-missed", "q-good"]  # fixed first, then regressed
     assert list(table["status"]) == ["Fixed (now ≥ 4)", "Regressed (now < 4)"]

@@ -156,11 +156,11 @@ def test_score_moves_split_by_what_the_retrieval_changed():
     kinds = {x["id"]: x["retrieval"] for x in c["questions"]}
     assert kinds == {"same": "same context", "other": "other sections", "up": "rank better", "gain": "section gained",
                      "refined": "same context"}
-    assert c["by_retrieval"]["same context"] == {"n": 2, "up": 0, "down": 2, "same": 0}  # refined 5 -> 3 counts down
+    assert c["by_retrieval"]["same context"] == {"n": 2, "fixed": 0, "regressed": 1}  # refined 5 -> 3 crosses; 5 -> 4 does not
     assert list(c["by_retrieval"]) == ["section gained", "rank better", "other sections", "same context"]
     first = rr.compare_runs(ref, new, 10, corrected=False)  # second opinion only in the reference: first judge only
     assert {x["id"]: x["status"] for x in first["questions"]}["refined"] == "same"
-    assert first["by_retrieval"]["same context"] == {"n": 2, "up": 0, "down": 1, "same": 1}
+    assert first["by_retrieval"]["same context"] == {"n": 2, "fixed": 0, "regressed": 0}  # first judge: 3 -> 3 and 5 -> 4
     assert rr.generator_mismatch({"gen_model": "claude-sonnet-5-5"}, {"gen_model": "claude-haiku-5-5"}) == \
         ("claude-sonnet-5-5", "claude-haiku-5-5")
     assert rr.generator_mismatch({}, {"gen_model": "claude-haiku-5-5"}) is None  # older run: not recorded

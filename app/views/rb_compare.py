@@ -78,8 +78,9 @@ ui.step_header(2, "Metrics", f"{cmp['n_common']} common questions"
 st.dataframe(pd.DataFrame(cmp["metrics"], columns=["metric", "reference", "new", "difference"]), hide_index=True,
              width="stretch", column_config={"difference": st.column_config.NumberColumn("difference", format="%+.3f")})
 counts = cmp["counts"]
-facts = [("fixed", counts["fixed"], "now ≥ 4, was < 4"), ("regressed", counts["regressed"], "now < 4, was ≥ 4"),
-         ("better", counts["better"], "higher score"), ("worse", counts["worse"], "lower score"),
+facts = [("< 4 → ≥ 4", counts["fixed"], "fixed: scored 4 or 5 now, below 4 before"),
+         ("≥ 4 → < 4", counts["regressed"], "regressed: scored below 4 now, 4 or 5 before"),
+         ("net", counts["fixed"] - counts["regressed"], "fixed minus regressed"),
          ("section gained", cmp["sections"]["gained"], "found now, absent before"),
          ("section lost", cmp["sections"]["lost"], "absent now, found before")]
 for col, (label, v, tip) in zip(st.columns(len(facts)), facts):
@@ -87,13 +88,13 @@ for col, (label, v, tip) in zip(st.columns(len(facts)), facts):
 
 # ---- moves by retrieval change -------------------------------------------------------------------
 ui.step_header(3, "Score moves by retrieval change", "is a move due to the chain, or to the noise?")
-st.caption("A question whose context is the same in both runs can only move through the generation and the judge: "
-           "the « Same context » row is the noise. A chain change shows as rows that differ from it.")
-st.dataframe(pd.DataFrame([{"retrieval change": ragbench_review.RETRIEVAL_CHANGES[r], **v,
-                            "share down": round(v["down"] / v["n"], 2) if v["n"] else None}
+st.caption("Questions that crossed the threshold of 4, per retrieval change. A question whose context is the same in "
+           "both runs can only cross it through the generation and the judge: the « Same context » row is the noise. "
+           "A chain change shows as rows that differ from it.")
+st.dataframe(pd.DataFrame([{"retrieval change": ragbench_review.RETRIEVAL_CHANGES[r], "questions": v["n"],
+                            "< 4 → ≥ 4": v["fixed"], "≥ 4 → < 4": v["regressed"], "net": v["fixed"] - v["regressed"]}
                            for r, v in cmp["by_retrieval"].items()]), hide_index=True, width="stretch",
-             column_config={"share down": st.column_config.ProgressColumn("share down", min_value=0.0, max_value=1.0,
-                                                                          format="percent")})
+             column_config={"net": st.column_config.NumberColumn("net", format="%+d")})
 
 # ---- questions -----------------------------------------------------------------------------------
 ui.step_header(4, "Questions that moved", "regressions first; select a row to open it")
