@@ -140,8 +140,12 @@ def main() -> None:
                          "labels, descriptions; LLM judges on a sample with --judge")
     asx.add_argument("doc_dirs", nargs="*", help="parsed document dirs (default: every one under --output-dir)")
     asx.add_argument("--output-dir", default=str(config.OUTPUT_DIR))
-    asx.add_argument("--steps", default="parse,describe", help="comma-separated: parse, describe")
-    asx.add_argument("--judge", action="store_true", help="also run the LLM judges (figures, formulas) on a sample")
+    asx.add_argument("--steps", default="parse,describe,hierarchy,chunks",
+                     help="comma-separated: parse, describe, hierarchy, chunks")
+    asx.add_argument("--qdrant-path", default=str(config.QDRANT_PATH), help="Qdrant store of the documents (step chunks)")
+    asx.add_argument("--collection", default=config.COLLECTION_NAME)
+    asx.add_argument("--judge", action="store_true",
+                     help="also run the LLM judges (figures and formulas on a sample, outline of every document)")
     asx.add_argument("--sample", type=float, help=f"share of the items judged (default {config.ASSESS_SAMPLE}, HGRAG_ASSESS_SAMPLE)")
     asx.add_argument("--max-judged", type=int, help=f"per document and kind (default {config.ASSESS_MAX_JUDGED})")
     asx.add_argument("--judge-model", help=f"default {config.ASSESS_JUDGE_MODEL} (HGRAG_ASSESS_JUDGE_MODEL)")
@@ -238,14 +242,24 @@ def main() -> None:
             raise SystemExit(f"No parsed document in {args.output_dir}: run the parse step first.")
         steps = tuple(s.strip() for s in args.steps.split(",") if s.strip())
         records, failures = [], []
-        for d in dirs:
-            res = assessments.assess_document(d, steps=steps, judge=args.judge, sample=args.sample,
-                                              max_judged=args.max_judged, judge_model=args.judge_model, workers=args.workers)
-            mine = [a for recs in res.values() for a in recs]
-            records += mine
-            bad = [a for a in mine if a.passed is False or a.error]
-            failures += [(d.name, a) for a in bad]
-            print(f"{d.name}: {len(mine)} check(s), {len(bad)} failed", flush=True)
+        client = None
+        if "chunks" in steps and Path(args.qdrant_path).exists():
+            from .indexing import open_store
+
+            client = open_store(args.qdrant_path)
+        try:
+            for d in dirs:
+                res = assessments.assess_document(d, steps=steps, judge=args.judge, sample=args.sample,
+                                                  max_judged=args.max_judged, judge_model=args.judge_model,
+                                                  workers=args.workers, client=client, collection=args.collection)
+                mine = [a for recs in res.values() for a in recs]
+                records += mine
+                bad = [a for a in mine if a.passed is False or a.error]
+                failures += [(d.name, a) for a in bad]
+                print(f"{d.name}: {len(mine)} check(s), {len(bad)} failed", flush=True)
+        finally:
+            if client is not None:
+                client.close()
         print(f"\n{'check':<32} {'source':<10} {'n':>5} {'passed':>7} {'failed':>7} {'errors':>7} {'mean':>7}")
         for row in assessments.summarize(records):
             mean = "" if row["mean"] is None else row["mean"]

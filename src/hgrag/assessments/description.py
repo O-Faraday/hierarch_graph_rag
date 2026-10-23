@@ -155,11 +155,18 @@ class JudgeReplyError(ValueError):
 
 
 def parse_reply(text: str, scores: tuple[str, ...]) -> dict[str, Any]:
-    m = re.search(r"\{.*\}", text or "", re.S)
-    if not m:
+    """The first JSON object of the reply (a judge sometimes writes a note after it), with its scores checked."""
+    start = (text or "").find("{")
+    if start < 0:
         raise JudgeReplyError(f"no JSON in the judge reply: {(text or '')[:200]!r}")
     try:
-        data = json.loads(m.group(0))
+        try:
+            data, _end = json.JSONDecoder().raw_decode(text[start:])
+        except ValueError:
+            data = {}
+        for key in (*scores, "rationale"):  # malformed JSON (a quote in a heading, a brace closed too early)
+            if key not in data and (m := re.search(rf'"{key}"\s*:\s*(\d|"(?:[^"\\]|\\.)*")', text)):
+                data[key] = json.loads(m.group(1))
         for key in scores:
             data[key] = int(data[key])
             if not 1 <= data[key] <= 5:
@@ -183,15 +190,17 @@ def judge_image(cfg: Any, png: Path, system: str, prompt: str, scores: tuple[str
     raise last  # type: ignore[misc]
 
 
-JUDGE_MAX_TOKENS = 4000  # Claude Haiku 5.5 thinks by default and its thinking counts here: at 800, a third of the
-# replies of a first calibration run stopped (stop_reason max_tokens) before or inside the JSON
+JUDGE_MAX_TOKENS = 1500
 
 
 def judge_config(model: str | None = None, api_key: str | None = None) -> Any:
-    from .. import vlm_bench
+    """Vision judge; thinking off on Claude Haiku (``generation.judge_thinking``)."""
+    from .. import generation, vlm_bench
 
     spec = model or config.ASSESS_JUDGE_MODEL
-    return vlm_bench.model_config(spec if ":" in spec else f"anthropic:{spec}", api_key, max_tokens=JUDGE_MAX_TOKENS)
+    cfg = vlm_bench.model_config(spec if ":" in spec else f"anthropic:{spec}", api_key, max_tokens=JUDGE_MAX_TOKENS)
+    cfg.thinking = generation.judge_thinking(cfg.model) if cfg.provider == "anthropic" else None
+    return cfg
 
 
 def _figure_judgement(cfg: Any, doc_dir: Path, rec: dict[str, Any]) -> list[Assessment]:

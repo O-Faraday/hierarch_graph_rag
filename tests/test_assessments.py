@@ -149,7 +149,7 @@ def test_llm_judges_on_figures_and_formulas(tmp_path, monkeypatch):
 
     def fake(cfg, png, prompt, system):
         calls.append((png.name, system))
-        assert cfg.max_tokens >= 4000  # room for Haiku 5.5's default thinking
+        assert cfg.thinking == "disabled"  # Haiku judges do not think
         if system == D.FORMULA_JUDGE_SYSTEM:  # the reading is judged with the text it was written from
             assert "TEXT BEFORE THE FORMULA:\nLet E be the energy." in prompt and "TEXT AFTER THE FORMULA:\n(none)" in prompt
         if system == D.FIGURE_JUDGE_SYSTEM:
@@ -200,11 +200,135 @@ def test_assess_document_writes_and_keeps_other_steps(tmp_path):
     doc.save_as_json(tmp_path / "document.json")
     (tmp_path / "manifest.json").write_text(json.dumps({"source_pdf": str(tmp_path / "gone.pdf")}))
     (tmp_path / "assessments.json").write_text(json.dumps({"hierarchy": [{"name": "x", "value": 1}]}))
-    out = assessments.assess_document(tmp_path, judge=False)
+    out = assessments.assess_document(tmp_path, steps=("parse", "describe"), judge=False)
     cov = _by_name(out["parse"])["parse.text_coverage"]
     assert cov.value is None and "source PDF not found" in cov.error
     saved = json.loads((tmp_path / "assessments.json").read_text(encoding="utf-8"))
-    assert set(saved) == {"hierarchy", "parse", "describe"}
+    assert set(saved) == {"hierarchy", "parse", "describe"} and saved["hierarchy"] == [{"name": "x", "value": 1}]
     assert assessments.load_assessments(tmp_path)["parse"][0].name == "parse.text_coverage"
     rows = {r["name"]: r for r in assessments.summarize(out["parse"] + out["describe"])}
     assert rows["parse.headings"]["passed"] == 1 and rows["parse.text_coverage"]["errors"] == 1
+
+
+# ------------------------------------------------------------------------------------------------ step 3: hierarchy
+from hgrag.assessments import chunks as C  # noqa: E402
+from hgrag.assessments import hierarchy as H  # noqa: E402
+
+
+def _node(title, level, children=(), elements=()):
+    return {"title": title, "level": level, "page_no": 1, "children": list(children),
+            "elements": [{"kind": k, "text": t} for k, t in elements]}
+
+
+def test_heading_numbers():
+    assert H.heading_number("2.1 Data") == ("arabic", (2, 1))
+    assert H.heading_number("A.3. Proofs") == ("A", (3,))
+    assert H.heading_number("IV. RESULTS") == ("roman", (4,))
+    assert H.heading_number("A Simple Method") is None and H.heading_number("Results") is None
+    assert H.heading_number("2024 was a year") is None
+
+
+def test_numbering_flags_skips_and_steps_back():
+    tree = _node("doc", 0, [
+        _node("1 Introduction", 1), _node("2 Method", 1, [_node("2.1 Data", 2), _node("2.3 Model", 2)]),
+        _node("3 Results", 1, [_node("3.1 Main", 2), _node("1. Crossover", 2)]), _node("Appendix", 1, [_node("A.1 Proof", 2)]),
+    ])
+    rec = H.numbering(tree)
+    assert rec.value == 2 and rec.passed is False
+    assert rec.metadata["problems"] == ["'2.3 Model' skips 2.2", "'1. Crossover' after 3"]
+    ok = _node("doc", 0, [_node("1 A", 1, [_node("1.1 B", 2)]), _node("2 C", 1, [_node("2.1 D", 2)]), _node("3.1 E", 1)])
+    assert H.numbering(ok).passed  # 3.1 after 2.1: heading 3 lost but the sub-numbering restarts correctly
+    assert H.numbering(_node("doc", 0, [_node("Intro", 1)])).value is None
+
+
+def test_references_and_acknowledgements_out_of_the_index():
+    refs = [("list_item", f"[{i}] A. Author, Some title, Journal of Things, 2020.") for i in range(1, 5)]
+    tree = _node("doc", 0, [
+        _node("1 Introduction", 1, elements=[("paragraph", "As shown by Smith et al. (2020) in Proceedings of X, the method works."),
+                                             ("paragraph", "This work was supported by the ANR under grant 123.")]),
+        _node("5 Conclusion", 1, elements=[("paragraph", "We conclude."), *refs]),
+        _node("References", 1, elements=refs), _node("Acknowledgments", 1, elements=[("paragraph", "We thank X.")]),
+    ])
+    rec = H.references_excluded(tree)
+    assert rec.metadata["excluded_sections"] == ["References", "Acknowledgments"]
+    assert [(x["kind"], x["section"], x["elements"]) for x in rec.metadata["leaks"]] == [
+        ("acknowledgements", "1 Introduction", 1), ("bibliography", "5 Conclusion", 4)]
+    assert rec.value == 2 and rec.passed is False
+    assert H.reference_like("Smith, J., Doe, A.: A title. In Proceedings of ICML, 2021.")
+    assert not H.reference_like("As shown by Smith et al. (2020), the method works.")
+
+
+def test_outline_judge(monkeypatch):
+    from hgrag import generation
+
+    seen = {}
+
+    def fake(cfg, system, user, **kw):
+        seen.update(cfg=cfg, user=user)
+        return ('{"problems": [{"heading": "Figure 2: Loss", "problem": "a caption, not a heading"}], "score": 3, '
+                '"rationale": "one caption read as a heading"}\nNote: the rest is fine.'), {}
+
+    monkeypatch.setattr(generation, "complete", fake)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "x")
+    tree = _node("doc", 0, [_node("1 Intro", 1, [_node("Figure 2: Loss", 2)], elements=[("paragraph", "x")])])
+    rec = H.judge_outline(tree, model="claude-haiku-5-5")
+    assert rec.value == 3 and rec.passed is False and rec.source == "llm_judge"
+    assert rec.metadata["problems"][0]["heading"] == "Figure 2: Loss"
+    assert "1 Intro  (p.1, 1 el.)\n  Figure 2: Loss" in seen["user"] and seen["cfg"].thinking == "disabled"
+
+
+def test_judge_reply_with_malformed_json_still_gives_the_score():
+    data = D.parse_reply('{"problems": [{"heading": "The "best" model"}], "score": 2, "rationale": "two \\"quoted\\" words"}',
+                         ("score",))
+    assert data["score"] == 2 and data["rationale"] == 'two "quoted" words'
+    with pytest.raises(D.JudgeReplyError):
+        D.parse_reply('{"problems": []}', ("score",))
+
+
+# ------------------------------------------------------------------------------------------------- step 4: chunks
+def _chunks(*texts):
+    return [{"chunk_index": i, "text": t} for i, t in enumerate(texts)]
+
+
+def test_chunk_size_duplicates_and_empty_texts():
+    rows = _chunks("short one", "x " * 40, "y " * 30, "MCGILL  University", "McGill University", "mcgill university", "\x00\x00", " . ")
+    rec = {r.name: r for r in C.assess(rows, "d")}
+    size = rec["chunks.size_distribution"]
+    assert size.value == round(6 / 8, 3) and size.passed is False and size.metadata["max"] == 40
+    assert C.size_distribution(rows, max_small_share=0.8).passed
+    dup = C.duplicates(rows, max_duplicates=1)
+    assert dup.value == 2 and dup.passed is False and dup.metadata["texts"][0] == {"text": "mcgill university", "count": 3}
+    assert C.duplicates(rows, max_duplicates=2).passed
+    assert rec["chunks.empty_texts"].value == 2 and rec["chunks.empty_texts"].metadata["chunks"] == [6, 7]
+    assert rec["chunks.points_indexed"].error == "no Qdrant client given"
+
+
+def test_every_chunk_is_in_qdrant(tmp_path):
+    from qdrant_client import QdrantClient
+    from qdrant_client.models import Distance, PointStruct, VectorParams
+
+    client = QdrantClient(path=str(tmp_path / "q"))
+    try:
+        client.create_collection("c", vectors_config=VectorParams(size=2, distance=Distance.COSINE))
+        client.upsert("c", [PointStruct(id=i, vector=[1.0, 0.5], payload={"doc_id": "d" if i < 3 else "other"}) for i in range(5)])
+        rec = {r.name: r for r in C.assess(_chunks("a", "b", "c"), "d", client=client, collection="c")}
+        assert rec["chunks.points_indexed"].value == 3 and rec["chunks.points_indexed"].passed
+        rec = {r.name: r for r in C.assess(_chunks("a", "b", "c", "d"), "d", client=client, collection="c")}
+        assert rec["chunks.points_indexed"].passed is False and "3 point(s) in Qdrant for 4 chunk(s)" in rec["chunks.points_indexed"].rationale
+        assert {r.name: r for r in C.assess(_chunks("a"), "d", client=client, collection="none")}["chunks.points_indexed"].value == 0
+    finally:
+        client.close()
+
+
+def test_assess_document_runs_the_four_steps(tmp_path):
+    doc = _doc(1)
+    h = doc.add_heading(text="1 Intro", level=1, prov=_prov(1))
+    doc.add_text(label="text", text=FILLER, parent=h, prov=_prov(1))
+    doc.save_as_json(tmp_path / "document.json")
+    (tmp_path / "manifest.json").write_text(json.dumps({"doc_id": "d", "source_pdf": "gone.pdf"}))
+    (tmp_path / "hierarchy.json").write_text(json.dumps(_node("doc", 0, [_node("1 Intro", 1, elements=[("paragraph", FILLER)])])))
+    (tmp_path / "chunks.jsonl").write_text(json.dumps({"chunk_index": 0, "text": FILLER}) + "\n")
+    out = assessments.assess_document(tmp_path)
+    assert set(out) == {"parse", "describe", "hierarchy", "chunks"}
+    assert {r.name for r in out["hierarchy"]} == {"hierarchy.numbering", "hierarchy.references_excluded"}  # no judge
+    assert _by_name(out["chunks"])["chunks.size_distribution"].passed

@@ -244,9 +244,18 @@ l'étape. Les juges tournent sur un échantillon déterministe (`HGRAG_ASSESS_SA
 | describe | `latex_wellformed` | code | accolades, `\left`/`\right` ou environnements déséquilibrés, commande répétée en boucle, `<` du texte PDF perdu, `$` impair |
 | describe | `figure_fidelity` | juge (image) | note < `HGRAG_ASSESS_JUDGE_OK` (4) : affirmations que l'image contredit ou ne montre pas |
 | describe | `formula_latex`, `formula_reading` | juge (image) | note < 4 : LaTeX fidèle à l'image ; lecture fidèle à la formule et au texte qui l'entoure |
+| hierarchy | `numbering` | code | titres numérotés hors séquence : saut (2.1 → 2.3), retour ou répétition (un élément de liste « 1. » lu comme titre) |
+| hierarchy | `references_excluded` | code | une section indexée contient une bibliographie (3 entrées ou plus, au moins la moitié de ses paragraphes) ou un paragraphe de remerciements / financement |
+| hierarchy | `outline` | juge (texte, 1 appel par document) | note < 4 : titres au mauvais niveau, lignes qui ne sont pas des titres (légendes, auteurs), titres manquants |
+| chunks | `size_distribution` | code | plus de `HGRAG_ASSESS_MAX_SMALL_CHUNKS` (40 %) de chunks sous `HGRAG_ASSESS_SMALL_CHUNK_WORDS` (15) mots |
+| chunks | `duplicates` | code | plus de `HGRAG_ASSESS_MAX_DUPLICATES` (3) chunks au texte identique dans le document (en-têtes courants, affiliations) |
+| chunks | `empty_texts` | code | un chunk sans lettre ni chiffre |
+| chunks | `points_indexed` | code | nombre de points Qdrant du document différent du nombre de chunks (`--qdrant-path`, `--collection`) |
 
-Le juge (`HGRAG_ASSESS_JUDGE_MODEL`, Claude Haiku 5.5) réfléchit par défaut et sa réflexion compte dans `max_tokens` :
-il dispose de 4000 tokens. Ces contrôles sont des mesures maison, calibrées sur les 60 papiers de `check_full`.
+Les juges sur Claude Haiku tournent sans réflexion (`thinking: disabled`, `generation.judge_thinking`) : Haiku 5.5
+réfléchit par défaut et sa réflexion compte dans `max_tokens`, ce qui coupait des réponses. Cela vaut aussi pour le juge
+de `hgrag eval` / `ragbench` et ceux de `ragbench-refine` ; la génération des réponses garde le réglage du modèle. Ces
+contrôles sont des mesures maison, calibrées sur les 60 papiers de `check_full`.
 
 ### Niveaux de titres (chiffres romains) et légendes
 
@@ -464,6 +473,8 @@ jamais échouer un pipeline. Serveur distant : `MLFLOW_TRACKING_URI`.
 | `HGRAG_ASSESS_JUDGE_MODEL` | `HGRAG_JUDGE_MODEL` | Juge des figures et des formules (image) |
 | `HGRAG_ASSESS_SAMPLE` / `HGRAG_ASSESS_MAX_JUDGED` | `0.2` / `10` | Part des figures et formules jugées / plafond par document et par type |
 | `HGRAG_ASSESS_JUDGE_OK` | `4` | Note du juge (1-5) comptée comme réussie |
+| `HGRAG_ASSESS_SMALL_CHUNK_WORDS` / `HGRAG_ASSESS_MAX_SMALL_CHUNKS` | `15` / `0.4` | Taille d'un « petit » chunk / part maximale de petits chunks par document |
+| `HGRAG_ASSESS_MAX_DUPLICATES` | `3` | Chunks au texte répété tolérés par document |
 | `HGRAG_EVAL_DIR` | `data/eval` | Résultats et store du benchmark |
 | `HF_HUB_OFFLINE` | — | `1` = ne plus contacter Hugging Face (modèles déjà en cache) |
 | `HGRAG_RUNS_DIR` | `data/runs` | Statuts et logs des runs de l'app |

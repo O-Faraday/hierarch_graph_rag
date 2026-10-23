@@ -153,3 +153,6 @@ ASSESS_JUDGE_MODEL = os.environ.get("HGRAG_ASSESS_JUDGE_MODEL", JUDGE_MODEL)
 ASSESS_SAMPLE = float(os.environ.get("HGRAG_ASSESS_SAMPLE", "0.2"))  # share of the figures / formulas judged
 ASSESS_MAX_JUDGED = int(os.environ.get("HGRAG_ASSESS_MAX_JUDGED", "10"))  # per document and per kind
 ASSESS_JUDGE_OK = int(os.environ.get("HGRAG_ASSESS_JUDGE_OK", "4"))  # judge score (1-5) counted as passed
+ASSESS_SMALL_CHUNK_WORDS = int(os.environ.get("HGRAG_ASSESS_SMALL_CHUNK_WORDS", "15"))  # a "small" chunk
+ASSESS_MAX_SMALL_CHUNKS = float(os.environ.get("HGRAG_ASSESS_MAX_SMALL_CHUNKS", "0.4"))  # share of small chunks allowed
+ASSESS_MAX_DUPLICATES = int(os.environ.get("HGRAG_ASSESS_MAX_DUPLICATES", "3"))  # repeated chunks allowed per document

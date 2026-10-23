@@ -20,7 +20,7 @@ from typing import Any
 
 from .. import config
 
-STEPS = ("parse", "describe")
+STEPS = ("parse", "describe", "hierarchy", "chunks")
 
 
 @dataclass
@@ -57,12 +57,15 @@ def sampled(key: str, rate: float) -> bool:
 
 def assess_document(doc_dir: str | Path, *, steps: tuple[str, ...] = STEPS, judge: bool = False,
                     sample: float | None = None, max_judged: int | None = None, judge_model: str | None = None,
-                    api_key: str | None = None, workers: int = 4, write: bool = True) -> dict[str, list[Assessment]]:
+                    api_key: str | None = None, workers: int = 4, write: bool = True, client: Any = None,
+                    collection: str | None = None) -> dict[str, list[Assessment]]:
     """Run the checks of ``steps`` on one parsed document; with ``write`` they replace the same steps in
-    ``assessments.json`` (the other steps are kept)."""
+    ``assessments.json`` (the other steps are kept). ``client``/``collection``: the Qdrant store the document was
+    indexed into (step "chunks")."""
     from docling_core.types.doc import DoclingDocument
 
-    from . import description, parsing
+    from . import chunks as chunk_checks
+    from . import description, hierarchy, parsing
 
     doc_dir = Path(doc_dir)
     doc = DoclingDocument.load_from_json(doc_dir / "document.json")
@@ -77,6 +80,18 @@ def assess_document(doc_dir: str | Path, *, steps: tuple[str, ...] = STEPS, judg
             judge=judge, sample=config.ASSESS_SAMPLE if sample is None else sample,
             max_judged=config.ASSESS_MAX_JUDGED if max_judged is None else max_judged,
             judge_model=judge_model, api_key=api_key, workers=workers)
+    if "hierarchy" in steps:
+        path = doc_dir / "hierarchy.json"
+        out["hierarchy"] = (hierarchy.assess(json.loads(path.read_text(encoding="utf-8")), judge=judge,
+                                             judge_model=judge_model, api_key=api_key) if path.exists()
+                            else [Assessment("hierarchy.numbering", None, error="hierarchy.json not found")])
+    if "chunks" in steps:
+        path = doc_dir / "chunks.jsonl"
+        if path.exists():
+            rows = [json.loads(x) for x in path.read_text(encoding="utf-8").splitlines() if x.strip()]
+            out["chunks"] = chunk_checks.assess(rows, manifest["doc_id"], client=client, collection=collection)
+        else:
+            out["chunks"] = [Assessment("chunks.size_distribution", None, error="chunks.jsonl not found: not indexed")]
     if write:
         path = doc_dir / "assessments.json"
         saved = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
