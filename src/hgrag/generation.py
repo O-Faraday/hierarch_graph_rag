@@ -33,7 +33,7 @@ FALLBACK_BETA = "server-side-fallback-2026-07-01"  # with fallbacks="default"
 
 def judge_thinking(model: str) -> str | None:
     """Thinking setting of a judge: off for Claude Haiku (5.5 thinks by default, its thinking counts in max_tokens and
-    cut a third of the judge replies at 800 tokens), model default otherwise (Fable 5.1 rejects "disabled")."""
+    cut one judge reply in six at 800 tokens), model default otherwise (Fable 5.1 rejects "disabled")."""
     return "disabled" if "haiku" in model.lower() else None
 
 SYSTEM_PROMPT = (
