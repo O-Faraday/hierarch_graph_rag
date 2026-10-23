@@ -437,7 +437,7 @@ jamais échouer un pipeline. Serveur distant : `MLFLOW_TRACKING_URI`.
 | `HGRAG_LLM_MODEL` | `claude-haiku-5-5` / `llama3.1` | Modèle de génération |
 | `HGRAG_LLM_BASE_URL` | `https://api.anthropic.com` / `http://localhost:11434/v1` | Point d'accès |
 | `HGRAG_LLM_MAX_TOKENS` | `2000` | Longueur maximale de la réponse (réessai à ×2 dans ragbench si la réponse est vide ou coupée) |
-| `HGRAG_LLM_MAX_CONTEXT_CHARS` | `24000` | Budget de caractères des sources dans le prompt |
+| `HGRAG_LLM_MAX_CONTEXT_CHARS` | `48000` | Budget de caractères des sources dans le prompt (à 24000, la section de référence était coupée pour 6 questions du ragbench ; à 48000, pour aucune) |
 | `HGRAG_RAGBENCH_DISPUTED` | `data/ragbench_disputed.json` | Questions du ragbench à référence fausse (vérifiée dans le PDF), exclues du bloc `excluding_disputed` |
 | `MLFLOW_TRACKING_URI` | SQLite `data/mlflow/mlflow.db` | Backend MLflow |
 

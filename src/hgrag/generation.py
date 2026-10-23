@@ -66,7 +66,9 @@ class LLMConfig:
     send_images: bool | None = None  # figures as images: default on for Claude, off for local servers
     max_images: int = int(os.environ.get("HGRAG_LLM_MAX_IMAGES", "6"))
     max_image_edge: int = 1568
-    max_context_chars: int = int(os.environ.get("HGRAG_LLM_MAX_CONTEXT_CHARS", "24000"))
+    # 48000: on the ragbench sample the 10 rebuilt sections are 23k chars (median), 44k (90th pct); at 24000 the
+    # reference section was cut from the prompt for 6 questions, at 48000 for none
+    max_context_chars: int = int(os.environ.get("HGRAG_LLM_MAX_CONTEXT_CHARS", "48000"))
     timeout: float = 120.0
     fallbacks: str | None = None  # Claude only: "default" re-runs a refused request on a fallback model
 
@@ -88,7 +90,7 @@ class LLMConfig:
 
 
 # ---------------------------------------------------------------------------------------- prompt
-def build_messages(query: str, sections: list[dict[str, Any]], max_chars: int = 24000,
+def build_messages(query: str, sections: list[dict[str, Any]], max_chars: int = 48000,
                    max_images: int = 6) -> dict[str, Any]:
     """Numbered sources, best score first, within a character budget (lowest scores are dropped first).
 

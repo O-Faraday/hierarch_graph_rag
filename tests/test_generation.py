@@ -194,3 +194,13 @@ def test_openai_compatible_gets_image_url_only_when_enabled(monkeypatch, with_pn
     "".join(generation.answer_stream("q", sections, LLMConfig(provider="openai", send_images=True)))
     parts = seen["json"]["messages"][1]["content"]
     assert parts[1]["type"] == "image_url" and parts[1]["image_url"]["url"].startswith("data:image/png;base64,")
+
+
+def test_default_budget_keeps_a_typical_ten_section_context(monkeypatch):
+    """At 24000 chars the reference section was cut for some ragbench questions; 48000 covers the 90th percentile."""
+    monkeypatch.delenv("HGRAG_LLM_MAX_CONTEXT_CHARS", raising=False)
+    sections = [{**SECTIONS[0], "section_ref": f"#/{i}", "text": "word " * 1000} for i in range(10)]  # ~50k chars
+    assert LLMConfig(provider="anthropic", api_key="k").max_context_chars == 48000
+    m = generation.build_messages("q", sections)
+    assert len(m["sources"]) == 9 and len(m["dropped"]) == 1  # 9 x ~5k fit, the 10th does not
+    assert len(generation.build_messages("q", sections[:8])["dropped"]) == 0
