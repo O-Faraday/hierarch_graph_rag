@@ -13,6 +13,11 @@ from hgrag import config
 
 @pytest.fixture(autouse=True)
 def _plain_models(monkeypatch):
+    # .env is loaded by hgrag.config: its keys and switches must not reach the tests. Without this, HGRAG_ASSESS_JUDGES=1
+    # made tests call the real Anthropic API with the user's key. A test that needs a key sets a fake one.
+    for key in ("ANTHROPIC_API_KEY", "HF_TOKEN", "HUGGINGFACE_API_KEY", "OPENAI_API_KEY"):
+        monkeypatch.delenv(key, raising=False)
+    monkeypatch.setattr(config, "ASSESS_JUDGES", False)
     monkeypatch.setattr(config, "RERANK", False)
     monkeypatch.setenv("HGRAG_EMBED_QUERY_PREFIX", "")
     monkeypatch.setenv("HGRAG_EMBED_DOC_PREFIX", "")
