@@ -84,7 +84,9 @@ def model_config(spec: str, api_key: str | None = None, max_tokens: int = 1200, 
         return LLMConfig(provider="openai", model=name, base_url=HF_URL, api_key=key or "", max_tokens=max_tokens,
                          send_images=True, timeout=timeout)
     if kind in ("anthropic", "openai"):
-        return LLMConfig(provider=kind, model=name, max_tokens=max_tokens, send_images=True, timeout=timeout)
+        # api_key None: LLMConfig reads ANTHROPIC_API_KEY / OPENAI_API_KEY from the environment
+        return LLMConfig(provider=kind, model=name, max_tokens=max_tokens, send_images=True, timeout=timeout,
+                         api_key=api_key)
     raise BenchError(f"unknown provider {kind!r} in {spec!r}")
 
 
