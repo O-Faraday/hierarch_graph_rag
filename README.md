@@ -452,7 +452,7 @@ coupe en gardant les runs.
 
 | Trace | Expérience | Spans |
 |---|---|---|
-| `indexing` (une exécution de l'app ou de `hgrag run`) | `hgrag_pipeline` | un span `parse` par PDF, `hierarchy` par document, puis `index` (détail ci-dessous) |
+| `indexing` (un PDF, dans l'app ou `hgrag run`) | `hgrag_pipeline` | `parse`, `hierarchy`, puis `index` de ce document (`chunk`, `embed_and_store`) ; les traces d'une exécution partagent sa session (`run_key`), les modèles d'embedding ne sont chargés qu'une fois |
 | `parse` (un PDF) | `hgrag_pipeline` | `docling` (statistiques, Markdown), `export_figures`, `describe` > un span LLM par appel : `describe_figure`, `describe_table`, `transcribe_formula`, `read_formula` |
 | `hierarchy` (un document) | `hgrag_pipeline` | l'arbre des titres et ses statistiques |
 | `index` (une exécution) | `hgrag_pipeline` | `index_document` par document > `chunk` (chunks et texte vectorisé), `embed_and_store` |

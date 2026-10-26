@@ -297,9 +297,15 @@ def run_indexing(
     status = StatusWriter(run_key, INDEXING_GRAPH,
                           {"pdf_dir": str(pdf_dir), "describe_pictures": describe_pictures,
                            "steps": steps, "pdfs": pdfs or "all"}, runs_dir)
-    # one MLflow trace for the whole execution: each step (per PDF) is a child span
-    trace = tracing.root("indexing", tracking.INDEXING, run_key, inputs={
-        "pdf_dir": str(pdf_dir), "pdfs": pdfs or "all", "steps": steps, "describe_pictures": describe_pictures})
+    # one MLflow trace per PDF: its parse, hierarchy and index steps are child spans (all share the run_key session)
+    traces: dict[str, tracing.Span] = {}
+
+    def pdf_trace(name: str) -> tracing.Span:
+        if name not in traces:
+            traces[name] = tracing.root("indexing", tracking.INDEXING, run_key, tags={"hgrag.pdf": name}, inputs={
+                "pdf": name, "pdf_dir": str(pdf_dir), "steps": steps, "describe_pictures": describe_pictures})
+        return traces[name]
+
     failed_any = False
     try:
         if not steps:
@@ -327,12 +333,13 @@ def run_indexing(
                 inst = status.start("parse", name)
                 try:
                     manifest = pipeline.parse_step(pdf, converter=converter, run_key=run_key,
-                                                   describe_pictures=describe_pictures, trace=trace)
+                                                   describe_pictures=describe_pictures, trace=pdf_trace(name))
                     status.finish(inst, info={"doc_id": manifest["doc_id"], **{k: manifest[k] for k in ("n_pages", "n_figures", "n_tables") if k in manifest}})
                     manifests.append(manifest)
                 except Exception as exc:  # noqa: BLE001
                     logger.error("parse failed for %s:\n%s", name, traceback.format_exc())
                     status.finish(inst, error=f"{type(exc).__name__}: {exc}")
+                    pdf_trace(name).end(error=exc)
                     failed_any = True
         else:
             status.skip("parse", "reusing the parsing already on disk")
@@ -352,12 +359,14 @@ def run_indexing(
                 name = pdf_name(manifest["source_pdf"])
                 inst = status.start("hierarchy", name)
                 try:
-                    summary = pipeline.build_and_save_hierarchy(manifest["doc_dir"], run_key=run_key, trace=trace)
+                    summary = pipeline.build_and_save_hierarchy(manifest["doc_dir"], run_key=run_key,
+                                                                trace=pdf_trace(name))
                     status.finish(inst, info={k: summary[k] for k in ("n_sections", "n_leaf_sections", "n_elements")})
                     doc_dirs.append(manifest["doc_dir"])
                 except Exception as exc:  # noqa: BLE001
                     logger.error("hierarchy failed for %s:\n%s", name, traceback.format_exc())
                     status.finish(inst, error=f"{type(exc).__name__}: {exc}")
+                    pdf_trace(name).end(error=exc)
                     failed_any = True
         else:
             status.skip("hierarchy", "reusing hierarchy.json already on disk")
@@ -369,7 +378,9 @@ def run_indexing(
         if "index" in steps:
             inst = status.start("index")
             try:
-                result = pipeline.index_documents(doc_dirs, run_key=run_key, trace=trace)
+                doc_traces = {m["doc_dir"]: pdf_trace(pdf_name(m["source_pdf"])) for m in manifests
+                              if m["doc_dir"] in doc_dirs}
+                result = pipeline.index_documents(doc_dirs, run_key=run_key, doc_traces=doc_traces)
                 status.finish(inst, info={"total_chunks": result["total_chunks"], "n_documents": len(result.get("documents", {}))})
             except Exception as exc:  # noqa: BLE001
                 logger.error("index failed:\n%s", traceback.format_exc())
@@ -380,12 +391,13 @@ def run_indexing(
             tracking.finish_execution(tracking.INDEXING, run_key)
         status.end(SUCCESS if not failed_any else FAILED,
                    "some documents failed (see tasks)" if failed_any else None)
-        trace.end({"state": status.data["state"], "documents": doc_dirs},
-                  error=RuntimeError("some documents failed (see tasks)") if failed_any else None)
+        for name, trace in traces.items():  # a trace already ended (failed step) is left as it is
+            trace.end({"run_key": run_key, "steps": steps})
     except Exception as exc:  # noqa: BLE001
         status.end(FAILED, f"{type(exc).__name__}: {exc}")
         tracking.finish_execution(tracking.INDEXING, run_key, failed=True)
-        trace.end(error=exc)
+        for trace in traces.values():
+            trace.end(error=exc)
     return status.data
 
 

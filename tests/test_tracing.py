@@ -234,3 +234,33 @@ def test_embedding_model_missing_offline_says_how_to_fix(monkeypatch):
     monkeypatch.setenv("HF_HUB_OFFLINE", "1")
     with pytest.raises(OSError, match="HGRAG_EMBED_MODEL"):
         load_embedder("BAAI/bge-base-en-v1.5")
+
+
+def test_index_step_goes_under_the_trace_of_its_pdf(tmp_path, mlflow_dir, monkeypatch):  # noqa: F811
+    from docling_core.types.doc import BoundingBox, DoclingDocument, ProvenanceItem, Size
+
+    from hgrag.pipeline import build_and_save_hierarchy, index_documents
+
+    monkeypatch.setattr("hgrag.indexing.load_embedder", lambda *a, **k: BagOfWordsEmbedder())
+    doc = DoclingDocument(name="r")
+    doc.add_page(page_no=1, size=Size(width=600, height=800))
+    prov = ProvenanceItem(page_no=1, bbox=BoundingBox(l=0, t=0, r=1, b=1), charspan=(0, 1))
+    h = doc.add_heading(text="1 Intro", level=1, prov=prov)
+    doc.add_text(label="text", text="The bank opened three new branches in the north last year.", parent=h, prov=prov)
+    d = tmp_path / "doc"
+    d.mkdir()
+    doc.save_as_json(d / "document.json")
+    (d / "figures.json").write_text("[]")
+    (d / "manifest.json").write_text(json.dumps({"doc_id": "doc", "source_pdf": "r.pdf"}))
+    root = tracing.root("indexing", tracking.INDEXING, "rk", tags={"hgrag.pdf": "r.pdf"})
+    build_and_save_hierarchy(d, trace=root)
+    index_documents([str(d)], qdrant_path=tmp_path / "q", collection="c", run_key="rk", doc_traces={str(d): root})
+    root.end()
+    trace, spans = _spans(root.trace_id)
+    by_id = {s.span_id: s.name for s in trace.data.spans}
+    assert [by_id[s.parent_id] for s in trace.data.spans if s.name in ("hierarchy", "index")] == ["indexing", "indexing"]
+    assert by_id[spans["chunk"].parent_id] == "index" and by_id[spans["embed_and_store"].parent_id] == "index"
+    fb = _feedback(trace)
+    assert fb["chunks.points_indexed"][0] == "index" and fb["hierarchy.numbering"][0] == "hierarchy"
+    exp = mlflow.get_experiment_by_name(tracking.INDEXING)
+    assert len(mlflow.search_traces(locations=[exp.experiment_id], return_type="list")) == 1  # no separate index trace

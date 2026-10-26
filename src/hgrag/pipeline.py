@@ -136,17 +136,20 @@ def index_documents(
     model_id: str = config.EMBED_MODEL_ID,
     run_key: str | None = None,
     trace: tracing.Span | None = None,
+    doc_traces: dict[str, tracing.Span] | None = None,
 ) -> dict[str, Any]:
     """Steps 3-4: paragraph chunks + embeddings into the single Qdrant collection.
 
     Qdrant local mode allows one process on the storage path, hence one task for all docs.
+    ``doc_traces`` (``doc_dir -> span``): the trace of each PDF, under which its ``index`` span goes (the models are
+    still loaded once); without it, one ``index`` trace holds an ``index_document`` span per document.
     """
-    span = tracing.child_or_root(trace, "index", tracking.INDEXING, run_key, inputs={
+    span = tracing.Span() if doc_traces else tracing.child_or_root(trace, "index", tracking.INDEXING, run_key, inputs={
         "documents": [Path(d).name for d in doc_dirs], "embedding_model": model_id, "collection": collection,
         "chunk_labels": list(config.CHUNK_LABELS), "max_tokens": config.CHUNK_MAX_TOKENS})
     with span, track_step(tracking.INDEXING, "index", run_key, model_id=model_id, collection=collection,
                           min_chunk_words=config.MIN_CHUNK_WORDS, n_documents=len(doc_dirs)) as tr:
-        out = _index_documents(doc_dirs, qdrant_path, collection, model_id, trace=span)
+        out = _index_documents(doc_dirs, qdrant_path, collection, model_id, trace=span, doc_traces=doc_traces)
         span.set({k: out[k] for k in ("collection", "chunks_per_doc", "total_chunks", "embedding_dim",
                                       "points_in_collection", "seconds")})
         tr.metrics(total_chunks=out["total_chunks"], embedding_dim=out["embedding_dim"],
@@ -167,7 +170,7 @@ def index_documents(
     return out
 
 
-def _index_documents(doc_dirs, qdrant_path, collection, model_id, trace=None) -> dict[str, Any]:
+def _index_documents(doc_dirs, qdrant_path, collection, model_id, trace=None, doc_traces=None) -> dict[str, Any]:
     from .describe import load_formula_readings, load_table_descriptions
     from .indexing import chunk_paragraphs, figure_chunks, index_chunks, load_embedder, make_chunker, open_store
 
@@ -185,7 +188,12 @@ def _index_documents(doc_dirs, qdrant_path, collection, model_id, trace=None) ->
     try:
         for d in doc_dirs:
             doc_dir = Path(d)
-            dspan = (trace or tracing.Span()).child("index_document", inputs={"doc_dir": doc_dir.name})
+            if doc_traces and str(d) in doc_traces:  # the index step of this PDF's trace
+                dspan = doc_traces[str(d)].child("index", inputs={
+                    "doc_dir": doc_dir.name, "embedding_model": model_id, "collection": collection,
+                    "chunk_labels": list(config.CHUNK_LABELS), "max_tokens": config.CHUNK_MAX_TOKENS})
+            else:
+                dspan = (trace or tracing.Span()).child("index_document", inputs={"doc_dir": doc_dir.name})
             doc, figures, manifest = _load(doc_dir)
             tdesc = load_table_descriptions(doc_dir)
             root = build_hierarchy(doc, figures, doc_title=pdf_stem(manifest["source_pdf"]), table_descriptions=tdesc)

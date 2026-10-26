@@ -42,9 +42,10 @@ def _patch_steps(monkeypatch, fail_parse=()):
                 tracking.track_step(tracking.INDEXING, "hierarchy", run_key, item=doc_dir):
             return {"n_sections": 3, "n_leaf_sections": 2, "n_elements": 9}
 
-    def index(doc_dirs, *, run_key=None, trace=None, **kw):
-        with tracing.child_or_root(trace, "index", tracking.INDEXING, run_key), \
-                tracking.track_step(tracking.INDEXING, "index", run_key) as tr:
+    def index(doc_dirs, *, run_key=None, trace=None, doc_traces=None, **kw):
+        for d in doc_dirs:  # the index span of each PDF's trace, as pipeline.index_documents does
+            (doc_traces or {}).get(d, tracing.Span()).child("index").end()
+        with tracking.track_step(tracking.INDEXING, "index", run_key) as tr:
             tr.metrics(total_chunks=len(doc_dirs) * 5)
         tracking.finish_execution(tracking.INDEXING, run_key, total_chunks=len(doc_dirs) * 5)
         return {"total_chunks": len(doc_dirs) * 5, "chunks_per_doc": {}, "collection": "c"}
@@ -70,11 +71,11 @@ def test_success_run_status_and_mlflow(env, monkeypatch):
     assert steps == ["hierarchy", "hierarchy", "index", "parse", "parse"]
     mlflow.flush_trace_async_logging()
     traces = mlflow.search_traces(locations=[exp.experiment_id], return_type="list")
-    assert len(traces) == 1  # one trace for the whole execution, each step a child span
-    spans = traces[0].data.spans
-    root = next(s for s in spans if s.parent_id is None)
-    assert root.name == "indexing" and root.outputs["state"] == runner.SUCCESS
-    assert sorted(s.name for s in spans if s.parent_id == root.span_id) == ["hierarchy", "hierarchy", "index", "parse", "parse"]
+    assert sorted(t.info.tags["hgrag.pdf"] for t in traces) == ["a.pdf", "b.pdf"]  # one trace per PDF
+    for t in traces:
+        root = next(s for s in t.data.spans if s.parent_id is None)
+        assert root.name == "indexing" and t.info.trace_metadata["mlflow.trace.session"] == "k1"
+        assert [s.name for s in t.data.spans if s.parent_id == root.span_id] == ["parse", "hierarchy", "index"]
 
 
 def test_one_failing_pdf_does_not_stop_the_others(env, monkeypatch):

@@ -412,15 +412,21 @@ def main() -> None:
     converter = build_converter(describe_pictures=describe)
     from . import tracing
 
-    trace = tracing.root("indexing", tracking.INDEXING, run_key, inputs={  # one trace for the whole execution
-        "pdf_dir": str(args.pdf_dir), "pdfs": "all", "steps": ["parse", "hierarchy", "index"], "describe_pictures": describe})
-    doc_dirs = []
-    with trace:
+    traces: dict[str, tracing.Span] = {}  # one trace per PDF: its parse, hierarchy and index steps
+    try:
         for pdf in pdfs:
+            trace = tracing.root("indexing", tracking.INDEXING, run_key, tags={"hgrag.pdf": Path(pdf).name},
+                                 inputs={"pdf": Path(pdf).name, "steps": ["parse", "hierarchy", "index"],
+                                         "describe_pictures": describe})
             manifest = parse_step(pdf, converter=converter, run_key=run_key, describe_pictures=describe, trace=trace)
             print(json.dumps(build_and_save_hierarchy(manifest["doc_dir"], run_key=run_key, trace=trace)))
-            doc_dirs.append(manifest["doc_dir"])
-        print(json.dumps(index_documents(doc_dirs, run_key=run_key, trace=trace)))
-        trace.set({"documents": doc_dirs})
+            traces[manifest["doc_dir"]] = trace
+        print(json.dumps(index_documents(list(traces), run_key=run_key, doc_traces=traces)))
+    except BaseException as exc:
+        for trace in traces.values():
+            trace.end(error=exc)
+        raise
+    for trace in traces.values():
+        trace.end({"run_key": run_key})
     if run_key:
         print(f"MLflow run: {run_key} (uv run mlflow ui --backend-store-uri {tracking.TRACKING_URI})")
