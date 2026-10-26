@@ -99,7 +99,10 @@ class Span:
             return
         from .assessments import Assessment
 
-        self._root._pending += [(self.span_id, a if isinstance(a, Assessment) else Assessment(**a)) for a in assessments]
+        records = [a if isinstance(a, Assessment) else Assessment(**a) for a in assessments]
+        # a check with nothing to check (no figure to describe, no keyword search) has no value and no error: MLflow
+        # shows a feedback without value as an error, so it stays in assessments.json only
+        self._root._pending += [(self.span_id, a) for a in records if a.value is not None or a.error is not None]
 
     def end(self, outputs: Any = None, error: BaseException | None = None, **attributes: Any) -> None:
         if self._ended:

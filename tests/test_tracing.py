@@ -208,3 +208,29 @@ def test_mlflow_ui_runs_one_worker(monkeypatch):
     with pytest.raises(SystemExit):
         cli.main()
     assert seen["cmd"][-2:] == ["--workers", "1"] and "--backend-store-uri" in seen["cmd"]
+
+
+def test_a_check_with_nothing_to_check_is_not_sent(mlflow_dir):  # noqa: F811
+    from hgrag.assessments import Assessment
+
+    root = tracing.root("parse", tracking.INDEXING, "rk")
+    root.assess([Assessment("describe.figure_descriptions", None, rationale="no figure descriptions"),  # nothing to check
+                 Assessment("describe.table_descriptions", 1.0, passed=True),
+                 Assessment("parse.text_coverage", None, error="source PDF not found")])  # a real error is kept
+    root.end()
+    names = sorted(a.name for a in mlflow.get_trace(root.trace_id).info.assessments)
+    assert names == ["describe.table_descriptions", "parse.text_coverage"]
+
+
+def test_embedding_model_missing_offline_says_how_to_fix(monkeypatch):
+    import sentence_transformers
+
+    from hgrag.indexing import load_embedder
+
+    def missing(*a, **k):
+        raise OSError("We couldn't connect to 'https://huggingface.co'")
+
+    monkeypatch.setattr(sentence_transformers, "SentenceTransformer", missing)
+    monkeypatch.setenv("HF_HUB_OFFLINE", "1")
+    with pytest.raises(OSError, match="HGRAG_EMBED_MODEL"):
+        load_embedder("BAAI/bge-base-en-v1.5")
