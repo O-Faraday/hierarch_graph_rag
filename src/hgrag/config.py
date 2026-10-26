@@ -164,3 +164,5 @@ ASSESS_MIN_SUFFICIENCY = int(os.environ.get("HGRAG_ASSESS_MIN_SUFFICIENCY", "3")
 ASSESS_MAX_UNSOURCED_NUMBERS = int(os.environ.get("HGRAG_ASSESS_MAX_UNSOURCED_NUMBERS", "0"))  # per answer
 # MLflow traces (hgrag.tracing): inputs and outputs of each step, when MLflow tracking is on (a run_key is given).
 TRACING = _flag("HGRAG_TRACING", True)
+# LLM judges of the production checks inside the pipeline and the app (cost: API calls). Off: deterministic checks only.
+ASSESS_JUDGES = _flag("HGRAG_ASSESS_JUDGES", False)

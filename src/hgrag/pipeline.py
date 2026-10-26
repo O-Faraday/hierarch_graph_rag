@@ -82,6 +82,13 @@ def build_and_save_hierarchy(doc_dir: str | Path, *, run_key: str | None = None)
     with span, track_step(tracking.INDEXING, "hierarchy", run_key, item=doc_dir.name, doc_dir=doc_dir.name) as tr:
         out = _build_and_save_hierarchy(doc_dir)
         span.set({"tree": (doc_dir / "hierarchy_tree.txt").read_text(encoding="utf-8"), "stats": out["tree"]})
+        from . import assessments
+        from .assessments import hierarchy as hierarchy_checks
+
+        checks = hierarchy_checks.assess(json.loads((doc_dir / "hierarchy.json").read_text(encoding="utf-8")),
+                                         judge=config.ASSESS_JUDGES)
+        assessments.save(doc_dir, "hierarchy", checks)
+        span.assess(checks)
         stats = out["tree"]
         tr.metrics(n_sections=out["n_sections"], n_leaf_sections=out["n_leaf_sections"],
                    n_elements=out["n_elements"], max_depth=stats["max_depth"],
@@ -206,6 +213,12 @@ def _index_documents(doc_dirs, qdrant_path, collection, model_id, trace=None) ->
             )
             seconds["seconds_embed_store"] += time.perf_counter() - t
             espan.end({"points": per_doc[manifest["doc_id"]]})
+            from . import assessments
+            from .assessments import chunks as chunk_checks
+
+            checks = chunk_checks.assess(chunks, manifest["doc_id"], client=client, collection=collection)
+            assessments.save(doc_dir, "chunks", checks)
+            dspan.assess(checks)
             words = [len(c["text"].split()) for c in chunks] or [0]
             documents[pdf_name(manifest["source_pdf"])] = {
                 "doc_id": manifest["doc_id"], "doc_dir": str(doc_dir), "n_chunks": len(chunks),

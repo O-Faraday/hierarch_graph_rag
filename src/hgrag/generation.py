@@ -269,18 +269,22 @@ def complete(cfg: LLMConfig, system: str, user: Any, *, max_tokens: int | None =
 # ------------------------------------------------------------------------------------ the step
 def answer_stream(
     query: str, sections: list[dict[str, Any]], cfg: LLMConfig | None = None, *, run_key: str | None = None,
-    info: dict[str, Any] | None = None, trace: tracing.Span | None = None,
+    info: dict[str, Any] | None = None, trace: tracing.Span | None = None, judges: bool | None = None,
 ) -> Iterator[str]:
     """Stream the answer text. ``info`` (optional dict) is filled with sources, usage and timings.
 
     Tracked as the ``generate`` step of the retrieval execution in MLflow (prompt and answer as artifacts), and
     traced as ``generate`` (``build_prompt``, then ``llm``), under ``trace`` (the question) when given.
+    The production checks of the prompt and of the answer go to ``info["prompt_checks"]`` / ``info["answer_checks"]``
+    and to their spans; with ``judges`` (default HGRAG_ASSESS_JUDGES) the context and answer LLM judges run too, the
+    context judge's records in ``info["context_checks"]``.
     """
     cfg = cfg or LLMConfig()
     span = tracing.child_or_root(trace, "generate", tracking.RETRIEVAL, run_key, inputs={
         "question": query, "sections": [s.get("section_path") for s in sections], "model": cfg.model})
     try:
-        answer = yield from _answer_events(query, sections, cfg, run_key=run_key, info=info, span=span)
+        answer = yield from _answer_events(query, sections, cfg, run_key=run_key, info=info, span=span,
+                                           judges=config.ASSESS_JUDGES if judges is None else judges)
     except GeneratorExit:  # the app stopped reading
         span.end(closed_early=True)
         raise
@@ -291,7 +295,11 @@ def answer_stream(
 
 
 def _answer_events(query: str, sections: list[dict[str, Any]], cfg: LLMConfig, *, run_key: str | None,
-                   info: dict[str, Any] | None, span: tracing.Span) -> Iterator[str]:
+                   info: dict[str, Any] | None, span: tracing.Span, judges: bool = False) -> Iterator[str]:
+    from .assessments import answer as answer_checks
+    from .assessments import prompt as prompt_checks
+    from .assessments import retrieval as retrieval_checks
+
     with span.child("build_prompt", "CHAIN", inputs={
             "question": query, "sections": [s.get("section_path") for s in sections],
             "max_chars": cfg.max_context_chars, "max_images": cfg.max_images}) as sp:
@@ -299,6 +307,10 @@ def _answer_events(query: str, sections: list[dict[str, Any]], cfg: LLMConfig, *
         sp.set({"system": msgs["system"], "user": msgs["user"], "dropped": msgs["dropped"],
                 "images": [{"n": i["n"], "caption": i["caption"], "path": i["path"]} for i in msgs["images"]],
                 "images_missing": msgs["images_missing"]})
+        checks = prompt_checks.assess(msgs, max_chars=cfg.max_context_chars, max_images=cfg.max_images,
+                                      send_images=bool(cfg.send_images))
+        context = retrieval_checks.judge_context(query, msgs, send_images=bool(cfg.send_images)) if judges else []
+        sp.assess(checks + context)
     images = msgs["images"] if cfg.send_images else []
     info = info if info is not None else {}
     info.update(sources=[{"n": i + 1, "section_path": s["section_path"], "doc_id": s["doc_id"], "score": s["score"]}
@@ -306,10 +318,8 @@ def _answer_events(query: str, sections: list[dict[str, Any]], cfg: LLMConfig, *
                 provider=cfg.provider, prompt_chars=len(msgs["system"]) + len(msgs["user"]),
                 n_images=len(images), images=[{"n": i["n"], "caption": i["caption"]} for i in images],
                 images_missing=msgs["images_missing"])
-    from .assessments import prompt as prompt_checks
-
-    info["prompt_checks"] = [a.to_dict() for a in prompt_checks.assess(
-        msgs, max_chars=cfg.max_context_chars, max_images=cfg.max_images, send_images=bool(cfg.send_images))]
+    info["prompt_checks"] = [a.to_dict() for a in checks]
+    info["context_checks"] = [a.to_dict() for a in context]
     with track_step(tracking.RETRIEVAL, "generate", run_key, **cfg.describe(), n_sources=len(msgs["sources"]),
                     n_dropped=len(msgs["dropped"]), n_images=len(images)) as tr:
         t0 = time.perf_counter()
@@ -329,11 +339,13 @@ def _answer_events(query: str, sections: list[dict[str, Any]], cfg: LLMConfig, *
                 else:
                     usage = delta["usage"]
             llm.set({"answer": "".join(parts), "usage": usage}, first_token_s=first)
+            checks = answer_checks.assess("".join(parts), msgs)
+            llm.assess(checks)
         answer = "".join(parts)
+        judged = answer_checks.judge_answer(query, answer) if judges else []
+        span.assess(judged)
         info.update(answer=answer, usage=usage, first_token_s=first, seconds=time.perf_counter() - t0)
-        from .assessments import answer as answer_checks
-
-        info["answer_checks"] = [a.to_dict() for a in answer_checks.assess(answer, msgs)]
+        info["answer_checks"] = [a.to_dict() for a in checks + judged]
         tr.metrics(n_images=len(images), prompt_chars=info["prompt_chars"], answer_chars=len(answer), first_token_s=first or 0.0,
                    input_tokens=usage.get("input_tokens", 0), output_tokens=usage.get("output_tokens", 0))
         tr.tags(stop_reason=usage.get("stop_reason"))

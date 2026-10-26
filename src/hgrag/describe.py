@@ -364,9 +364,30 @@ def describe_document(doc_dir: str | Path, *, spec: str | None = None, force: bo
     except BaseException as exc:
         span.end(error=exc)
         raise
+    span.assess(_assess_descriptions(doc_dir))
     span.end({k: manifest.get(k) for k in ("n_figures_described", "n_tables_described", "n_formulas_transcribed",
                                            "n_formulas_read")})
     return manifest
+
+
+def _assess_descriptions(doc_dir: Path) -> list[Any]:
+    """Production checks of the descriptions (``assessments.description``; LLM judges with HGRAG_ASSESS_JUDGES),
+    saved to ``assessments.json``. Never fails the step."""
+    from docling_core.types.doc import DoclingDocument
+
+    from . import assessments
+    from .assessments import description as description_checks
+
+    try:
+        load = lambda name: json.loads((doc_dir / name).read_text(encoding="utf-8")) if (doc_dir / name).exists() else []  # noqa: E731
+        doc = DoclingDocument.load_from_json(doc_dir / "document.json")
+        checks = description_checks.assess(doc, load("figures.json"), load("tables.json"), load("formulas.json"), doc_dir,
+                                           judge=config.ASSESS_JUDGES)
+        assessments.save(doc_dir, "describe", checks)
+        return checks
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("%s: description checks failed: %s", doc_dir.name, exc)
+        return []
 
 
 def _describe_document(doc_dir: Path, *, spec: str | None, force: bool, workers: int, api_key: str | None,

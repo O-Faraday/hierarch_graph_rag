@@ -195,9 +195,9 @@ def parse_pdf(
 
     converter = converter or build_converter(describe_pictures=describe_pictures)
     t0 = time.perf_counter()
-    with trace.child("docling", "PARSER", inputs={"pdf": str(pdf_path), "options": parse_options()}) as sp:
+    with trace.child("docling", "PARSER", inputs={"pdf": str(pdf_path), "options": parse_options()}) as docling_span:
         doc = converter.convert(pdf_path).document
-        sp.set({"stats": doc_stats(doc, []), "markdown": doc.export_to_markdown()})
+        docling_span.set({"stats": doc_stats(doc, []), "markdown": doc.export_to_markdown()})
     convert_seconds = time.perf_counter() - t0
 
     doc.save_as_json(doc_dir / "document.json")
@@ -206,6 +206,12 @@ def parse_pdf(
         figures = export_figures(doc, doc_id, doc_dir)
         sp.set({"figures": figures})
     (doc_dir / "figures.json").write_text(json.dumps(figures, indent=2, ensure_ascii=False), encoding="utf-8")
+    from . import assessments
+    from .assessments import parsing as parse_checks
+
+    checks = parse_checks.assess(doc, figures, doc_dir, pdf_path=pdf_path)  # production checks, no reference
+    assessments.save(doc_dir, "parse", checks)
+    docling_span.assess(checks)
 
     manifest = {
         "doc_id": doc_id,

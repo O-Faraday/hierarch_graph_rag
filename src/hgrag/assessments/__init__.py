@@ -93,11 +93,17 @@ def assess_document(doc_dir: str | Path, *, steps: tuple[str, ...] = STEPS, judg
         else:
             out["chunks"] = [Assessment("chunks.size_distribution", None, error="chunks.jsonl not found: not indexed")]
     if write:
-        path = doc_dir / "assessments.json"
-        saved = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
-        saved.update({step: [a.to_dict() for a in recs] for step, recs in out.items()})
-        path.write_text(json.dumps(saved, indent=2, ensure_ascii=False), encoding="utf-8")
+        for step, recs in out.items():
+            save(doc_dir, step, recs)
     return out
+
+
+def save(doc_dir: str | Path, step: str, records: list[Assessment]) -> None:
+    """Replace the records of ``step`` in ``<doc_dir>/assessments.json`` (the other steps are kept)."""
+    path = Path(doc_dir) / "assessments.json"
+    saved = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    saved[step] = [a.to_dict() for a in records]
+    path.write_text(json.dumps(saved, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
 def load_assessments(doc_dir: str | Path) -> dict[str, list[Assessment]]:

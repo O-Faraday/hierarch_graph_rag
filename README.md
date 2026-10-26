@@ -459,6 +459,24 @@ générateurs consommés pas à pas par l'app, et les sections se reconstruisent
 n'appelle plus `mlflow.set_experiment` : dans MLflow 3, il réinitialise le traceur et perd les spans ouverts ; les runs
 reçoivent l'id de l'expérience. Chaque ligne de `results.jsonl` du ragbench garde son `trace_id`.
 
+**Contrôles de production sur les traces.** Chaque étape lance ses contrôles (section 1.3 septies) et les rattache comme
+`Feedback` MLflow au span qu'ils évaluent (source `CODE` ou `LLM_JUDGE`, justification, `passed` en métadonnée) :
+
+| Span | Contrôles |
+|---|---|
+| `docling` (trace `parse`) | `parse.*` |
+| `describe` | `describe.*` |
+| `hierarchy` | `hierarchy.*` |
+| `index_document` | `chunks.*` |
+| `search` | `retrieval.top_score`, `retrieval.search_agreement` |
+| `build_prompt` | `prompt.*`, et avec les juges `retrieval.context_relevance`, `retrieval.context_sufficiency` |
+| `llm` | `answer.citations`, `answer.unsourced_numbers`, `answer.refusal` |
+| `generate` | avec les juges : `answer.relevance`, `answer.completeness` |
+
+Les contrôles des documents s'écrivent aussi dans `<doc>/assessments.json`. Les juges LLM (coût : appels d'API) ne
+tournent qu'avec `HGRAG_ASSESS_JUDGES=1` (pipeline, app) ou `--assess-judges` (ragbench). Les feedbacks sont écrits à la
+fin de la trace, une fois celle-ci enregistrée.
+
 ### Variables d'environnement
 
 | Variable | Défaut | Rôle |
@@ -524,6 +542,7 @@ reçoivent l'id de l'expérience. Chaque ligne de `results.jsonl` du ragbench ga
 | `HGRAG_RAGBENCH_DISPUTED` | `data/ragbench_disputed.json` | Questions du ragbench à référence fausse (vérifiée dans le PDF), exclues du bloc `excluding_disputed` |
 | `MLFLOW_TRACKING_URI` | SQLite `data/mlflow/mlflow.db` | Backend MLflow |
 | `HGRAG_TRACING` | `1` | Traces MLflow des étapes (entrées et sorties) quand le suivi MLflow est actif ; `0` garde les runs seuls |
+| `HGRAG_ASSESS_JUDGES` | `0` | Juges LLM des contrôles de production dans le pipeline et l'app (descriptions, sommaire, contexte, réponse) |
 
 Les options Docling (`HGRAG_TABLE_*`, `HGRAG_FORMULA_MODE=docling`, `HGRAG_CODE_ENRICHMENT`, `HGRAG_PICTURE_CLASSIFICATION`) sont enregistrées dans `manifest.json` (`parse_options`) ; `ragbench` ne réutilise un parsing que s'il a été fait avec les mêmes options.
 

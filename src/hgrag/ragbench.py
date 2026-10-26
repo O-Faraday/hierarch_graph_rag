@@ -282,7 +282,6 @@ def _evaluate_query(qid: str, q: dict[str, Any], answer: str, gold: str, paper_i
                     output_dir: Path, collection: str, k: int, stem_to_paper: dict[str, str], gen_cfg: LLMConfig | None,
                     judge_cfg: LLMConfig | None, rerank: bool | None, reranker: Any, candidates: int | None,
                     assess_judges: bool, trace: tracing.Span, t0: float) -> dict[str, Any]:
-    from .assessments import answer as answer_checks
     from .assessments import retrieval as retrieval_checks
     from .retrieval import reconstruct_hit, search_hits
 
@@ -321,25 +320,27 @@ def _evaluate_query(qid: str, q: dict[str, Any], answer: str, gold: str, paper_i
         "context_recall": retrieved[-1]["recall_so_far"] if retrieved else None, "context_recall_at_1": first_recall,
         "retrieved": retrieved,
         "assessments": {"retrieval": [a.to_dict() for a in retrieval_checks.assess(diagnostics)]}}
-    if assess_judges:
-        cfg = gen_cfg or LLMConfig(provider="anthropic")
+    if assess_judges and gen_cfg is None:  # with an answer, answer_stream runs the judges on its spans
+        cfg = LLMConfig(provider="anthropic")
         msgs = generation.build_messages(q["query"], sections, cfg.max_context_chars, cfg.max_images)
-        res["assessments"]["retrieval"] += [a.to_dict() for a in retrieval_checks.judge_context(
-            q["query"], msgs, api_key=None, send_images=bool(cfg.send_images))]
+        context = retrieval_checks.judge_context(q["query"], msgs, api_key=None, send_images=bool(cfg.send_images))
+        trace.assess(context)
+        res["assessments"]["retrieval"] += [a.to_dict() for a in context]
     if gen_cfg is not None:
         try:
             info: dict[str, Any] = {}
-            res["answer"] = "".join(generation.answer_stream(q["query"], sections, gen_cfg, info=info, trace=trace)).strip()
+            res["answer"] = "".join(generation.answer_stream(q["query"], sections, gen_cfg, info=info, trace=trace,
+                                                             judges=assess_judges)).strip()
             if not res["answer"] or (info.get("usage") or {}).get("stop_reason") == "max_tokens":
                 # empty or cut answer: the model spent its budget before/while answering; retry once with twice the budget
                 bigger = dataclasses.replace(gen_cfg, max_tokens=gen_cfg.max_tokens * 2)
                 info = {}
-                res["answer"] = "".join(generation.answer_stream(q["query"], sections, bigger, info=info, trace=trace)).strip()
+                res["answer"] = "".join(generation.answer_stream(q["query"], sections, bigger, info=info, trace=trace,
+                                                                 judges=assess_judges)).strip()
                 res["retried"] = True
             res["assessments"]["prompt"] = info.get("prompt_checks") or []
             res["assessments"]["answer"] = info.get("answer_checks") or []
-            if assess_judges:
-                res["assessments"]["answer"] += [a.to_dict() for a in answer_checks.judge_answer(q["query"], res["answer"])]
+            res["assessments"]["retrieval"] += info.get("context_checks") or []
             res.update(usage=info.get("usage"), n_images=info.get("n_images"),
                        truncated=(info.get("usage") or {}).get("stop_reason") == "max_tokens")
             if judge_cfg is not None:

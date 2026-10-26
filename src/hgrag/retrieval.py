@@ -134,6 +134,9 @@ def search_steps(
     except BaseException as exc:
         span.end(error=exc)
         raise
+    from .assessments import retrieval as retrieval_checks
+
+    span.assess(retrieval_checks.assess(diag))
     span.end({"sections": [{k_: s.get(k_) for k_ in ("section_path", "doc_id", "section_ref", "score")}
                            | {"n_chunks": len(s["hits"])} for s in sections], "diagnostics": diag})
 

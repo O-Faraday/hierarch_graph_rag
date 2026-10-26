@@ -47,9 +47,11 @@ def _jsonable(value: Any) -> Any:
 class Span:
     """A live MLflow span, or a no-op one (tracing off, or MLflow failed). Use as a context manager, or ``end()``."""
 
-    def __init__(self, live: Any = None):
+    def __init__(self, live: Any = None, root: Span | None = None):
         self._live = live
         self._ended = live is None
+        self._root = root or self
+        self._pending: list[tuple[str | None, Any]] = []  # (span id, assessment), on the root span only
 
     @property
     def active(self) -> bool:
@@ -72,7 +74,8 @@ class Span:
 
             return Span(mlflow.start_span_no_context(name, span_type=span_type, parent_span=self._live,
                                                      inputs=_jsonable(inputs) if inputs is not None else None,
-                                                     attributes=_jsonable(attributes) if attributes else None))
+                                                     attributes=_jsonable(attributes) if attributes else None),
+                        root=self._root)
         except Exception as exc:  # noqa: BLE001
             logger.warning("MLflow span %s not created: %s", name, exc)
             return Span()
@@ -89,6 +92,15 @@ class Span:
         except Exception as exc:  # noqa: BLE001
             logger.warning("MLflow span update failed: %s", exc)
 
+    def assess(self, assessments: list[Any]) -> None:
+        """Attach production checks (``assessments.Assessment`` or their dicts) to this span. They are logged as MLflow
+        feedback when the trace ends: a feedback needs its trace in the store."""
+        if self._live is None:
+            return
+        from .assessments import Assessment
+
+        self._root._pending += [(self.span_id, a if isinstance(a, Assessment) else Assessment(**a)) for a in assessments]
+
     def end(self, outputs: Any = None, error: BaseException | None = None, **attributes: Any) -> None:
         if self._ended:
             return
@@ -101,6 +113,21 @@ class Span:
             self._live.end()
         except Exception as exc:  # noqa: BLE001
             logger.warning("MLflow span end failed: %s", exc)
+        if self._root is self and self._pending:
+            self._log_assessments()
+
+    def _log_assessments(self) -> None:
+        try:
+            import mlflow
+
+            mlflow.flush_trace_async_logging()  # the trace must be stored before its feedback
+            for span_id, a in self._pending:
+                fb = a.to_feedback(self.trace_id, span_id)
+                mlflow.log_feedback(trace_id=self.trace_id, span_id=span_id, name=fb.name, value=fb.value,
+                                    source=fb.source, error=fb.error, rationale=fb.rationale, metadata=fb.metadata)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("MLflow feedback not logged: %s", exc)
+        self._pending = []
 
     def __enter__(self) -> Span:
         return self

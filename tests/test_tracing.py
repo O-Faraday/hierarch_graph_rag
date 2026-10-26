@@ -122,3 +122,76 @@ def test_hierarchy_step_is_traced(tmp_path, mlflow_dir):  # noqa: F811
     trace = mlflow.search_traces(locations=[exp.experiment_id], return_type="list")[0]
     span = trace.data.spans[0]
     assert span.name == "hierarchy" and "1. Intro" in span.outputs["tree"] and span.outputs["stats"]["n_sections"] >= 1
+
+
+# ------------------------------------------------------------------------------- production checks as feedback
+def _feedback(trace):
+    names = {s.span_id: s.name for s in trace.data.spans}
+    return {a.name: (names.get(a.span_id), a) for a in trace.info.assessments}
+
+
+def test_checks_are_feedback_on_the_span_they_assess(store, mlflow_dir, monkeypatch):  # noqa: F811
+    from hgrag.assessments import answer as AN
+    from hgrag.assessments import retrieval as RT
+
+    client, out = store
+    root = tracing.root("rag_query", tracking.RETRIEVAL, tracking.new_run_key(), inputs={"question": "q"})
+    sections = retrieve_sections("new branches portfolio", 3, embedder=BagOfWordsEmbedder(), client=client,
+                                 collection="c", output_dir=out, run_key="rk", trace=root)
+    monkeypatch.setattr(generation.requests, "post", lambda url, **kw: FakeResponse(_anthropic_stream(["3 branches [1]."])))
+
+    def judge(cfg, system, user, **kw):
+        if system == RT.CONTEXT_JUDGE_SYSTEM:
+            return '{"relevance": {"1": 5}, "sufficiency": 4, "rationale": "enough"}', {}
+        assert system == AN.ANSWER_JUDGE_SYSTEM
+        return '{"parts": ["count"], "unanswered": [], "relevance": 5, "completeness": 5, "rationale": "ok"}', {}
+
+    monkeypatch.setattr(generation, "complete", judge)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "x")
+    info: dict = {}
+    "".join(generation.answer_stream("new branches", sections, generation.LLMConfig(provider="anthropic", api_key="k"),
+                                     info=info, trace=root, judges=True))
+    root.end()
+    fb = _feedback(mlflow.get_trace(root.trace_id))
+    assert fb["retrieval.top_score"][0] == "search" and fb["retrieval.search_agreement"][0] == "search"
+    assert fb["prompt.dropped_sections"][0] == "build_prompt" and fb["retrieval.context_sufficiency"][0] == "build_prompt"
+    assert fb["answer.citations"][0] == "llm" and fb["answer.completeness"][0] == "generate"
+    span, a = fb["retrieval.context_sufficiency"]
+    assert a.value == 4 and a.source.source_type == "LLM_JUDGE" and a.rationale == "enough"
+    assert fb["answer.citations"][1].source.source_type == "CODE" and fb["answer.citations"][1].metadata["passed"] == "true"
+    assert [c["name"] for c in info["context_checks"]] == ["retrieval.context_relevance", "retrieval.context_sufficiency"]
+    assert "answer.relevance" in [c["name"] for c in info["answer_checks"]]
+
+
+def test_judges_are_off_by_default(monkeypatch):
+    from hgrag.assessments import answer as AN
+
+    monkeypatch.setattr(generation.requests, "post", lambda url, **kw: FakeResponse(_anthropic_stream(["Yes [1]."])))
+    monkeypatch.setattr(AN, "judge_answer", lambda *a, **k: pytest.fail("judge called"))
+    info: dict = {}
+    "".join(generation.answer_stream("q", SECTIONS, generation.LLMConfig(provider="anthropic", api_key="k"), info=info))
+    assert info["context_checks"] == [] and {c["source"] for c in info["answer_checks"]} == {"code"}
+
+
+def test_hierarchy_checks_are_feedback_and_saved(tmp_path, mlflow_dir):  # noqa: F811
+    from docling_core.types.doc import BoundingBox, DoclingDocument, ProvenanceItem, Size
+
+    from hgrag.pipeline import build_and_save_hierarchy
+
+    doc = DoclingDocument(name="r")
+    doc.add_page(page_no=1, size=Size(width=600, height=800))
+    prov = ProvenanceItem(page_no=1, bbox=BoundingBox(l=0, t=0, r=1, b=1), charspan=(0, 1))
+    for title in ("1 Intro", "3 Method"):  # 2 is missing: the numbering check fails
+        doc.add_text(label="text", text="Some words here.", parent=doc.add_heading(text=title, level=1, prov=prov), prov=prov)
+    d = tmp_path / "doc"
+    d.mkdir()
+    doc.save_as_json(d / "document.json")
+    (d / "figures.json").write_text("[]")
+    (d / "manifest.json").write_text(json.dumps({"doc_id": "doc", "source_pdf": "r.pdf"}))
+    build_and_save_hierarchy(d, run_key=tracking.new_run_key())
+    exp = mlflow.get_experiment_by_name(tracking.INDEXING)
+    trace = mlflow.search_traces(locations=[exp.experiment_id], return_type="list")[0]
+    fb = _feedback(trace)
+    assert fb["hierarchy.numbering"][0] == "hierarchy" and fb["hierarchy.numbering"][1].value == 1
+    saved = json.loads((d / "assessments.json").read_text(encoding="utf-8"))
+    assert [a["name"] for a in saved["hierarchy"]] == ["hierarchy.numbering", "hierarchy.references_excluded"]
