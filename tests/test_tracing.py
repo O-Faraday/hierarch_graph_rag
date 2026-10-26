@@ -195,3 +195,16 @@ def test_hierarchy_checks_are_feedback_and_saved(tmp_path, mlflow_dir):  # noqa:
     assert fb["hierarchy.numbering"][0] == "hierarchy" and fb["hierarchy.numbering"][1].value == 1
     saved = json.loads((d / "assessments.json").read_text(encoding="utf-8"))
     assert [a["name"] for a in saved["hierarchy"]] == ["hierarchy.numbering", "hierarchy.references_excluded"]
+
+
+def test_mlflow_ui_runs_one_worker(monkeypatch):
+    import subprocess
+
+    from hgrag import cli
+
+    seen = {}
+    monkeypatch.setattr(subprocess, "call", lambda cmd: seen.update(cmd=cmd) or 0)
+    monkeypatch.setattr("sys.argv", ["hgrag", "mlflow-ui"])
+    with pytest.raises(SystemExit):
+        cli.main()
+    assert seen["cmd"][-2:] == ["--workers", "1"] and "--backend-store-uri" in seen["cmd"]

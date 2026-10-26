@@ -199,7 +199,9 @@ def main() -> None:
         print(f"MLflow store: {tracking.TRACKING_URI}\nStarting MLflow UI on http://localhost:5000 "
               "(Ctrl+C to stop). The server needs ~20-30 s to be ready; the terminal stays busy while it runs.", flush=True)
         raise SystemExit(subprocess.call(
-            [sys.executable, "-m", "mlflow", "ui", "--backend-store-uri", tracking.TRACKING_URI]
+            # one worker: a local UI needs no more, and on Windows uvicorn's extra workers die on the shared socket
+            # (WinError 10022) and are restarted, which floods the console
+            [sys.executable, "-m", "mlflow", "ui", "--backend-store-uri", tracking.TRACKING_URI, "--workers", "1"]
         ))
 
     if args.cmd == "freeze":
