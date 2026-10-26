@@ -372,6 +372,9 @@ avec leurs métadonnées. Les logs du run (`Log`) reprennent les mêmes chiffres
 | `src/hgrag/retrieval.py` | Retrieval : requête → chunks proches → sections reconstruites |
 | `src/hgrag/tracking.py` | Suivi MLflow : un run parent par exécution, un run enfant par étape |
 | `src/hgrag/tracing.py` | Traces MLflow : entrées et sorties de chaque étape (un span par étape, parent explicite) |
+| `src/hgrag/versions.py`, `registry.py` | Versions des applications (configuration et empreinte), enregistrement des modèles pyfunc (`hgrag register`) |
+| `src/hgrag/mlflow_models.py`, `model_code/` | Les applications `hgrag-rag` et `hgrag-indexing` comme modèles pyfunc MLflow |
+| `src/hgrag/genai_eval.py` | Évaluation de `hgrag-rag` avec `mlflow.genai.evaluate` sur les PDF de contrôle (`hgrag evaluate-rag`) |
 | `src/hgrag/assessments/` | Contrôles de production sans référence (`hgrag assess`), un module par étape |
 | `src/hgrag/pipeline.py`, `cli.py` | Étapes en fonctions, CLI (`run`, `query`, `mlflow-ui`) |
 | `src/hgrag/runner.py` | Exécuteur local (sous-processus) : graphe des tâches, `status.json`, log, annulation |
@@ -477,6 +480,47 @@ reçoivent l'id de l'expérience. Chaque ligne de `results.jsonl` du ragbench ga
 Les contrôles des documents s'écrivent aussi dans `<doc>/assessments.json`. Un contrôle sans objet (pas de figure à décrire, pas de recherche par mots-clés) n'est pas envoyé à MLflow, qui afficherait sa valeur vide comme une erreur. Les juges LLM (coût : appels d'API) ne
 tournent qu'avec `HGRAG_ASSESS_JUDGES=1` (pipeline, app) ou `--assess-judges` (ragbench). Les feedbacks sont écrits à la
 fin de la trace, une fois celle-ci enregistrée.
+
+### Modèles MLflow : versions, Model Registry, évaluation
+
+```bash
+uv run hgrag register                       # hgrag-rag et hgrag-indexing dans le Model Registry
+uv run hgrag evaluate-rag                   # mlflow.genai.evaluate sur les questions des PDF de contrôle
+uv run hgrag evaluate-rag --model-uri models:/hgrag-rag/1 --judges --ids q01,q07
+```
+
+**Versions.** Une version d'une application est la configuration qui change ce qu'elle produit
+(`src/hgrag/versions.py`) : pour `rag`, modèles d'embedding, de reranking et de réponse, poids des mots-clés, budget
+et empreinte du prompt système ; pour `indexing`, options Docling, modèles de description, chunking, modèle
+d'embedding. `hgrag register` enregistre chaque application comme modèle pyfunc « from code »
+(`src/hgrag/model_code/`), avec ces réglages comme paramètres et leur empreinte en tag ; les dépendances viennent de
+`uv.lock` (le paquet `hgrag` lui-même vient de l'environnement du projet, `uv sync`). Une configuration inchangée
+réutilise le modèle déjà enregistré (`--force` pour en créer un autre). Chaque trace faite ensuite avec la même
+configuration (app, pipeline, ragbench) est rattachée à ce modèle (`mlflow.modelId`) : l'onglet *Models* compare les
+versions sur leurs traces et leurs contrôles.
+
+| Modèle | Entrée | Sortie |
+|---|---|---|
+| `hgrag-rag` | une question, une liste, `{"question": ...}` ou un DataFrame `question` | réponse, sources numérotées, `trace_id` |
+| `hgrag-indexing` | `{"pdf_dir": ..., "pdfs": [...]}` ou une liste de chemins de PDF | état de l'exécution, tâches |
+
+`mlflow.pyfunc.load_model("models:/hgrag-rag/1", model_config={...})` change les stores (`output_dir`,
+`qdrant_path`, `collection`), `k` et `judges`.
+
+**Évaluation** (`hgrag evaluate-rag`, `src/hgrag/genai_eval.py`). Le store est reconstruit depuis le parsing figé des
+PDF de contrôle, chaque question de `eval_dataset.jsonl` devient une trace de l'expérience `hgrag_eval` rattachée à la
+version du modèle, et trois scorers la notent :
+
+| Scorer | Type | Mesure |
+|---|---|---|
+| `hgrag_checks` | code | les contrôles de production de chaque étape, relus dans la trace (`retrieval.*`, `prompt.*`, `answer.*`, et les juges avec `--judges`) |
+| `correctness` | juge (Claude Haiku) | la réponse comparée à la réponse attendue du jeu (1-5) |
+| `evidence_recall` | code | part des passages de preuve du jeu présents dans les sections reconstruites |
+
+Les questions sont traitées une à une (`--workers`) : le store Qdrant local et les modèles sont partagés. Dans une
+trace ouverte par MLflow (l'évaluation), nos spans s'y imbriquent et les contrôles passent par l'attribut
+`hgrag.assessments` des spans, que `hgrag_checks` relit. Les spans ouverts dans des threads reçoivent une copie du
+contexte (`tracing.submit`) : sans elle, `mlflow.genai.evaluate` perdait la trace entière.
 
 ### Variables d'environnement
 

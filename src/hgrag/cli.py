@@ -187,6 +187,17 @@ def main() -> None:
     rb.add_argument("--section-base", type=int, choices=(0, 1), help="base of the benchmark's section indices (default: detected)")
     rb.add_argument("--pause", type=float, default=3.0, help="seconds between arXiv downloads")
     rb.add_argument("--no-mlflow", action="store_true")
+    reg = sub.add_parser("register", help="log the applications as MLflow pyfunc models and register them "
+                         "(hgrag-rag, hgrag-indexing); a model already logged for the same configuration is reused")
+    reg.add_argument("--kind", choices=("rag", "indexing", "all"), default="all")
+    reg.add_argument("--force", action="store_true", help="log a new model even if the configuration is unchanged")
+    er = sub.add_parser("evaluate-rag", help="test the question-answering application with mlflow.genai.evaluate on the "
+                        "control PDFs (production checks, correctness against the expected answer, evidence recall)")
+    er.add_argument("--model-uri", help="e.g. models:/hgrag-rag/1 (default: the code of the project)")
+    er.add_argument("--judges", action="store_true", help="also run the production LLM judges (context, answer)")
+    er.add_argument("-k", type=int, default=5, help="chunks retrieved per question")
+    er.add_argument("--ids", help="comma-separated question ids, e.g. q01,q07")
+    er.add_argument("--workers", type=int, default=1, help="questions answered in parallel")
     sub.add_parser("mlflow-ui", help="start the MLflow UI on the project store (http://localhost:5000)")
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
@@ -237,6 +248,24 @@ def main() -> None:
             failed += bool(bad)
         print("Next: rebuild hierarchy + index (app: 'Rebuild hierarchy + index') so the descriptions are searchable.")
         raise SystemExit(1 if failed else 0)
+
+    if args.cmd == "register":
+        from . import registry
+
+        for kind in (("rag", "indexing") if args.kind == "all" else (args.kind,)):
+            r = registry.register(kind, force=args.force)
+            print(f"{r['name']}: model {r['model_id']}, version {r['version']}" + (" (configuration unchanged: reused)"
+                                                                                  if r["reused"] else ""))
+        return
+
+    if args.cmd == "evaluate-rag":
+        from . import genai_eval
+
+        res = genai_eval.evaluate_rag(args.model_uri, judges=args.judges, k=args.k, workers=args.workers,
+                                      ids=args.ids.split(",") if args.ids else None)
+        print(genai_eval.format_metrics(res["metrics"]))
+        print(f"\nMLflow experiment {tracking.EVAL}, run {res['run_id']}, model {res['model_id']}")
+        return
 
     if args.cmd == "assess":
         from . import assessments
