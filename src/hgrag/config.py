@@ -161,3 +161,4 @@ ASSESS_MIN_AGREEMENT = float(os.environ.get("HGRAG_ASSESS_MIN_AGREEMENT", "0.1")
 # Context judge: a sufficiency of 2 or less fails. At 4, as the other judges, it flagged 27 % of the ragbench questions
 # with only 23 % of bad answers among them; at 3, 7 % with 35 % (base rate 15 %).
 ASSESS_MIN_SUFFICIENCY = int(os.environ.get("HGRAG_ASSESS_MIN_SUFFICIENCY", "3"))
+ASSESS_MAX_UNSOURCED_NUMBERS = int(os.environ.get("HGRAG_ASSESS_MAX_UNSOURCED_NUMBERS", "0"))  # per answer

@@ -181,8 +181,8 @@ def main() -> None:
     rb.add_argument("--gen-model", help="generation model (default HGRAG_LLM_MODEL, claude-haiku-5-5); the judge is unchanged")
     rb.add_argument("--reference-run", help="previous run dir of the same sample: flags every question whose retrieved "
                     "sections differ (compare models on the same context)")
-    rb.add_argument("--assess-context", action="store_true", help="LLM judge of the context of each question "
-                    "(relevance of each source, sufficiency), no reference answer used; HGRAG_ASSESS_JUDGE_MODEL")
+    rb.add_argument("--assess-judges", action="store_true", help="production LLM judges on each question, no reference "
+                    "answer used: context (relevance, sufficiency) and answer (relevance, completeness); HGRAG_ASSESS_JUDGE_MODEL")
     rb.add_argument("--prepare-only", action="store_true", help="download, parse and index, without evaluating")
     rb.add_argument("--section-base", type=int, choices=(0, 1), help="base of the benchmark's section indices (default: detected)")
     rb.add_argument("--pause", type=float, default=3.0, help="seconds between arXiv downloads")
@@ -309,7 +309,7 @@ def main() -> None:
                                rerank=args.rerank, candidates=args.candidates, gen_model=args.gen_model,
                                reference_run=args.reference_run, track=not args.no_mlflow, on_progress=lambda m: print(m, flush=True),
                                questions=args.questions.split(",") if args.questions else None,
-                               assess_context=args.assess_context)
+                               assess_judges=args.assess_judges)
         except ragbench.RagBenchError as exc:
             print(f"error: {exc}")
             raise SystemExit(2)

@@ -255,9 +255,11 @@ def evaluate_query(qid: str, q: dict[str, Any], answer: str, gold: str, paper_id
                    output_dir: Path, collection: str, k: int, stem_to_paper: dict[str, str],
                    gen_cfg: LLMConfig | None = None, judge_cfg: LLMConfig | None = None,
                    rerank: bool | None = None, reranker: Any = None, candidates: int | None = None,
-                   assess_context: bool = False) -> dict[str, Any]:
-    """``assess_context``: also run the context judge (relevance and sufficiency, ``assessments.retrieval``) on the
-    prompt the generator receives; the deterministic checks of the search and the prompt always run."""
+                   assess_judges: bool = False) -> dict[str, Any]:
+    """``assess_judges``: also run the production LLM judges: context (relevance and sufficiency, on the prompt the
+    generator receives) and answer (relevance and completeness). The deterministic checks of the search, the prompt
+    and the answer always run. None of them uses the reference answer."""
+    from .assessments import answer as answer_checks
     from .assessments import retrieval as retrieval_checks
     from .retrieval import reconstruct_hit, search_hits
 
@@ -297,7 +299,7 @@ def evaluate_query(qid: str, q: dict[str, Any], answer: str, gold: str, paper_id
         "context_recall": retrieved[-1]["recall_so_far"] if retrieved else None, "context_recall_at_1": first_recall,
         "retrieved": retrieved,
         "assessments": {"retrieval": [a.to_dict() for a in retrieval_checks.assess(diagnostics)]}}
-    if assess_context:
+    if assess_judges:
         cfg = gen_cfg or LLMConfig(provider="anthropic")
         msgs = generation.build_messages(q["query"], sections, cfg.max_context_chars, cfg.max_images)
         res["assessments"]["retrieval"] += [a.to_dict() for a in retrieval_checks.judge_context(
@@ -313,6 +315,9 @@ def evaluate_query(qid: str, q: dict[str, Any], answer: str, gold: str, paper_id
                 res["answer"] = "".join(generation.answer_stream(q["query"], sections, bigger, info=info)).strip()
                 res["retried"] = True
             res["assessments"]["prompt"] = info.get("prompt_checks") or []
+            res["assessments"]["answer"] = info.get("answer_checks") or []
+            if assess_judges:
+                res["assessments"]["answer"] += [a.to_dict() for a in answer_checks.judge_answer(q["query"], res["answer"])]
             res.update(usage=info.get("usage"), n_images=info.get("n_images"),
                        truncated=(info.get("usage") or {}).get("stop_reason") == "max_tokens")
             if judge_cfg is not None:
@@ -496,7 +501,7 @@ def run(n_docs: int = 10, *, seed: int = 0, negatives: int = 0, sources: list[st
         embedder: Any = None, parse: Callable[..., Any] | None = None, pause: float = 3.0, section_base: int | None = None,
         rerank: bool | None = None, reranker: Any = None, candidates: int | None = None, gen_model: str | None = None,
         reference_run: str | Path | None = None, track: bool = True, questions: list[str] | None = None,
-        assess_context: bool = False, on_progress: Callable[[str], None] | None = None) -> dict[str, Any]:
+        assess_judges: bool = False, on_progress: Callable[[str], None] | None = None) -> dict[str, Any]:
     """``gen_model``: generation model (default HGRAG_LLM_MODEL), the judge stays HGRAG_JUDGE_MODEL / ``judge_model``.
     ``reference_run``: a previous run dir of the same sample; every question records ``context_same`` (same retrieved
     sections, in the same order), so a change of model can be compared on an unchanged context."""
@@ -564,7 +569,7 @@ def run(n_docs: int = 10, *, seed: int = 0, negatives: int = 0, sources: list[st
             res = evaluate_query(qid, queries[qid], answers.get(qid, ""), gold, rel["doc_id"], client=client, embedder=embedder,
                                  output_dir=store["output_dir"], collection=store["collection"], k=k, stem_to_paper=stem_to_paper,
                                  gen_cfg=gen_cfg, judge_cfg=judge_cfg, rerank=use_rerank, reranker=reranker, candidates=candidates,
-                                 assess_context=assess_context)
+                                 assess_judges=assess_judges)
             if reference is not None:
                 res["context_same"] = reference.get(qid) == _paths(res)
             results.append(res)

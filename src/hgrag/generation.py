@@ -305,6 +305,9 @@ def answer_stream(
                 usage = delta["usage"]
         answer = "".join(parts)
         info.update(answer=answer, usage=usage, first_token_s=first, seconds=time.perf_counter() - t0)
+        from .assessments import answer as answer_checks
+
+        info["answer_checks"] = [a.to_dict() for a in answer_checks.assess(answer, msgs)]
         tr.metrics(n_images=len(images), prompt_chars=info["prompt_chars"], answer_chars=len(answer), first_token_s=first or 0.0,
                    input_tokens=usage.get("input_tokens", 0), output_tokens=usage.get("output_tokens", 0))
         tr.tags(stop_reason=usage.get("stop_reason"))

@@ -461,3 +461,70 @@ def test_answer_stream_reports_the_prompt_checks(monkeypatch):
     info: dict = {}
     "".join(generation.answer_stream("q", SECTIONS, generation.LLMConfig(provider="anthropic", api_key="k"), info=info))
     assert [c["name"] for c in info["prompt_checks"]] == ["prompt.dropped_sections", "prompt.budget_use", "prompt.images"]
+
+
+# ----------------------------------------------------------------------------------------------- step 7: answer
+from hgrag.assessments import answer as AN  # noqa: E402
+
+
+def test_citations():
+    assert AN.cited_sources("A [1], B [2, 4] and C [3-5]; D [7–6].") == [1, 2, 4, 3, 4, 5, 7, 6]
+    ok = AN.citations("Yes [1]. Details [2].", 3)
+    assert ok.value == 2 and ok.passed and ok.metadata["cited"] == [1, 2]
+    bad = AN.citations("Yes [1], as in [23].", 3)
+    assert bad.passed is False and bad.metadata["invalid"] == [23] and "reference numbers of the paper" in bad.rationale
+    none = AN.citations("Yes, it is quadratic.", 3)
+    assert none.passed is False and "no citation" in none.rationale
+    assert AN.citations("I cannot answer this from the documents.", 3).passed is None
+
+
+def test_unsourced_numbers():
+    context = "Revenue was 1,200.50 million in 2023 and the rate fell to 4.0 %. Table: 0.5282"
+    ok = AN.unsourced_numbers("Revenue: 1200.5 million [1], rate 4 % in 2023, score 0.5282.", context, max_unsourced=0)
+    assert ok.value == 0 and ok.passed
+    bad = AN.unsourced_numbers("Score **0.53282** and 75 % growth [2].", context, max_unsourced=0)
+    assert bad.metadata["numbers"] == ["0.53282", "75"] and bad.passed is False
+    approx = AN.unsourced_numbers("The curve is near 11.5, about **-77 dBm**, roughly 111% to 184% of the optimum; "
+                                  "3 sources [12].", context, max_unsourced=0)
+    assert approx.value == 0 and approx.metadata["checked"] == 0  # approximate readings, single digits and citations skipped
+
+
+def test_refusal():
+    assert AN.is_refusal("I cannot answer this from the documents. The only mention is in source [1].")
+    assert AN.is_refusal("**The documents do not say how long to bake bread.** No source gives baking times.")
+    assert not AN.is_refusal("The sources do not give a formal definition, but they show how it is used [1].")
+    assert not AN.is_refusal("Yes [1]. The documents do not describe the 2019 data.")  # declines a part, not the question
+    rec = AN.refusal("I cannot answer this from the documents.")
+    assert rec.value is True and rec.passed is False and "I cannot answer" in rec.rationale
+
+
+def test_answer_judge(monkeypatch):
+    from hgrag import generation
+
+    seen = {}
+
+    def fake(cfg, system, user, **kw):
+        seen.update(cfg=cfg, user=user)
+        return ('{"parts": ["trend", "cause"], "unanswered": ["cause"], "relevance": 5, "completeness": 3, '
+                '"rationale": "the cause is not given"}'), {}
+
+    monkeypatch.setattr(generation, "complete", fake)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "x")
+    rel, comp = AN.judge_answer("What is the trend and why?", "It rises [1].", model="claude-haiku-5-5")
+    assert rel.name == "answer.relevance" and rel.value == 5 and rel.passed and rel.source == "llm_judge"
+    assert comp.value == 3 and comp.passed is False and comp.metadata["unanswered"] == ["cause"]
+    assert seen["user"] == "QUESTION:\nWhat is the trend and why?\n\nANSWER:\nIt rises [1]." and seen["cfg"].thinking == "disabled"
+    monkeypatch.delenv("ANTHROPIC_API_KEY")
+    assert all("ANTHROPIC_API_KEY" in a.error for a in AN.judge_answer("q", "a"))
+
+
+def test_answer_stream_reports_the_answer_checks(monkeypatch):
+    from hgrag import generation
+    from test_generation import SECTIONS, FakeResponse, _anthropic_stream
+
+    monkeypatch.setattr(generation.requests, "post", lambda url, **kw: FakeResponse(_anthropic_stream(["12 branches [1] ", "[9]."])))
+    info: dict = {}
+    "".join(generation.answer_stream("q", SECTIONS, generation.LLMConfig(provider="anthropic", api_key="k"), info=info))
+    checks = {c["name"]: c for c in info["answer_checks"]}
+    assert set(checks) == {"answer.citations", "answer.unsourced_numbers", "answer.refusal"}
+    assert checks["answer.citations"]["metadata"]["invalid"] == [9] and checks["answer.refusal"]["passed"]
