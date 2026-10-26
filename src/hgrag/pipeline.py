@@ -38,14 +38,16 @@ def _load(doc_dir: Path) -> tuple[DoclingDocument, list[dict[str, Any]], dict[st
 
 def parse_step(
     pdf_path: str | Path, *, converter: Any | None = None, run_key: str | None = None,
-    describe_pictures: bool = config.DESCRIBE_PICTURES,
+    describe_pictures: bool = config.DESCRIBE_PICTURES, trace: tracing.Span | None = None,
 ) -> dict[str, Any]:
-    """Step 1 (tracked): Docling parsing, figures as PNG + metadata."""
+    """Step 1 (tracked): Docling parsing, figures as PNG + metadata. ``trace``: the span of the indexing execution
+    (``runner``), else the step is a trace of its own."""
     from .parsing import parse_options, parse_pdf
 
-    span = tracing.root("parse", tracking.INDEXING, run_key, span_type="PARSER", tags={"hgrag.pdf": Path(pdf_path).name},
-                        inputs={"pdf": Path(pdf_path).name, "describe_pictures": describe_pictures,
-                                "options": parse_options()})
+    span = tracing.child_or_root(trace, "parse", tracking.INDEXING, run_key, span_type="PARSER",
+                                 tags={"hgrag.pdf": Path(pdf_path).name},
+                                 inputs={"pdf": Path(pdf_path).name, "describe_pictures": describe_pictures,
+                                         "options": parse_options()})
     with span, track_step(tracking.INDEXING, "parse", run_key, item=Path(pdf_path).name,
                           pdf=Path(pdf_path).name, describe_pictures=describe_pictures,
                           pdf_bytes=Path(pdf_path).stat().st_size) as tr:
@@ -74,11 +76,12 @@ def parse_step(
     return manifest
 
 
-def build_and_save_hierarchy(doc_dir: str | Path, *, run_key: str | None = None) -> dict[str, Any]:
+def build_and_save_hierarchy(doc_dir: str | Path, *, run_key: str | None = None,
+                             trace: tracing.Span | None = None) -> dict[str, Any]:
     """Step 2: heading tree + elements, written to ``hierarchy.json`` (and ``hierarchy_tree.txt``)."""
     doc_dir = Path(doc_dir)
-    span = tracing.root("hierarchy", tracking.INDEXING, run_key, tags={"hgrag.doc_id": doc_dir.name},
-                        inputs={"doc_dir": doc_dir.name})
+    span = tracing.child_or_root(trace, "hierarchy", tracking.INDEXING, run_key, tags={"hgrag.doc_id": doc_dir.name},
+                                 inputs={"doc_dir": doc_dir.name})
     with span, track_step(tracking.INDEXING, "hierarchy", run_key, item=doc_dir.name, doc_dir=doc_dir.name) as tr:
         out = _build_and_save_hierarchy(doc_dir)
         span.set({"tree": (doc_dir / "hierarchy_tree.txt").read_text(encoding="utf-8"), "stats": out["tree"]})
@@ -132,12 +135,13 @@ def index_documents(
     collection: str = config.COLLECTION_NAME,
     model_id: str = config.EMBED_MODEL_ID,
     run_key: str | None = None,
+    trace: tracing.Span | None = None,
 ) -> dict[str, Any]:
     """Steps 3-4: paragraph chunks + embeddings into the single Qdrant collection.
 
     Qdrant local mode allows one process on the storage path, hence one task for all docs.
     """
-    span = tracing.root("index", tracking.INDEXING, run_key, inputs={
+    span = tracing.child_or_root(trace, "index", tracking.INDEXING, run_key, inputs={
         "documents": [Path(d).name for d in doc_dirs], "embedding_model": model_id, "collection": collection,
         "chunk_labels": list(config.CHUNK_LABELS), "max_tokens": config.CHUNK_MAX_TOKENS})
     with span, track_step(tracking.INDEXING, "index", run_key, model_id=model_id, collection=collection,

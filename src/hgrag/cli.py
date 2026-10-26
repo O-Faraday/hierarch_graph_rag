@@ -381,11 +381,17 @@ def main() -> None:
     run_key = None if args.no_mlflow else tracking.new_run_key()
     describe = args.vlm and not args.no_vlm
     converter = build_converter(describe_pictures=describe)
+    from . import tracing
+
+    trace = tracing.root("indexing", tracking.INDEXING, run_key, inputs={  # one trace for the whole execution
+        "pdf_dir": str(args.pdf_dir), "pdfs": "all", "steps": ["parse", "hierarchy", "index"], "describe_pictures": describe})
     doc_dirs = []
-    for pdf in pdfs:
-        manifest = parse_step(pdf, converter=converter, run_key=run_key, describe_pictures=describe)
-        print(json.dumps(build_and_save_hierarchy(manifest["doc_dir"], run_key=run_key)))
-        doc_dirs.append(manifest["doc_dir"])
-    print(json.dumps(index_documents(doc_dirs, run_key=run_key)))
+    with trace:
+        for pdf in pdfs:
+            manifest = parse_step(pdf, converter=converter, run_key=run_key, describe_pictures=describe, trace=trace)
+            print(json.dumps(build_and_save_hierarchy(manifest["doc_dir"], run_key=run_key, trace=trace)))
+            doc_dirs.append(manifest["doc_dir"])
+        print(json.dumps(index_documents(doc_dirs, run_key=run_key, trace=trace)))
+        trace.set({"documents": doc_dirs})
     if run_key:
         print(f"MLflow run: {run_key} (uv run mlflow ui --backend-store-uri {tracking.TRACKING_URI})")

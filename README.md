@@ -449,6 +449,7 @@ coupe en gardant les runs.
 
 | Trace | Expérience | Spans |
 |---|---|---|
+| `indexing` (une exécution de l'app ou de `hgrag run`) | `hgrag_pipeline` | un span `parse` par PDF, `hierarchy` par document, puis `index` (détail ci-dessous) |
 | `parse` (un PDF) | `hgrag_pipeline` | `docling` (statistiques, Markdown), `export_figures`, `describe` > un span LLM par appel : `describe_figure`, `describe_table`, `transcribe_formula`, `read_formula` |
 | `hierarchy` (un document) | `hgrag_pipeline` | l'arbre des titres et ses statistiques |
 | `index` (une exécution) | `hgrag_pipeline` | `index_document` par document > `chunk` (chunks et texte vectorisé), `embed_and_store` |
@@ -473,7 +474,7 @@ reçoivent l'id de l'expérience. Chaque ligne de `results.jsonl` du ragbench ga
 | `llm` | `answer.citations`, `answer.unsourced_numbers`, `answer.refusal` |
 | `generate` | avec les juges : `answer.relevance`, `answer.completeness` |
 
-Les contrôles des documents s'écrivent aussi dans `<doc>/assessments.json`. Les juges LLM (coût : appels d'API) ne
+Les contrôles des documents s'écrivent aussi dans `<doc>/assessments.json`. Un contrôle sans objet (pas de figure à décrire, pas de recherche par mots-clés) n'est pas envoyé à MLflow, qui afficherait sa valeur vide comme une erreur. Les juges LLM (coût : appels d'API) ne
 tournent qu'avec `HGRAG_ASSESS_JUDGES=1` (pipeline, app) ou `--assess-judges` (ragbench). Les feedbacks sont écrits à la
 fin de la trace, une fois celle-ci enregistrée.
 

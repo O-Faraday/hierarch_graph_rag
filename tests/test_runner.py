@@ -10,7 +10,7 @@ from pathlib import Path
 import mlflow
 import pytest
 
-from hgrag import pipeline, runner, tracking
+from hgrag import pipeline, runner, tracing, tracking
 
 
 @pytest.fixture()
@@ -28,20 +28,23 @@ def env(tmp_path, monkeypatch):
 
 
 def _patch_steps(monkeypatch, fail_parse=()):
-    def parse_step(pdf, *, converter=None, run_key=None, describe_pictures=True):
+    def parse_step(pdf, *, converter=None, run_key=None, describe_pictures=True, trace=None):
         name = Path(pdf).name  # not split("/"): Windows paths use backslashes
-        with tracking.track_step(tracking.INDEXING, "parse", run_key, item=name) as tr:
+        with tracing.child_or_root(trace, "parse", tracking.INDEXING, run_key, inputs={"pdf": name}), \
+                tracking.track_step(tracking.INDEXING, "parse", run_key, item=name) as tr:
             if name in fail_parse:
                 raise ValueError("corrupt pdf")
             tr.metrics(n_figures=2)
         return {"doc_id": name[0], "source_pdf": pdf, "doc_dir": f"/tmp/{name[0]}", "n_figures": 2}
 
-    def hierarchy(doc_dir, *, run_key=None):
-        with tracking.track_step(tracking.INDEXING, "hierarchy", run_key, item=doc_dir):
+    def hierarchy(doc_dir, *, run_key=None, trace=None):
+        with tracing.child_or_root(trace, "hierarchy", tracking.INDEXING, run_key), \
+                tracking.track_step(tracking.INDEXING, "hierarchy", run_key, item=doc_dir):
             return {"n_sections": 3, "n_leaf_sections": 2, "n_elements": 9}
 
-    def index(doc_dirs, *, run_key=None, **kw):
-        with tracking.track_step(tracking.INDEXING, "index", run_key) as tr:
+    def index(doc_dirs, *, run_key=None, trace=None, **kw):
+        with tracing.child_or_root(trace, "index", tracking.INDEXING, run_key), \
+                tracking.track_step(tracking.INDEXING, "index", run_key) as tr:
             tr.metrics(total_chunks=len(doc_dirs) * 5)
         tracking.finish_execution(tracking.INDEXING, run_key, total_chunks=len(doc_dirs) * 5)
         return {"total_chunks": len(doc_dirs) * 5, "chunks_per_doc": {}, "collection": "c"}
@@ -65,6 +68,13 @@ def test_success_run_status_and_mlflow(env, monkeypatch):
                                  filter_string="tags.`hgrag.run_key` = 'k1'")
     steps = sorted(r.data.tags["hgrag.step"] for r in runs_ml if r.data.tags["hgrag.kind"] == "step")
     assert steps == ["hierarchy", "hierarchy", "index", "parse", "parse"]
+    mlflow.flush_trace_async_logging()
+    traces = mlflow.search_traces(locations=[exp.experiment_id], return_type="list")
+    assert len(traces) == 1  # one trace for the whole execution, each step a child span
+    spans = traces[0].data.spans
+    root = next(s for s in spans if s.parent_id is None)
+    assert root.name == "indexing" and root.outputs["state"] == runner.SUCCESS
+    assert sorted(s.name for s in spans if s.parent_id == root.span_id) == ["hierarchy", "hierarchy", "index", "parse", "parse"]
 
 
 def test_one_failing_pdf_does_not_stop_the_others(env, monkeypatch):
