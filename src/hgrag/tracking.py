@@ -96,17 +96,23 @@ class StepTracker:
 _DISABLED = StepTracker(False)
 
 
-def _setup(experiment: str) -> None:
+def _setup(experiment: str) -> str:
+    """Tracking URI set, experiment created if needed; returns its id. ``mlflow.set_experiment`` is not called: in
+    MLflow 3 it resets the tracer provider, which drops the spans still open (``tracing``: a question's trace spans
+    several tracked steps). Runs get the experiment id explicitly instead."""
     import mlflow
 
     TRACKING_DIR.mkdir(parents=True, exist_ok=True)
-    mlflow.set_tracking_uri(TRACKING_URI)
-    if TRACKING_URI.startswith("sqlite") and not mlflow.get_experiment_by_name(experiment):
+    mlflow.set_tracking_uri(TRACKING_URI)  # resets the tracer only when the URI changes
+    exp = mlflow.get_experiment_by_name(experiment)
+    if exp is None:
         try:
-            mlflow.create_experiment(experiment, artifact_location=(TRACKING_DIR / "artifacts" / experiment).as_uri())
+            kwargs = ({"artifact_location": (TRACKING_DIR / "artifacts" / experiment).as_uri()}
+                      if TRACKING_URI.startswith("sqlite") else {})
+            return mlflow.create_experiment(experiment, **kwargs)
         except Exception:  # noqa: BLE001 - concurrent creation by another task
-            pass
-    mlflow.set_experiment(experiment)
+            exp = mlflow.get_experiment_by_name(experiment)
+    return exp.experiment_id
 
 
 def _parent_run_id(experiment: str, run_key: str) -> str:
@@ -145,11 +151,11 @@ def track_step(
     try:
         import mlflow
 
-        _setup(pipeline)
+        experiment_id = _setup(pipeline)
         parent_id = _parent_run_id(pipeline, run_key)
         run_name = f"{step}:{item}" if item else step
-        mlflow.start_run(run_name=run_name, parent_run_id=parent_id,
-                               tags={_TAG_KEY: run_key, "hgrag.kind": "step", "hgrag.step": step})
+        mlflow.start_run(run_name=run_name, parent_run_id=parent_id, experiment_id=experiment_id,
+                         tags={_TAG_KEY: run_key, "hgrag.kind": "step", "hgrag.step": step})
     except Exception as exc:  # noqa: BLE001
         logger.warning("MLflow disabled for step %s: %s", step, exc)
         yield _DISABLED
