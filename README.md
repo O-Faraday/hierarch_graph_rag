@@ -371,6 +371,7 @@ avec leurs métadonnées. Les logs du run (`Log`) reprennent les mêmes chiffres
 | `src/hgrag/indexing.py` | Étapes 3-4 : chunks des éléments textuels, embeddings, Qdrant |
 | `src/hgrag/retrieval.py` | Retrieval : requête → chunks proches → sections reconstruites |
 | `src/hgrag/tracking.py` | Suivi MLflow : un run parent par exécution, un run enfant par étape |
+| `src/hgrag/tracing.py` | Traces MLflow : entrées et sorties de chaque étape (un span par étape, parent explicite) |
 | `src/hgrag/assessments/` | Contrôles de production sans référence (`hgrag assess`), un module par étape |
 | `src/hgrag/pipeline.py`, `cli.py` | Étapes en fonctions, CLI (`run`, `query`, `mlflow-ui`) |
 | `src/hgrag/runner.py` | Exécuteur local (sous-processus) : graphe des tâches, `status.json`, log, annulation |
@@ -441,6 +442,23 @@ le `run_id` Airflow plus tard), un run enfant par étape ou élément mappé (PD
 (durées, nombres de chunks / sections / éléments, scores) et artefacts. Une erreur MLflow ne fait
 jamais échouer un pipeline. Serveur distant : `MLFLOW_TRACKING_URI`.
 
+**Traces** (onglet *Traces* de chaque expérience, `src/hgrag/tracing.py`) : ce que chaque étape a reçu et produit, en
+contenu complet (chunks, sections, prompt, réponse), jamais une clé ni une image (son chemin seulement). Elles suivent
+le même interrupteur que les runs (`run_key`), le `run_key` devient la session de la trace, et `HGRAG_TRACING=0` les
+coupe en gardant les runs.
+
+| Trace | Expérience | Spans |
+|---|---|---|
+| `parse` (un PDF) | `hgrag_pipeline` | `docling` (statistiques, Markdown), `export_figures`, `describe` > un span LLM par appel : `describe_figure`, `describe_table`, `transcribe_formula`, `read_formula` |
+| `hierarchy` (un document) | `hgrag_pipeline` | l'arbre des titres et ses statistiques |
+| `index` (une exécution) | `hgrag_pipeline` | `index_document` par document > `chunk` (chunks et texte vectorisé), `embed_and_store` |
+| `rag_query` (une question) | `hgrag_retrieval` (app), `hgrag_ragbench` | `retrieve` > `search` > `embed`, `dense_search`, `keyword_search`, `fusion`, `rerank` ; `reconstruct` par section ; `generate` > `build_prompt`, `llm` |
+
+Les spans sont créés avec un parent explicite (`mlflow.start_span_no_context`) : la recherche et la réponse sont des
+générateurs consommés pas à pas par l'app, et les sections se reconstruisent dans des threads. `tracking._setup`
+n'appelle plus `mlflow.set_experiment` : dans MLflow 3, il réinitialise le traceur et perd les spans ouverts ; les runs
+reçoivent l'id de l'expérience. Chaque ligne de `results.jsonl` du ragbench garde son `trace_id`.
+
 ### Variables d'environnement
 
 | Variable | Défaut | Rôle |
@@ -505,6 +523,7 @@ jamais échouer un pipeline. Serveur distant : `MLFLOW_TRACKING_URI`.
 | `HGRAG_LLM_MAX_CONTEXT_CHARS` | `48000` | Budget de caractères des sources dans le prompt (à 24000, la section de référence était coupée pour 6 questions du ragbench ; à 48000, pour aucune) |
 | `HGRAG_RAGBENCH_DISPUTED` | `data/ragbench_disputed.json` | Questions du ragbench à référence fausse (vérifiée dans le PDF), exclues du bloc `excluding_disputed` |
 | `MLFLOW_TRACKING_URI` | SQLite `data/mlflow/mlflow.db` | Backend MLflow |
+| `HGRAG_TRACING` | `1` | Traces MLflow des étapes (entrées et sorties) quand le suivi MLflow est actif ; `0` garde les runs seuls |
 
 Les options Docling (`HGRAG_TABLE_*`, `HGRAG_FORMULA_MODE=docling`, `HGRAG_CODE_ENRICHMENT`, `HGRAG_PICTURE_CLASSIFICATION`) sont enregistrées dans `manifest.json` (`parse_options`) ; `ragbench` ne réutilise un parsing que s'il a été fait avec les mêmes options.
 

@@ -13,7 +13,7 @@ from typing import Any
 
 from docling_core.types.doc import DoclingDocument
 
-from . import config, tracking
+from . import config, tracing, tracking
 from .ids import pdf_name, pdf_stem
 from .tracking import track_step
 from .hierarchy import build_hierarchy, render_tree, tree_stats
@@ -41,12 +41,16 @@ def parse_step(
     describe_pictures: bool = config.DESCRIBE_PICTURES,
 ) -> dict[str, Any]:
     """Step 1 (tracked): Docling parsing, figures as PNG + metadata."""
-    from .parsing import parse_pdf
+    from .parsing import parse_options, parse_pdf
 
-    with track_step(tracking.INDEXING, "parse", run_key, item=Path(pdf_path).name,
-                    pdf=Path(pdf_path).name, describe_pictures=describe_pictures,
-                    pdf_bytes=Path(pdf_path).stat().st_size) as tr:
-        manifest = parse_pdf(pdf_path, converter=converter, describe_pictures=describe_pictures)
+    span = tracing.root("parse", tracking.INDEXING, run_key, span_type="PARSER", tags={"hgrag.pdf": Path(pdf_path).name},
+                        inputs={"pdf": Path(pdf_path).name, "describe_pictures": describe_pictures,
+                                "options": parse_options()})
+    with span, track_step(tracking.INDEXING, "parse", run_key, item=Path(pdf_path).name,
+                          pdf=Path(pdf_path).name, describe_pictures=describe_pictures,
+                          pdf_bytes=Path(pdf_path).stat().st_size) as tr:
+        manifest = parse_pdf(pdf_path, converter=converter, describe_pictures=describe_pictures, trace=span)
+        span.set(manifest, doc_id=manifest["doc_id"])
         doc_dir = Path(manifest["doc_dir"])
         tr.metrics(**{k: manifest[k] for k in (
             "n_figures", "n_pages", "n_tables", "n_pictures", "n_headings", "n_paragraphs",
@@ -73,8 +77,11 @@ def parse_step(
 def build_and_save_hierarchy(doc_dir: str | Path, *, run_key: str | None = None) -> dict[str, Any]:
     """Step 2: heading tree + elements, written to ``hierarchy.json`` (and ``hierarchy_tree.txt``)."""
     doc_dir = Path(doc_dir)
-    with track_step(tracking.INDEXING, "hierarchy", run_key, item=doc_dir.name, doc_dir=doc_dir.name) as tr:
+    span = tracing.root("hierarchy", tracking.INDEXING, run_key, tags={"hgrag.doc_id": doc_dir.name},
+                        inputs={"doc_dir": doc_dir.name})
+    with span, track_step(tracking.INDEXING, "hierarchy", run_key, item=doc_dir.name, doc_dir=doc_dir.name) as tr:
         out = _build_and_save_hierarchy(doc_dir)
+        span.set({"tree": (doc_dir / "hierarchy_tree.txt").read_text(encoding="utf-8"), "stats": out["tree"]})
         stats = out["tree"]
         tr.metrics(n_sections=out["n_sections"], n_leaf_sections=out["n_leaf_sections"],
                    n_elements=out["n_elements"], max_depth=stats["max_depth"],
@@ -123,9 +130,14 @@ def index_documents(
 
     Qdrant local mode allows one process on the storage path, hence one task for all docs.
     """
-    with track_step(tracking.INDEXING, "index", run_key, model_id=model_id, collection=collection,
-                    min_chunk_words=config.MIN_CHUNK_WORDS, n_documents=len(doc_dirs)) as tr:
-        out = _index_documents(doc_dirs, qdrant_path, collection, model_id)
+    span = tracing.root("index", tracking.INDEXING, run_key, inputs={
+        "documents": [Path(d).name for d in doc_dirs], "embedding_model": model_id, "collection": collection,
+        "chunk_labels": list(config.CHUNK_LABELS), "max_tokens": config.CHUNK_MAX_TOKENS})
+    with span, track_step(tracking.INDEXING, "index", run_key, model_id=model_id, collection=collection,
+                          min_chunk_words=config.MIN_CHUNK_WORDS, n_documents=len(doc_dirs)) as tr:
+        out = _index_documents(doc_dirs, qdrant_path, collection, model_id, trace=span)
+        span.set({k: out[k] for k in ("collection", "chunks_per_doc", "total_chunks", "embedding_dim",
+                                      "points_in_collection", "seconds")})
         tr.metrics(total_chunks=out["total_chunks"], embedding_dim=out["embedding_dim"],
                    points_in_collection=out["points_in_collection"], **out["seconds"])
         for name, d in out["documents"].items():
@@ -144,7 +156,7 @@ def index_documents(
     return out
 
 
-def _index_documents(doc_dirs, qdrant_path, collection, model_id) -> dict[str, Any]:
+def _index_documents(doc_dirs, qdrant_path, collection, model_id, trace=None) -> dict[str, Any]:
     from .describe import load_formula_readings, load_table_descriptions
     from .indexing import chunk_paragraphs, figure_chunks, index_chunks, load_embedder, make_chunker, open_store
 
@@ -156,26 +168,33 @@ def _index_documents(doc_dirs, qdrant_path, collection, model_id) -> dict[str, A
     seconds = {"seconds_load_model": time.perf_counter() - t0, "seconds_chunk": 0.0, "seconds_embed_store": 0.0}
     client = open_store(qdrant_path)
     per_doc: dict[str, int] = {}
+    dspan = espan = tracing.Span()  # spans of the document being indexed (ended with the error if it fails)
     documents: dict[str, Any] = {}
     dim = 0
     try:
         for d in doc_dirs:
             doc_dir = Path(d)
+            dspan = (trace or tracing.Span()).child("index_document", inputs={"doc_dir": doc_dir.name})
             doc, figures, manifest = _load(doc_dir)
             tdesc = load_table_descriptions(doc_dir)
             root = build_hierarchy(doc, figures, doc_title=pdf_stem(manifest["source_pdf"]), table_descriptions=tdesc)
             t = time.perf_counter()
             cstats: dict[str, Any] = {}
-            chunks = chunk_paragraphs(doc, chunker, root, manifest["doc_id"], stats=cstats, table_descriptions=tdesc,
-                                      formula_readings=load_formula_readings(doc_dir))
-            fig_chunks = figure_chunks(root, manifest["doc_id"], start_index=len(chunks))  # described figures
-            chunks += fig_chunks
+            with dspan.child("chunk", inputs={"doc_id": manifest["doc_id"], "labels": list(config.CHUNK_LABELS)}) as sp:
+                chunks = chunk_paragraphs(doc, chunker, root, manifest["doc_id"], stats=cstats, table_descriptions=tdesc,
+                                          formula_readings=load_formula_readings(doc_dir))
+                fig_chunks = figure_chunks(root, manifest["doc_id"], start_index=len(chunks))  # described figures
+                chunks += fig_chunks
+                sp.set({"chunks": [{k: c.get(k) for k in ("chunk_index", "section_path", "page_no", "kinds", "text",
+                                                          "embed_text")} for c in chunks], "dropped": cstats.get("dropped")})
             seconds["seconds_chunk"] += time.perf_counter() - t
             with (doc_dir / "chunks.jsonl").open("w", encoding="utf-8") as fh:  # one chunk per line, for analysis
                 for c in chunks:
                     fh.write(json.dumps({k: c[k] for k in ("chunk_index", "page_no", "section_path", "text")},
                                         ensure_ascii=False) + "\n")
             t = time.perf_counter()
+            espan = dspan.child("embed_and_store", "EMBEDDING", inputs={"model": model_id, "collection": collection,
+                                                                        "n_chunks": len(chunks)})
             per_doc[manifest["doc_id"]] = index_chunks(
                 client,
                 chunks,
@@ -186,6 +205,7 @@ def _index_documents(doc_dirs, qdrant_path, collection, model_id) -> dict[str, A
                 model_id=model_id,
             )
             seconds["seconds_embed_store"] += time.perf_counter() - t
+            espan.end({"points": per_doc[manifest["doc_id"]]})
             words = [len(c["text"].split()) for c in chunks] or [0]
             documents[pdf_name(manifest["source_pdf"])] = {
                 "doc_id": manifest["doc_id"], "doc_dir": str(doc_dir), "n_chunks": len(chunks),
@@ -197,12 +217,18 @@ def _index_documents(doc_dirs, qdrant_path, collection, model_id) -> dict[str, A
                 "chunks_per_page": {str(p): n for p, n in sorted(
                     Counter(c["page_no"] for c in chunks if c["page_no"]).items())},
             }
+            dspan.set({"n_chunks": len(chunks), "n_dropped": cstats.get("n_dropped", 0)}, doc_id=manifest["doc_id"])
+            dspan.end()
         if client.collection_exists(collection):
             info = client.get_collection(collection)
             dim = info.config.params.vectors.size
             points = client.count(collection, exact=True).count
         else:
             points = 0
+    except BaseException as exc:
+        espan.end(error=exc)
+        dspan.end(error=exc)
+        raise
     finally:
         client.close()
     return {"collection": collection, "chunks_per_doc": per_doc, "total_chunks": sum(per_doc.values()),

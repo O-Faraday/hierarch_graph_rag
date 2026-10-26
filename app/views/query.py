@@ -9,7 +9,7 @@ import ui
 from models import embedder, reranker
 from mlflow_view import MLFLOW_UI_URL
 
-from hgrag import config, generation, runner, tracking
+from hgrag import config, generation, runner, tracing, tracking
 from hgrag.retrieval import retrieve_steps
 
 
@@ -59,11 +59,13 @@ if go:
         st.warning("Enter a query.")
         st.stop()
     run_key = tracking.new_run_key() if track else None
+    trace = tracing.root("rag_query", tracking.RETRIEVAL, run_key, inputs={"question": query})  # one trace per question
     final: list[dict] = []
+    answer_info: dict = {}
     try:
         model = embedder()
         stream = retrieve_steps(query, int(k), include_children=children, run_key=run_key, embedder=model,
-                                rerank=rerank, reranker=reranker() if rerank else None)
+                                rerank=rerank, reranker=reranker() if rerank else None, trace=trace)
         slots: dict[str, st.delta_generator.DeltaGenerator] = {}
         for event in stream:
             step, data, secs = event["step"], event["data"], event["seconds"]
@@ -118,11 +120,12 @@ if go:
             elif step == "done":
                 final = data
     except FileNotFoundError as exc:
+        trace.end(error=exc)
         st.error(f"{exc} Run the indexing first.")
     except Exception as exc:  # noqa: BLE001
+        trace.end(error=exc)
         st.exception(exc)
     else:
-        answer_info: dict = {}
         if not final:
             st.info("No section to display.")
         else:
@@ -133,7 +136,8 @@ if go:
                                            api_key=llm_key or None)
                 try:
                     with st.container(border=True):
-                        st.write_stream(generation.answer_stream(query, final, cfg, run_key=run_key, info=answer_info))
+                        st.write_stream(generation.answer_stream(query, final, cfg, run_key=run_key, info=answer_info,
+                                                                 trace=trace))
                 except generation.GenerationError as exc:
                     st.error(f"{exc}", icon=":material/error:")
                 except Exception as exc:  # noqa: BLE001
@@ -151,5 +155,7 @@ if go:
                                f"first token after {answer_info['first_token_s'] or 0:.1f} s")
             with st.expander("Final output (JSON)"):
                 st.json({"answer": answer_info.get("answer"), "sections": final}, expanded=False)
+        trace.end({"answer": answer_info.get("answer"), "sections": [s["section_path"] for s in final]})
         if run_key:
-            st.caption(f"MLflow run `{run_key}` — [open MLflow]({MLFLOW_UI_URL}) (experiment `hgrag_retrieval`).")
+            st.caption(f"MLflow run `{run_key}`" + (f", trace `{trace.trace_id}`" if trace.trace_id else "")
+                       + f" — [open MLflow]({MLFLOW_UI_URL}) (experiment `hgrag_retrieval`, tab Traces).")

@@ -17,7 +17,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
-from . import config, keywords, tracking
+from . import config, keywords, tracing, tracking
 from .tracking import track_step
 
 logger = logging.getLogger(__name__)
@@ -95,6 +95,7 @@ def search_steps(
     candidates: int | None = None,
     keyword_weight: float | None = None,
     diagnostics: dict[str, Any] | None = None,
+    trace: tracing.Span | None = None,
 ) -> Iterator[dict[str, Any]]:
     """Search as a generator of step events ``{"step", "seconds", "data"}``.
 
@@ -107,13 +108,46 @@ def search_steps(
     The whole search is one MLflow step (``search``) when ``run_key`` is given. ``diagnostics`` (optional dict) is
     filled with what the production checks need (``assessments.retrieval``): ``top_score`` (best reranker score, or
     best dense similarity without reranking) and, on a hybrid collection, how many candidates both searches found.
+    ``trace``: the span of a larger operation (a question); without it the search is a trace of its own.
     """
     diag = diagnostics if diagnostics is not None else {}
     if not query.strip():
         raise ValueError("empty query")
     use_rerank = config.RERANK if rerank is None else rerank
     n_fetch = max(k, candidates or config.RERANK_CANDIDATES) if use_rerank else k
+    weight = config.KEYWORD_WEIGHT if keyword_weight is None else keyword_weight
+    span = tracing.child_or_root(trace, "search", tracking.RETRIEVAL, run_key, span_type="RETRIEVER", inputs={
+        "query": query, "k": k, "candidates": n_fetch, "rerank": use_rerank, "keyword_weight": weight,
+        "collection": collection, "embedding_model": model_id})
+    sections: list[dict[str, Any]] = []
+    try:
+        for event in _search_events(query, k, embedder=embedder, client=client, collection=collection,
+                                    qdrant_path=qdrant_path, model_id=model_id, min_score=min_score, run_key=run_key,
+                                    use_rerank=use_rerank, reranker=reranker, n_fetch=n_fetch, weight=weight,
+                                    diag=diag, span=span):
+            if event["step"] == "group":
+                sections = event["data"]
+            yield event
+    except GeneratorExit:  # the consumer stopped early (the app moved on): not an error
+        span.end(closed_early=True)
+        raise
+    except BaseException as exc:
+        span.end(error=exc)
+        raise
+    span.end({"sections": [{k_: s.get(k_) for k_ in ("section_path", "doc_id", "section_ref", "score")}
+                           | {"n_chunks": len(s["hits"])} for s in sections], "diagnostics": diag})
 
+
+def _chunk(p: Any, **scores: Any) -> dict[str, Any]:
+    """A candidate chunk as a span shows it: scores, where it comes from and its full text."""
+    pl = p.payload or {}
+    return {"id": str(p.id), "score": float(p.score), **_part_scores(p), **scores,
+            **{k: pl.get(k) for k in ("section_path", "page_no", "kinds", "text")}}
+
+
+def _search_events(query: str, k: int, *, embedder: Any, client: Any, collection: str, qdrant_path: str | Path,
+                   model_id: str, min_score: float | None, run_key: str | None, use_rerank: bool, reranker: Any,
+                   n_fetch: int, weight: float, diag: dict[str, Any], span: tracing.Span) -> Iterator[dict[str, Any]]:
     with track_step(tracking.RETRIEVAL, "search", run_key, query=query, k=k, collection=collection,
                     model_id=model_id, rerank=use_rerank, **({"candidates": n_fetch} if use_rerank else {})) as tr:
         owns_client = client is None
@@ -130,23 +164,30 @@ def search_steps(
 
                 embedder = load_embedder(model_id)
             query_prefix, _ = config.embed_prefixes(model_id)
-            vector = embedder.encode([query_prefix + query], normalize_embeddings=True)[0].tolist()
+            with span.child("embed", "EMBEDDING", inputs={"text": query_prefix + query, "model": model_id}) as sp:
+                vector = embedder.encode([query_prefix + query], normalize_embeddings=True)[0].tolist()
+                sp.set({"dim": len(vector)})
             dt = time.perf_counter() - t0
             tr.metrics(embed_s=dt, vector_dim=len(vector))
             yield {"step": "embed", "seconds": dt,
                    "data": {"query": query, "model": model_id, "dim": len(vector), "vector": vector}}
 
             t0 = time.perf_counter()
-            points = client.query_points(
-                collection_name=collection, query=vector, limit=n_fetch,
-                with_payload=True, score_threshold=min_score,
-            ).points
-            weight = config.KEYWORD_WEIGHT if keyword_weight is None else keyword_weight
+            with span.child("dense_search", "RETRIEVER", inputs={"limit": n_fetch, "min_score": min_score}) as sp:
+                points = client.query_points(
+                    collection_name=collection, query=vector, limit=n_fetch,
+                    with_payload=True, score_threshold=min_score,
+                ).points
+                sp.set({"chunks": [_chunk(p) for p in points]})
             sparse = keywords.query_vector(query) if weight > 0 and keywords.has_keywords(client, collection) else None
             if sparse is not None:
-                kw_points = client.query_points(collection_name=collection, query=sparse, using=keywords.SPARSE_NAME,
-                                                limit=n_fetch, with_payload=True).points
-                points = fuse(points, kw_points, weight, n_fetch)
+                with span.child("keyword_search", "RETRIEVER", inputs={"limit": n_fetch, "n_terms": len(sparse.indices)}) as sp:
+                    kw_points = client.query_points(collection_name=collection, query=sparse, using=keywords.SPARSE_NAME,
+                                                    limit=n_fetch, with_payload=True).points
+                    sp.set({"chunks": [_chunk(p) for p in kw_points]})
+                with span.child("fusion", "RETRIEVER", inputs={"keyword_weight": weight, "limit": n_fetch}) as sp:
+                    points = fuse(points, kw_points, weight, n_fetch)
+                    sp.set({"chunks": [_chunk(p) for p in points]})
                 both = sum(1 for p in points if p.dense_score is not None and p.keyword_score is not None)
                 diag.update(n_candidates=len(points), n_both=both, agreement=both / len(points) if points else None,
                             n_dense_only=sum(1 for p in points if p.keyword_score is None),
@@ -166,7 +207,10 @@ def search_steps(
                 t0 = time.perf_counter()
                 if reranker is None:
                     reranker = load_reranker(config.RERANK_MODEL)
-                points = rerank_points(query, points, reranker, k)
+                with span.child("rerank", "RERANKER", inputs={"model": getattr(reranker, "model_id", None) or config.RERANK_MODEL,
+                                                              "candidates": len(points), "top_k": k}) as sp:
+                    points = rerank_points(query, points, reranker, k)
+                    sp.set({"chunks": [_chunk(p, vector_score=p.vector_score) for p in points]})
                 dt = time.perf_counter() - t0
                 reranked = [{"id": str(p.id), "score": p.score, "vector_score": p.vector_score, **(p.payload or {})}
                             for p in points]
@@ -315,11 +359,16 @@ def reconstruct_hit(
     output_dir: str | Path = config.OUTPUT_DIR,
     tree: dict[str, Any] | None = None,
     run_key: str | None = None,
+    trace: tracing.Span | None = None,
 ) -> dict[str, Any]:
-    """Reconstruct the section of one ``search_hits`` entry and keep its score and chunks."""
-    with track_step(tracking.RETRIEVAL, "reconstruct", run_key,
-                    item=f"{hit['doc_id']}{hit['section_ref']}", doc_id=hit["doc_id"],
-                    section_ref=hit["section_ref"], include_children=include_children) as tr:
+    """Reconstruct the section of one ``search_hits`` entry and keep its score and chunks. ``trace``: the span of
+    the question, under which the rebuilt section is recorded."""
+    span = trace.child("reconstruct", "RETRIEVER", inputs={
+        "doc_id": hit["doc_id"], "section_ref": hit["section_ref"], "section_path": hit.get("section_path"),
+        "score": hit["score"], "include_children": include_children}) if trace is not None else tracing.Span()
+    with span, track_step(tracking.RETRIEVAL, "reconstruct", run_key,
+                          item=f"{hit['doc_id']}{hit['section_ref']}", doc_id=hit["doc_id"],
+                          section_ref=hit["section_ref"], include_children=include_children) as tr:
         doc = reconstruct_section(
             hit["doc_id"], hit["section_ref"], include_children=include_children,
             output_dir=output_dir, tree=tree,
@@ -327,7 +376,13 @@ def reconstruct_hit(
         tr.metrics(n_elements=doc["n_elements"], n_figures=len(doc["figures"]),
                    n_chars=len(doc["text"]), score=hit["score"])
         tr.text(doc["text"], "section.md")
+        span.set({k: doc[k] for k in ("section_path", "title", "level", "page_no", "n_elements", "text", "figures")})
     return {**doc, "score": hit["score"], "hits": hit["hits"], "source_pdf": hit.get("source_pdf")}
+
+
+def _sections_view(docs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [{"section_path": d["section_path"], "score": d["score"], "n_elements": d["n_elements"],
+             "n_chars": len(d["text"])} for d in docs]
 
 
 def retrieve_sections(
@@ -338,23 +393,31 @@ def retrieve_sections(
     output_dir: str | Path = config.OUTPUT_DIR,
     max_workers: int = 8,
     run_key: str | None = None,
+    trace: tracing.Span | None = None,
     **search_kwargs: Any,
 ) -> list[dict[str, Any]]:
-    """Full flow: vector search, then parallel reconstruction of every matched section."""
-    hits = search_hits(query, k, run_key=run_key, **search_kwargs)
-    if not hits:
-        return []
-    # Each hierarchy.json is read once, then shared by the workers.
-    trees = {d: load_hierarchy(d, output_dir) for d in {h["doc_id"] for h in hits}}
-    with ThreadPoolExecutor(max_workers=min(max_workers, len(hits))) as pool:
-        futures = [
-            pool.submit(
-                reconstruct_hit, h, include_children=include_children,
-                output_dir=output_dir, tree=trees[h["doc_id"]], run_key=run_key,
-            )
-            for h in hits
-        ]
-        return [f.result() for f in futures]  # same order as hits: best score first
+    """Full flow: vector search, then parallel reconstruction of every matched section. Traced as ``retrieve``
+    (search and reconstructions), under ``trace`` when given."""
+    span = tracing.child_or_root(trace, "retrieve", tracking.RETRIEVAL, run_key, span_type="RETRIEVER",
+                                 inputs={"query": query, "k": k, "include_children": include_children})
+    with span:
+        hits = search_hits(query, k, run_key=run_key, trace=span, **search_kwargs)
+        if not hits:
+            span.set({"sections": []})
+            return []
+        # Each hierarchy.json is read once, then shared by the workers.
+        trees = {d: load_hierarchy(d, output_dir) for d in {h["doc_id"] for h in hits}}
+        with ThreadPoolExecutor(max_workers=min(max_workers, len(hits))) as pool:
+            futures = [
+                pool.submit(
+                    reconstruct_hit, h, include_children=include_children,
+                    output_dir=output_dir, tree=trees[h["doc_id"]], run_key=run_key, trace=span,
+                )
+                for h in hits
+            ]
+            docs = [f.result() for f in futures]  # same order as hits: best score first
+        span.set({"sections": _sections_view(docs)})
+        return docs
 
 
 def retrieve_steps(
@@ -365,13 +428,31 @@ def retrieve_steps(
     output_dir: str | Path = config.OUTPUT_DIR,
     max_workers: int = 8,
     run_key: str | None = None,
+    trace: tracing.Span | None = None,
     **search_kwargs: Any,
 ) -> Iterator[dict[str, Any]]:
     """Full flow as step events, for the UI: ``embed``, ``vector_search``, ``group``, then one
     ``reconstruct`` event per section (in parallel, emitted as each finishes), then ``done``.
+    Traced as ``retrieve``, under ``trace`` when given.
     """
+    span = tracing.child_or_root(trace, "retrieve", tracking.RETRIEVAL, run_key, span_type="RETRIEVER",
+                                 inputs={"query": query, "k": k, "include_children": include_children})
+    try:
+        results = yield from _retrieve_events(query, k, include_children=include_children, output_dir=output_dir,
+                                              max_workers=max_workers, run_key=run_key, span=span, **search_kwargs)
+    except GeneratorExit:  # the app stopped reading: not an error
+        span.end(closed_early=True)
+        raise
+    except BaseException as exc:
+        span.end(error=exc)
+        raise
+    span.end({"sections": _sections_view(results)})
+
+
+def _retrieve_events(query: str, k: int, *, include_children: bool, output_dir: str | Path, max_workers: int,
+                     run_key: str | None, span: tracing.Span, **search_kwargs: Any) -> Iterator[dict[str, Any]]:
     sections: list[dict[str, Any]] = []
-    for event in search_steps(query, k, run_key=run_key, **search_kwargs):
+    for event in search_steps(query, k, run_key=run_key, trace=span, **search_kwargs):
         if event["step"] == "group":
             sections = event["data"]
         yield event
@@ -379,7 +460,7 @@ def retrieve_steps(
         if run_key is not None:
             tracking.finish_execution(tracking.RETRIEVAL, run_key, n_sections=0)
         yield {"step": "done", "seconds": 0.0, "data": []}
-        return
+        return []
 
     from concurrent.futures import as_completed
 
@@ -391,7 +472,7 @@ def retrieve_steps(
             t0 = time.perf_counter()
             fut = pool.submit(
                 reconstruct_hit, s, include_children=include_children,
-                output_dir=output_dir, tree=trees[s["doc_id"]], run_key=run_key,
+                output_dir=output_dir, tree=trees[s["doc_id"]], run_key=run_key, trace=span,
             )
             futures[fut] = t0
         for fut in as_completed(futures):
@@ -402,3 +483,4 @@ def retrieve_steps(
     if run_key is not None:
         tracking.finish_execution(tracking.RETRIEVAL, run_key, n_sections=len(results))
     yield {"step": "done", "seconds": 0.0, "data": results}
+    return results

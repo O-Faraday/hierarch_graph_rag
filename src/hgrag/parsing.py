@@ -181,8 +181,13 @@ def parse_pdf(
     *,
     converter: DocumentConverter | None = None,
     describe_pictures: bool = config.DESCRIBE_PICTURES,
+    trace: Any = None,
 ) -> dict[str, Any]:
-    """Parse one PDF and write ``document.json``, ``figures/*.png`` and ``figures.json``."""
+    """Parse one PDF and write ``document.json``, ``figures/*.png`` and ``figures.json``. ``trace``: the span of the
+    parse step (``tracing``), under which the conversion, the figure export and the descriptions are recorded."""
+    from .tracing import Span
+
+    trace = trace or Span()
     pdf_path = Path(pdf_path)
     doc_id = compute_doc_id(pdf_path)
     doc_dir = Path(output_root) / doc_id
@@ -190,12 +195,16 @@ def parse_pdf(
 
     converter = converter or build_converter(describe_pictures=describe_pictures)
     t0 = time.perf_counter()
-    doc = converter.convert(pdf_path).document
+    with trace.child("docling", "PARSER", inputs={"pdf": str(pdf_path), "options": parse_options()}) as sp:
+        doc = converter.convert(pdf_path).document
+        sp.set({"stats": doc_stats(doc, []), "markdown": doc.export_to_markdown()})
     convert_seconds = time.perf_counter() - t0
 
     doc.save_as_json(doc_dir / "document.json")
     (doc_dir / "document.md").write_text(doc.export_to_markdown(), encoding="utf-8")  # for analysis
-    figures = export_figures(doc, doc_id, doc_dir)
+    with trace.child("export_figures", "PARSER", inputs={"n_pictures": len(doc.pictures)}) as sp:
+        figures = export_figures(doc, doc_id, doc_dir)
+        sp.set({"figures": figures})
     (doc_dir / "figures.json").write_text(json.dumps(figures, indent=2, ensure_ascii=False), encoding="utf-8")
 
     manifest = {
@@ -212,7 +221,7 @@ def parse_pdf(
         from .describe import describe_document
 
         try:
-            manifest = describe_document(doc_dir)
+            manifest = describe_document(doc_dir, trace=trace)
         except Exception as exc:  # noqa: BLE001  (no token, API down...): the parsing itself is still valid
             logger.warning("figure/table description skipped for %s: %s", pdf_path.name, exc)
             manifest["figure_vlm"] = {"error": str(exc)}

@@ -30,6 +30,7 @@ Répondre en **français**, de façon concise. Code, noms, commentaires et messa
 | `src/hgrag/ragbench.py` | Validation sur Open RAG Bench (rapports, `questions.md`) |
 | `src/hgrag/refine.py` | Second avis sur les mauvaises notes : juge de contexte (PDF entier), puis juge de génération |
 | `src/hgrag/assessments/` | Contrôles de production sans référence, un module par étape (`hgrag assess`, `assessments.json`, `Feedback` MLflow) |
+| `src/hgrag/tracking.py`, `tracing.py` | MLflow : runs par étape ; traces (entrées/sorties de chaque étape, parent explicite, jamais `mlflow.set_experiment`) |
 | `src/hgrag/config.py` | Toute la configuration (`HGRAG_*`) |
 | `src/hgrag/cli.py` | Commande `hgrag` |
 | `app/` | Application Streamlit (`views/` : pipeline, query, vlm) |

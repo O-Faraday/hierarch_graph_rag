@@ -27,7 +27,7 @@ from typing import Any, Callable
 
 import requests
 
-from . import config, generation, tracking
+from . import config, generation, tracing, tracking
 from .keywords import has_keywords
 from .evaluation import JudgeError, _clean_dir, judge_answer
 from .generation import GenerationError, LLMConfig
@@ -255,20 +255,42 @@ def evaluate_query(qid: str, q: dict[str, Any], answer: str, gold: str, paper_id
                    output_dir: Path, collection: str, k: int, stem_to_paper: dict[str, str],
                    gen_cfg: LLMConfig | None = None, judge_cfg: LLMConfig | None = None,
                    rerank: bool | None = None, reranker: Any = None, candidates: int | None = None,
-                   assess_judges: bool = False) -> dict[str, Any]:
+                   assess_judges: bool = False, run_key: str | None = None) -> dict[str, Any]:
     """``assess_judges``: also run the production LLM judges: context (relevance and sufficiency, on the prompt the
     generator receives) and answer (relevance and completeness). The deterministic checks of the search, the prompt
-    and the answer always run. None of them uses the reference answer."""
+    and the answer always run. None of them uses the reference answer. With a ``run_key``, the question is one
+    MLflow trace (``rag_query``: search, reconstructions, prompt, answer) and its id is kept as ``trace_id``."""
+    t0 = time.perf_counter()
+    trace = tracing.root("rag_query", tracking.RAGBENCH, run_key, inputs={"question": q["query"]},
+                         tags={"hgrag.question_id": qid, "hgrag.paper": paper_id})
+    try:
+        res = _evaluate_query(qid, q, answer, gold, paper_id, client=client, embedder=embedder, output_dir=output_dir,
+                              collection=collection, k=k, stem_to_paper=stem_to_paper, gen_cfg=gen_cfg,
+                              judge_cfg=judge_cfg, rerank=rerank, reranker=reranker, candidates=candidates,
+                              assess_judges=assess_judges, trace=trace, t0=t0)
+    except BaseException as exc:
+        trace.end(error=exc)
+        raise
+    trace.end({"answer": res.get("answer"), "sections": [r["section_path"] for r in res["retrieved"]]},
+              error=RuntimeError(res["error"]) if res.get("error") else None)
+    if trace.trace_id:
+        res["trace_id"] = trace.trace_id
+    return res
+
+
+def _evaluate_query(qid: str, q: dict[str, Any], answer: str, gold: str, paper_id: str, *, client: Any, embedder: Any,
+                    output_dir: Path, collection: str, k: int, stem_to_paper: dict[str, str], gen_cfg: LLMConfig | None,
+                    judge_cfg: LLMConfig | None, rerank: bool | None, reranker: Any, candidates: int | None,
+                    assess_judges: bool, trace: tracing.Span, t0: float) -> dict[str, Any]:
     from .assessments import answer as answer_checks
     from .assessments import retrieval as retrieval_checks
     from .retrieval import reconstruct_hit, search_hits
 
-    t0 = time.perf_counter()
     gold_sh = shingles(gold)
     gold_title = _norm_title(gold.lstrip().split("\n", 1)[0].lstrip("#")) if gold.lstrip().startswith("#") else ""
     diagnostics: dict[str, Any] = {}
     hits = search_hits(q["query"], k, embedder=embedder, client=client, collection=collection, rerank=rerank,
-                       reranker=reranker, candidates=candidates, diagnostics=diagnostics)
+                       reranker=reranker, candidates=candidates, diagnostics=diagnostics, trace=trace)
     doc_rank = sec_rank = None
     retrieved = []
     covered: set = set()
@@ -282,7 +304,7 @@ def evaluate_query(qid: str, q: dict[str, Any], answer: str, gold: str, paper_id
         on_gold = by_text or by_title
         doc_rank = doc_rank or (i if same else None)
         sec_rank = sec_rank or (i if on_gold else None)
-        rec = reconstruct_hit(h, output_dir=output_dir)
+        rec = reconstruct_hit(h, output_dir=output_dir, trace=trace)
         sections.append(rec)
         sec_sh = shingles(rec["text"]) if same else set()
         covered |= sec_sh & gold_sh
@@ -307,12 +329,12 @@ def evaluate_query(qid: str, q: dict[str, Any], answer: str, gold: str, paper_id
     if gen_cfg is not None:
         try:
             info: dict[str, Any] = {}
-            res["answer"] = "".join(generation.answer_stream(q["query"], sections, gen_cfg, info=info)).strip()
+            res["answer"] = "".join(generation.answer_stream(q["query"], sections, gen_cfg, info=info, trace=trace)).strip()
             if not res["answer"] or (info.get("usage") or {}).get("stop_reason") == "max_tokens":
                 # empty or cut answer: the model spent its budget before/while answering; retry once with twice the budget
                 bigger = dataclasses.replace(gen_cfg, max_tokens=gen_cfg.max_tokens * 2)
                 info = {}
-                res["answer"] = "".join(generation.answer_stream(q["query"], sections, bigger, info=info)).strip()
+                res["answer"] = "".join(generation.answer_stream(q["query"], sections, bigger, info=info, trace=trace)).strip()
                 res["retried"] = True
             res["assessments"]["prompt"] = info.get("prompt_checks") or []
             res["assessments"]["answer"] = info.get("answer_checks") or []
@@ -569,7 +591,7 @@ def run(n_docs: int = 10, *, seed: int = 0, negatives: int = 0, sources: list[st
             res = evaluate_query(qid, queries[qid], answers.get(qid, ""), gold, rel["doc_id"], client=client, embedder=embedder,
                                  output_dir=store["output_dir"], collection=store["collection"], k=k, stem_to_paper=stem_to_paper,
                                  gen_cfg=gen_cfg, judge_cfg=judge_cfg, rerank=use_rerank, reranker=reranker, candidates=candidates,
-                                 assess_judges=assess_judges)
+                                 assess_judges=assess_judges, run_key=run_key)
             if reference is not None:
                 res["context_same"] = reference.get(qid) == _paths(res)
             results.append(res)

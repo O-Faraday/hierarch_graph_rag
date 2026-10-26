@@ -20,7 +20,7 @@ from typing import Any
 
 import requests
 
-from . import config, tracking
+from . import config, tracing, tracking
 from .ids import pdf_name
 from .tracking import track_step
 
@@ -269,14 +269,36 @@ def complete(cfg: LLMConfig, system: str, user: Any, *, max_tokens: int | None =
 # ------------------------------------------------------------------------------------ the step
 def answer_stream(
     query: str, sections: list[dict[str, Any]], cfg: LLMConfig | None = None, *, run_key: str | None = None,
-    info: dict[str, Any] | None = None,
+    info: dict[str, Any] | None = None, trace: tracing.Span | None = None,
 ) -> Iterator[str]:
     """Stream the answer text. ``info`` (optional dict) is filled with sources, usage and timings.
 
-    Tracked as the ``generate`` step of the retrieval execution in MLflow (prompt and answer as artifacts).
+    Tracked as the ``generate`` step of the retrieval execution in MLflow (prompt and answer as artifacts), and
+    traced as ``generate`` (``build_prompt``, then ``llm``), under ``trace`` (the question) when given.
     """
     cfg = cfg or LLMConfig()
-    msgs = build_messages(query, sections, cfg.max_context_chars, cfg.max_images)
+    span = tracing.child_or_root(trace, "generate", tracking.RETRIEVAL, run_key, inputs={
+        "question": query, "sections": [s.get("section_path") for s in sections], "model": cfg.model})
+    try:
+        answer = yield from _answer_events(query, sections, cfg, run_key=run_key, info=info, span=span)
+    except GeneratorExit:  # the app stopped reading
+        span.end(closed_early=True)
+        raise
+    except BaseException as exc:
+        span.end(error=exc)
+        raise
+    span.end({"answer": answer})
+
+
+def _answer_events(query: str, sections: list[dict[str, Any]], cfg: LLMConfig, *, run_key: str | None,
+                   info: dict[str, Any] | None, span: tracing.Span) -> Iterator[str]:
+    with span.child("build_prompt", "CHAIN", inputs={
+            "question": query, "sections": [s.get("section_path") for s in sections],
+            "max_chars": cfg.max_context_chars, "max_images": cfg.max_images}) as sp:
+        msgs = build_messages(query, sections, cfg.max_context_chars, cfg.max_images)
+        sp.set({"system": msgs["system"], "user": msgs["user"], "dropped": msgs["dropped"],
+                "images": [{"n": i["n"], "caption": i["caption"], "path": i["path"]} for i in msgs["images"]],
+                "images_missing": msgs["images_missing"]})
     images = msgs["images"] if cfg.send_images else []
     info = info if info is not None else {}
     info.update(sources=[{"n": i + 1, "section_path": s["section_path"], "doc_id": s["doc_id"], "score": s["score"]}
@@ -295,14 +317,18 @@ def answer_stream(
         first: float | None = None
         usage: dict[str, Any] = {}
         content = _content_parts(cfg, msgs, images) if images else msgs["user"]
-        for delta in stream_completion(cfg, msgs["system"], content):
-            if "text" in delta:
-                if first is None:
-                    first = time.perf_counter() - t0
-                parts.append(delta["text"])
-                yield delta["text"]
-            else:
-                usage = delta["usage"]
+        with span.child("llm", "LLM", inputs={  # images by path: never their bytes; the key is never in describe()
+                **cfg.describe(), "thinking": cfg.thinking, "system": msgs["system"], "user": msgs["user"],
+                "images": [{"n": i["n"], "caption": i["caption"], "path": i["path"]} for i in images]}) as llm:
+            for delta in stream_completion(cfg, msgs["system"], content):
+                if "text" in delta:
+                    if first is None:
+                        first = time.perf_counter() - t0
+                    parts.append(delta["text"])
+                    yield delta["text"]
+                else:
+                    usage = delta["usage"]
+            llm.set({"answer": "".join(parts), "usage": usage}, first_token_s=first)
         answer = "".join(parts)
         info.update(answer=answer, usage=usage, first_token_s=first, seconds=time.perf_counter() - t0)
         from .assessments import answer as answer_checks
@@ -314,3 +340,4 @@ def answer_stream(
         tr.text(f"SYSTEM\n{msgs['system']}\n\nUSER\n{msgs['user']}\n\nIMAGES\n"
                 + "\n".join(f"[{i['n']}] {i['caption']} ({Path(i['path']).name})" for i in images), "prompt.txt")
         tr.text(answer, "answer.txt")
+    return answer

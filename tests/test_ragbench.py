@@ -273,7 +273,7 @@ def test_empty_or_cut_answer_is_retried_with_double_budget(monkeypatch):
 
     calls = []
 
-    def fake_stream(question, sections, cfg, info=None):
+    def fake_stream(question, sections, cfg, info=None, trace=None):
         calls.append(cfg.max_tokens)
         if len(calls) == 1:  # first call: the whole budget spent before any text
             info["usage"] = {"stop_reason": "max_tokens", "output_tokens": cfg.max_tokens}

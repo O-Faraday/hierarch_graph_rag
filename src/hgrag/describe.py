@@ -38,8 +38,12 @@ def png_file(doc_dir: Path, png_path: str | None) -> Path | None:
 
 def describe_figures(figures: list[dict[str, Any]], doc_dir: str | Path, *, spec: str | None = None,
                      prompt: str | None = None, force: bool = False, workers: int = 4,
-                     api_key: str | None = None) -> dict[str, Any]:
-    """Fill ``description`` in the figure records (in place). Returns counts, model and timings."""
+                     api_key: str | None = None, trace: Any = None) -> dict[str, Any]:
+    """Fill ``description`` in the figure records (in place). Returns counts, model and timings. ``trace``: the
+    span under which each call is recorded (``tracing``)."""
+    from .tracing import Span
+
+    trace = trace or Span()
     doc_dir = Path(doc_dir)
     spec = spec or config.FIGURE_VLM
     prompt = prompt or config.PICTURE_PROMPT or vlm_bench.DESCRIBE_PROMPT
@@ -51,15 +55,20 @@ def describe_figures(figures: list[dict[str, Any]], doc_dir: str | Path, *, spec
     t0 = time.perf_counter()
 
     def work(rec: dict[str, Any]) -> None:
+        png = str(png_file(doc_dir, rec["png_path"]))
+        sp = trace.child("describe_figure", "LLM", inputs={"figure": rec.get("self_ref"), "png": png, "model": spec,
+                                                           "system": vlm_bench.DESCRIBE_SYSTEM, "prompt": prompt})
         try:
-            text, _usage, _secs = vlm_bench.describe_figure(cfg, str(png_file(doc_dir, rec["png_path"])), prompt)
+            text, usage, _secs = vlm_bench.describe_figure(cfg, png, prompt)
             if not text:
                 raise GenerationError("empty description")
             rec["description"] = {"text": text, "created_by": spec, "confidence": None}
             rec.pop("description_error", None)
+            sp.end({"description": text, "usage": usage})
         except Exception as exc:  # noqa: BLE001
             rec["description_error"] = str(exc)
             errors.append(f"figure {rec['figure_index']}: {exc}")
+            sp.end(error=exc)
 
     with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
         list(pool.map(work, todo))
@@ -93,8 +102,11 @@ def table_records(doc: Any) -> list[dict[str, Any]]:
 
 def describe_tables(records: list[dict[str, Any]], previous: list[dict[str, Any]] | None = None, *,
                     spec: str | None = None, force: bool = False, workers: int = 4,
-                    api_key: str | None = None) -> dict[str, Any]:
+                    api_key: str | None = None, trace: Any = None) -> dict[str, Any]:
     """Fill ``description`` in the table records (in place). A table already described with the same content is kept."""
+    from .tracing import Span
+
+    trace = trace or Span()
     spec = spec or config.TABLE_MODEL
     cfg = vlm_bench.model_config(spec, api_key, max_tokens=800)
     if spec.startswith("hf:") and not cfg.api_key:
@@ -112,16 +124,20 @@ def describe_tables(records: list[dict[str, Any]], previous: list[dict[str, Any]
     def work(rec: dict[str, Any]) -> None:
         md = rec["markdown"][:MAX_TABLE_CHARS]
         table = (f"Caption: {rec['caption']}\n\n" if rec["caption"] else "") + md
+        sp = trace.child("describe_table", "LLM", inputs={"table": rec["self_ref"], "model": spec, "system": TABLE_SYSTEM,
+                                                          "prompt": TABLE_PROMPT.format(table=table)})
         try:
-            text, _usage = generation.complete(cfg, TABLE_SYSTEM, TABLE_PROMPT.format(table=table), max_tokens=800)
+            text, usage = generation.complete(cfg, TABLE_SYSTEM, TABLE_PROMPT.format(table=table), max_tokens=800)
             text = vlm_bench.clean_description(text)
             if not text:
                 raise GenerationError("empty description")
             rec["description"] = {"text": text, "created_by": spec, "confidence": None}
+            sp.end({"description": text, "usage": usage})
         except Exception as exc:  # noqa: BLE001
             rec["description"] = None
             rec["description_error"] = str(exc)
             errors.append(f"table {rec['table_index']}: {exc}")
+            sp.end(error=exc)
 
     with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
         list(pool.map(work, todo))
@@ -199,9 +215,12 @@ def _ask_image(cfg: Any, png: Path, prompt: str, system: str) -> str:
 
 
 def transcribe_formulas(doc_dir: str | Path, doc: Any, pdf_path: str | Path, *, spec: str | None = None, force: bool = False,
-                        workers: int = 4, api_key: str | None = None) -> dict[str, Any]:
+                        workers: int = 4, api_key: str | None = None, trace: Any = None) -> dict[str, Any]:
     """Replace the text of each formula item by LaTeX read from its image. Updates ``doc`` in place; the caller saves it.
     Records (crop, model, LaTeX) are written to ``formulas.json``; formulas already done are kept unless ``force``."""
+    from .tracing import Span
+
+    trace = trace or Span()
     doc_dir = Path(doc_dir)
     spec = spec or config.FORMULA_VLM or config.FIGURE_VLM
     cfg = vlm_bench.model_config(spec, api_key)
@@ -217,15 +236,20 @@ def transcribe_formulas(doc_dir: str | Path, doc: Any, pdf_path: str | Path, *, 
         crops = crop_formulas(doc, pdf_path, todo, doc_dir / "formulas")
 
         def work(item: Any) -> None:
+            sp = trace.child("transcribe_formula", "LLM", inputs={
+                "formula": item.self_ref, "png": str(crops[item.self_ref]), "pdf_text": item.orig, "model": spec,
+                "system": FORMULA_SYSTEM, "prompt": FORMULA_PROMPT})
             try:
                 latex = clean_latex(_ask_image(cfg, crops[item.self_ref], FORMULA_PROMPT, FORMULA_SYSTEM))
                 if not latex:
                     raise GenerationError("empty transcription")
+                sp.end({"latex": latex})
                 done[item.self_ref] = {"self_ref": item.self_ref, "page_no": item.prov[0].page_no, "latex": latex,
                                        "original_text": item.orig, "created_by": spec,
                                        "png_path": f"formulas/{crops[item.self_ref].name}"}
             except Exception as exc:  # noqa: BLE001
                 errors.append(f"{item.self_ref}: {exc}")
+                sp.end(error=exc)
 
         with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
             list(pool.map(work, todo))
@@ -269,10 +293,13 @@ def formula_context(doc: Any, items: list[Any]) -> dict[str, tuple[str, str]]:
 
 
 def read_formulas(doc_dir: str | Path, doc: Any, *, spec: str | None = None, force: bool = False, workers: int = 4,
-                  api_key: str | None = None) -> dict[str, Any]:
+                  api_key: str | None = None, trace: Any = None) -> dict[str, Any]:
     """Add to each transcribed formula of ``formulas.json`` a plain-English ``reading`` (text model, LaTeX and the
     sentences around it), added to the embedding text of the formula chunks: a question that paraphrases a formula
     ("when the ratio is negative") shares no word with its LaTeX. A reading is redone only if the LaTeX changed."""
+    from .tracing import Span
+
+    trace = trace or Span()
     doc_dir = Path(doc_dir)
     path = doc_dir / "formulas.json"
     if not path.exists():
@@ -290,16 +317,20 @@ def read_formulas(doc_dir: str | Path, doc: Any, *, spec: str | None = None, for
 
     def work(rec: dict[str, Any]) -> None:
         before, after = context.get(rec["self_ref"], ("", ""))
+        prompt = FORMULA_READING_PROMPT.format(before=before or "(none)", latex=rec["latex"], after=after or "(none)")
+        sp = trace.child("read_formula", "LLM", inputs={"formula": rec["self_ref"], "model": spec,
+                                                        "system": FORMULA_READING_SYSTEM, "prompt": prompt})
         try:
-            text, _usage = generation.complete(cfg, FORMULA_READING_SYSTEM, FORMULA_READING_PROMPT.format(
-                before=before or "(none)", latex=rec["latex"], after=after or "(none)"), max_tokens=300)
+            text, usage = generation.complete(cfg, FORMULA_READING_SYSTEM, prompt, max_tokens=300)
             text = vlm_bench.clean_description(text)
             if not text:
                 raise GenerationError("empty reading")
             rec["reading"] = {"text": text, "created_by": spec}
             rec["reading_of"] = table_hash(rec["latex"])
+            sp.end({"reading": text, "usage": usage})
         except Exception as exc:  # noqa: BLE001
             errors.append(f"{rec['self_ref']}: {exc}")
+            sp.end(error=exc)
 
     with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
         list(pool.map(work, todo))
@@ -318,15 +349,33 @@ def load_formula_readings(doc_dir: str | Path) -> dict[str, str]:
 
 def describe_document(doc_dir: str | Path, *, spec: str | None = None, force: bool = False, workers: int = 4,
                       api_key: str | None = None, figures: bool = True, tables: bool = True,
-                      formulas: bool | None = None) -> dict[str, Any]:
+                      formulas: bool | None = None, trace: Any = None) -> dict[str, Any]:
     """Describe the figures and the tables of one parsed document; rewrites ``figures.json``, ``tables.json`` and
-    the manifest, returns the manifest. ``spec`` overrides the figure model only."""
+    the manifest, returns the manifest. ``spec`` overrides the figure model only. ``trace``: the span of the parse
+    step, under which a ``describe`` span holds one span per model call."""
+    from .tracing import Span
+
     doc_dir = Path(doc_dir)
+    span = (trace or Span()).child("describe", "CHAIN", inputs={"doc_dir": doc_dir.name, "figures": figures,
+                                                                 "tables": tables, "formulas": formulas, "force": force})
+    try:
+        manifest = _describe_document(doc_dir, spec=spec, force=force, workers=workers, api_key=api_key,
+                                      figures=figures, tables=tables, formulas=formulas, trace=span)
+    except BaseException as exc:
+        span.end(error=exc)
+        raise
+    span.end({k: manifest.get(k) for k in ("n_figures_described", "n_tables_described", "n_formulas_transcribed",
+                                           "n_formulas_read")})
+    return manifest
+
+
+def _describe_document(doc_dir: Path, *, spec: str | None, force: bool, workers: int, api_key: str | None,
+                       figures: bool, tables: bool, formulas: bool | None, trace: Any) -> dict[str, Any]:
     manifest = json.loads((doc_dir / "manifest.json").read_text(encoding="utf-8"))
     problems: list[str] = []
     if figures:
         recs = json.loads((doc_dir / "figures.json").read_text(encoding="utf-8"))
-        stats = describe_figures(recs, doc_dir, spec=spec, force=force, workers=workers, api_key=api_key)
+        stats = describe_figures(recs, doc_dir, spec=spec, force=force, workers=workers, api_key=api_key, trace=trace)
         (doc_dir / "figures.json").write_text(json.dumps(recs, indent=2, ensure_ascii=False), encoding="utf-8")
         manifest["n_figures_described"] = sum(1 for f in recs if f.get("description"))
         manifest["figure_vlm"] = stats
@@ -338,7 +387,7 @@ def describe_document(doc_dir: str | Path, *, spec: str | None = None, force: bo
         recs = table_records(doc)
         prev_path = doc_dir / "tables.json"
         prev = json.loads(prev_path.read_text(encoding="utf-8")) if prev_path.exists() else None
-        stats = describe_tables(recs, prev, force=force, workers=workers, api_key=api_key)
+        stats = describe_tables(recs, prev, force=force, workers=workers, api_key=api_key, trace=trace)
         (doc_dir / "tables.json").write_text(json.dumps(recs, indent=2, ensure_ascii=False), encoding="utf-8")
         manifest["n_tables_described"] = sum(1 for r in recs if r.get("description"))
         manifest["table_llm"] = stats
@@ -349,14 +398,14 @@ def describe_document(doc_dir: str | Path, *, spec: str | None = None, force: bo
         doc = DoclingDocument.load_from_json(doc_dir / "document.json")
         pdf = Path(manifest.get("source_pdf") or "")
         if formula_items(doc) and pdf.exists():
-            stats = transcribe_formulas(doc_dir, doc, pdf, force=force, workers=workers, api_key=api_key)
+            stats = transcribe_formulas(doc_dir, doc, pdf, force=force, workers=workers, api_key=api_key, trace=trace)
             doc.save_as_json(doc_dir / "document.json")
             (doc_dir / "document.md").write_text(doc.export_to_markdown(), encoding="utf-8")
             manifest["n_formulas_transcribed"] = stats["n_transcribed"]
             manifest["formula_vlm"] = stats
             problems += stats["errors"]
             if config.FORMULA_READING:
-                stats = read_formulas(doc_dir, doc, force=force, workers=workers, api_key=api_key)
+                stats = read_formulas(doc_dir, doc, force=force, workers=workers, api_key=api_key, trace=trace)
                 manifest["n_formulas_read"] = len(load_formula_readings(doc_dir))
                 manifest["formula_reading"] = stats
                 problems += stats["errors"]
