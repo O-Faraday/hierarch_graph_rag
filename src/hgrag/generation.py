@@ -284,6 +284,10 @@ def answer_stream(
                 provider=cfg.provider, prompt_chars=len(msgs["system"]) + len(msgs["user"]),
                 n_images=len(images), images=[{"n": i["n"], "caption": i["caption"]} for i in images],
                 images_missing=msgs["images_missing"])
+    from .assessments import prompt as prompt_checks
+
+    info["prompt_checks"] = [a.to_dict() for a in prompt_checks.assess(
+        msgs, max_chars=cfg.max_context_chars, max_images=cfg.max_images, send_images=bool(cfg.send_images))]
     with track_step(tracking.RETRIEVAL, "generate", run_key, **cfg.describe(), n_sources=len(msgs["sources"]),
                     n_dropped=len(msgs["dropped"]), n_images=len(images)) as tr:
         t0 = time.perf_counter()

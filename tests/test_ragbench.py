@@ -144,6 +144,9 @@ def test_run_on_the_control_documents(bench, monkeypatch):
     assert "2401.0009" in s["failed"]["download"]  # the negative that is not on disk is skipped, not fatal
     assert (res["dir"] / "results.jsonl").exists() and "section hit@1" in (res["dir"] / "report.md").read_text(encoding="utf-8")
     assert any(m.startswith("query 3/3") for m in msgs)
+    checks = {a["name"]: a for a in res["results"][0]["assessments"]["retrieval"]}  # production checks of the search
+    assert set(checks) == {"retrieval.top_score", "retrieval.search_agreement"}
+    assert checks["retrieval.top_score"]["value"] is not None and "prompt" not in res["results"][0]["assessments"]
     # a second run reuses the parsed documents
     again = ragbench.run(3, negatives=1, workdir=work, source=src, embedder=BagOfWordsEmbedder(), parse=parse, track=False)
     assert again["summary"]["config"]["reused"] == 3 and again["summary"]["config"]["parsed"] == 0

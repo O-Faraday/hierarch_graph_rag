@@ -251,6 +251,16 @@ l'étape. Les juges tournent sur un échantillon déterministe (`HGRAG_ASSESS_SA
 | chunks | `duplicates` | code | plus de `HGRAG_ASSESS_MAX_DUPLICATES` (3) chunks au texte identique dans le document (en-têtes courants, affiliations) |
 | chunks | `empty_texts` | code | un chunk sans lettre ni chiffre |
 | chunks | `points_indexed` | code | nombre de points Qdrant du document différent du nombre de chunks (`--qdrant-path`, `--collection`) |
+| retrieval | `top_score` | code (par question) | meilleur score du reranker sous `HGRAG_ASSESS_MIN_TOP_SCORE` (0,1) : le corpus ne contient probablement pas la réponse |
+| retrieval | `search_agreement` | code (par question) | moins de `HGRAG_ASSESS_MIN_AGREEMENT` (0,1) des candidats trouvés par les deux recherches (sémantique et mots-clés) |
+| retrieval | `context_relevance`, `context_sufficiency` | juge (texte et figures, par question) | aucune source pertinente (note ≥ 4) ; suffisance sous `HGRAG_ASSESS_MIN_SUFFICIENCY` (3) |
+| prompt | `dropped_sections` | code (par question) | une section retrouvée laissée hors du prompt par le budget (`HGRAG_LLM_MAX_CONTEXT_CHARS`) |
+| prompt | `budget_use` | code (par question) | sources au-delà du budget (la première section seule le dépasse) |
+| prompt | `images` | code (par question) | une figure des sections gardées sans PNG, ou au-delà du plafond `HGRAG_LLM_MAX_IMAGES` |
+
+Les contrôles par question (étapes retrieval et prompt) s'écrivent dans chaque ligne de `results.jsonl` du ragbench
+(`assessments`) ; le juge de contexte ne tourne qu'avec `uv run hgrag ragbench … --assess-context`. `answer_stream`
+renvoie aussi les contrôles du prompt dans `info["prompt_checks"]`.
 
 Les juges sur Claude Haiku tournent sans réflexion (`thinking: disabled`, `generation.judge_thinking`) : Haiku 5.5
 réfléchit par défaut et sa réflexion compte dans `max_tokens`, ce qui coupait des réponses. Cela vaut aussi pour le juge
@@ -475,6 +485,9 @@ jamais échouer un pipeline. Serveur distant : `MLFLOW_TRACKING_URI`.
 | `HGRAG_ASSESS_JUDGE_OK` | `4` | Note du juge (1-5) comptée comme réussie |
 | `HGRAG_ASSESS_SMALL_CHUNK_WORDS` / `HGRAG_ASSESS_MAX_SMALL_CHUNKS` | `15` / `0.4` | Taille d'un « petit » chunk / part maximale de petits chunks par document |
 | `HGRAG_ASSESS_MAX_DUPLICATES` | `3` | Chunks au texte répété tolérés par document |
+| `HGRAG_ASSESS_MIN_TOP_SCORE` | `0.1` | Meilleur score du reranker en dessous duquel une question est signalée (hors corpus) |
+| `HGRAG_ASSESS_MIN_AGREEMENT` | `0.1` | Part minimale des candidats trouvés par la recherche sémantique et par les mots-clés |
+| `HGRAG_ASSESS_MIN_SUFFICIENCY` | `3` | Note de suffisance du contexte (1-5) en dessous de laquelle une question est signalée |
 | `HGRAG_EVAL_DIR` | `data/eval` | Résultats et store du benchmark |
 | `HF_HUB_OFFLINE` | — | `1` = ne plus contacter Hugging Face (modèles déjà en cache) |
 | `HGRAG_RUNS_DIR` | `data/runs` | Statuts et logs des runs de l'app |

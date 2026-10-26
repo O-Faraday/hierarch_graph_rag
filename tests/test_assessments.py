@@ -332,3 +332,132 @@ def test_assess_document_runs_the_four_steps(tmp_path):
     assert set(out) == {"parse", "describe", "hierarchy", "chunks"}
     assert {r.name for r in out["hierarchy"]} == {"hierarchy.numbering", "hierarchy.references_excluded"}  # no judge
     assert _by_name(out["chunks"])["chunks.size_distribution"].passed
+
+
+# ---------------------------------------------------------------------------------------- step 5: search, reranking
+from hgrag.assessments import prompt as PR  # noqa: E402
+from hgrag.assessments import retrieval as RT  # noqa: E402
+from test_generation import with_png  # noqa: E402, F401
+
+
+def test_search_diagnostics_hybrid_and_reranked(tmp_path):
+    from qdrant_client import QdrantClient
+
+    from hgrag.indexing import index_chunks
+    from hgrag.retrieval import search_hits
+    from test_keywords import ConstantEmbedder, _chunks
+
+    client = QdrantClient(path=str(tmp_path / "q"))
+    try:
+        index_chunks(client, _chunks(["step size tuning", "step size theory", "Laplace and Cauchy targets"]),
+                     ConstantEmbedder(), doc_id="d", collection="c")
+        diag: dict = {}
+        search_hits("Laplace targets", 3, embedder=ConstantEmbedder(), client=client, collection="c", keyword_weight=0.3,
+                    diagnostics=diag)
+        # the dense side returns the 3 chunks, the keyword side only the Laplace one: 1 of 3 candidates found by both
+        assert diag["n_candidates"] == 3 and diag["n_both"] == 1 and diag["agreement"] == 1 / 3
+        assert diag["top_score_kind"] == "dense" and abs(diag["top_score"] - 1.0) < 1e-5
+
+        class Reranker:
+            def predict(self, pairs, **kw):
+                return [0.9 if "Laplace" in text else 0.01 for _q, text in pairs]
+
+        diag = {}
+        search_hits("Laplace targets", 2, embedder=ConstantEmbedder(), client=client, collection="c", keyword_weight=0.3,
+                    rerank=True, reranker=Reranker(), candidates=3, diagnostics=diag)
+        assert diag["top_score_kind"] == "rerank" and diag["top_score"] == 0.9
+        diag = {}
+        search_hits("Laplace", 2, embedder=ConstantEmbedder(), client=client, collection="c", keyword_weight=0.0, diagnostics=diag)
+        assert "agreement" not in diag and diag["top_score_kind"] == "dense"
+    finally:
+        client.close()
+
+
+def test_top_score_and_agreement_checks():
+    off = RT.top_score({"top_score": 0.0004, "top_score_kind": "rerank"}, min_score=0.1)
+    assert off.passed is False and "does not hold the answer" in off.rationale
+    assert RT.top_score({"top_score": 0.97, "top_score_kind": "rerank"}, min_score=0.1).passed
+    dense = RT.top_score({"top_score": 0.42, "top_score_kind": "dense"})
+    assert dense.passed is None and dense.value == 0.42
+    assert RT.top_score({}).passed is False
+    diag = {"agreement": 0.05, "n_candidates": 20, "n_both": 1, "n_dense_only": 10, "n_keyword_only": 9}
+    low = RT.search_agreement(diag, min_agreement=0.1)
+    assert low.value == 0.05 and low.passed is False and "1/20 candidates" in low.rationale
+    assert RT.search_agreement({}).value is None and RT.search_agreement({}).passed is None
+    assert [a.name for a in RT.assess(diag)] == ["retrieval.top_score", "retrieval.search_agreement"]
+
+
+def test_context_judge(monkeypatch, tmp_path):
+    from hgrag import generation
+    from test_generation import SECTIONS
+
+    seen = {}
+
+    def fake(cfg, system, user, **kw):
+        seen.update(cfg=cfg, system=system, user=user)
+        return ('{"relevance": {"1": 5, "2": 2}, "missing": "the 2023 figure", "sufficiency": 3, '
+                '"rationale": "source 1 gives part of the answer"}'), {}
+
+    monkeypatch.setattr(generation, "complete", fake)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "x")
+    msgs = generation.build_messages("How many branches?", SECTIONS)
+    rel, suff = RT.judge_context("How many branches?", msgs, model="claude-haiku-5-5")
+    assert rel.name == "retrieval.context_relevance" and rel.value == 0.5 and rel.passed and rel.source == "llm_judge"
+    assert [s["relevance"] for s in rel.metadata["sources"]] == [5, 2]
+    assert suff.value == 3 and suff.passed and suff.metadata["missing"] == "the 2023 figure"  # fails at 2 or less
+    assert seen["system"] == RT.CONTEXT_JUDGE_SYSTEM and seen["user"].endswith("Question: How many branches?")
+    assert "[1] aurora.pdf" in seen["user"] and seen["cfg"].thinking == "disabled"
+    empty = RT.judge_context("q", generation.build_messages("q", []))
+    assert empty[1].value == 1 and empty[1].passed is False
+    monkeypatch.delenv("ANTHROPIC_API_KEY")
+    assert all("ANTHROPIC_API_KEY" in a.error for a in RT.judge_context("q", msgs))
+
+
+def test_context_judge_sees_the_figures(monkeypatch, tmp_path):
+    from PIL import Image
+
+    from hgrag import generation
+    from test_generation import SECTIONS
+
+    png = tmp_path / "f.png"
+    Image.new("RGB", (40, 30), "red").save(png)
+    sections = [dict(SECTIONS[0], figures=[{"ref": "#/p/0", "caption": "Figure 1", "png_path": str(png)}])]
+    seen = {}
+    monkeypatch.setattr(generation, "complete", lambda cfg, system, user, **kw: seen.update(user=user) or (
+        '{"relevance": {"1": 4}, "sufficiency": 5, "rationale": "ok"}', {}))
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "x")
+    RT.judge_context("q", generation.build_messages("q", sections))
+    assert [p["type"] for p in seen["user"]] == ["text", "image", "text"]
+
+
+# ---------------------------------------------------------------------------------------------- step 6: prompt
+def test_prompt_checks(with_png):
+    from hgrag import generation
+    from test_generation import SECTIONS
+
+    sections, _big = with_png
+    msgs = generation.build_messages("q", sections, max_chars=100000, max_images=1)
+    rec = {a.name: a for a in PR.assess(msgs, max_chars=100000, max_images=1)}
+    assert rec["prompt.dropped_sections"].value == 0 and rec["prompt.dropped_sections"].passed
+    assert rec["prompt.budget_use"].value == round(len(msgs["sources_text"]) / 100000, 3) and rec["prompt.budget_use"].passed
+    img = rec["prompt.images"]
+    assert img.value == 1 and img.passed is False
+    assert img.metadata == {"figures": 3, "on_disk": 2, "missing": ["gone"], "over_cap": 1}
+    tight = generation.build_messages("q", SECTIONS, max_chars=len(SECTIONS[0]["text"]) + 80)
+    rec = {a.name: a for a in PR.assess(tight, max_chars=len(SECTIONS[0]["text"]) + 80, max_images=6)}
+    assert rec["prompt.dropped_sections"].value == 1 and rec["prompt.dropped_sections"].passed is False
+    assert rec["prompt.images"].passed and rec["prompt.images"].value == 0
+    over = generation.build_messages("q", SECTIONS, max_chars=5)
+    assert {a.name: a for a in PR.assess(over, max_chars=5, max_images=6)}["prompt.budget_use"].passed is False
+    off = {a.name: a for a in PR.assess(msgs, max_chars=100000, max_images=1, send_images=False)}["prompt.images"]
+    assert off.passed is None and off.value == 0 and "described in text only" in off.rationale
+
+
+def test_answer_stream_reports_the_prompt_checks(monkeypatch):
+    from hgrag import generation
+    from test_generation import SECTIONS, FakeResponse, _anthropic_stream
+
+    monkeypatch.setattr(generation.requests, "post", lambda url, **kw: FakeResponse(_anthropic_stream(["ok"])))
+    info: dict = {}
+    "".join(generation.answer_stream("q", SECTIONS, generation.LLMConfig(provider="anthropic", api_key="k"), info=info))
+    assert [c["name"] for c in info["prompt_checks"]] == ["prompt.dropped_sections", "prompt.budget_use", "prompt.images"]

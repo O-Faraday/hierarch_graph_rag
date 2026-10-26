@@ -156,3 +156,8 @@ ASSESS_JUDGE_OK = int(os.environ.get("HGRAG_ASSESS_JUDGE_OK", "4"))  # judge sco
 ASSESS_SMALL_CHUNK_WORDS = int(os.environ.get("HGRAG_ASSESS_SMALL_CHUNK_WORDS", "15"))  # a "small" chunk
 ASSESS_MAX_SMALL_CHUNKS = float(os.environ.get("HGRAG_ASSESS_MAX_SMALL_CHUNKS", "0.4"))  # share of small chunks allowed
 ASSESS_MAX_DUPLICATES = int(os.environ.get("HGRAG_ASSESS_MAX_DUPLICATES", "3"))  # repeated chunks allowed per document
+ASSESS_MIN_TOP_SCORE = float(os.environ.get("HGRAG_ASSESS_MIN_TOP_SCORE", "0.1"))  # best reranker score of a question
+ASSESS_MIN_AGREEMENT = float(os.environ.get("HGRAG_ASSESS_MIN_AGREEMENT", "0.1"))  # candidates found by both searches
+# Context judge: a sufficiency of 2 or less fails. At 4, as the other judges, it flagged 27 % of the ragbench questions
+# with only 23 % of bad answers among them; at 3, 7 % with 35 % (base rate 15 %).
+ASSESS_MIN_SUFFICIENCY = int(os.environ.get("HGRAG_ASSESS_MIN_SUFFICIENCY", "3"))

@@ -94,6 +94,7 @@ def search_steps(
     reranker: Any | None = None,
     candidates: int | None = None,
     keyword_weight: float | None = None,
+    diagnostics: dict[str, Any] | None = None,
 ) -> Iterator[dict[str, Any]]:
     """Search as a generator of step events ``{"step", "seconds", "data"}``.
 
@@ -103,8 +104,11 @@ def search_steps(
     ``rerank`` (only when reranking: the best ``k`` after the cross-encoder), ``group`` (chunks grouped by section).
     ``rerank=None`` follows ``HGRAG_RERANK``; a ``reranker`` object (anything with ``predict(pairs)``) is loaded from
     ``HGRAG_RERANK_MODEL`` when omitted. The UI consumes it incrementally; ``search_hits`` drains it.
-    The whole search is one MLflow step (``search``) when ``run_key`` is given.
+    The whole search is one MLflow step (``search``) when ``run_key`` is given. ``diagnostics`` (optional dict) is
+    filled with what the production checks need (``assessments.retrieval``): ``top_score`` (best reranker score, or
+    best dense similarity without reranking) and, on a hybrid collection, how many candidates both searches found.
     """
+    diag = diagnostics if diagnostics is not None else {}
     if not query.strip():
         raise ValueError("empty query")
     use_rerank = config.RERANK if rerank is None else rerank
@@ -143,6 +147,13 @@ def search_steps(
                 kw_points = client.query_points(collection_name=collection, query=sparse, using=keywords.SPARSE_NAME,
                                                 limit=n_fetch, with_payload=True).points
                 points = fuse(points, kw_points, weight, n_fetch)
+                both = sum(1 for p in points if p.dense_score is not None and p.keyword_score is not None)
+                diag.update(n_candidates=len(points), n_both=both, agreement=both / len(points) if points else None,
+                            n_dense_only=sum(1 for p in points if p.keyword_score is None),
+                            n_keyword_only=sum(1 for p in points if p.dense_score is None))
+            dense = ([p.dense_score for p in points if p.dense_score is not None] if sparse is not None
+                     else [float(p.score) for p in points])
+            diag.update(top_score=max(dense, default=None), top_score_kind="dense")
             dt = time.perf_counter() - t0
             raw = [{"id": str(p.id), "score": float(p.score), **_part_scores(p), **(p.payload or {})} for p in points]
             tr.metrics(qdrant_s=dt, n_chunks=len(raw), keyword_weight=weight if sparse is not None else 0.0,
@@ -160,6 +171,7 @@ def search_steps(
                 reranked = [{"id": str(p.id), "score": p.score, "vector_score": p.vector_score, **(p.payload or {})}
                             for p in points]
                 tr.metrics(rerank_s=dt, n_reranked=len(reranked), **({"top_rerank_score": reranked[0]["score"]} if reranked else {}))
+                diag.update(top_score=reranked[0]["score"] if reranked else None, top_score_kind="rerank")
                 yield {"step": "rerank", "seconds": dt, "data": reranked}
         finally:
             if owns_client:
