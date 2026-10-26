@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import re
 import uuid
 from collections import Counter
@@ -54,7 +55,14 @@ def load_embedder(model_id: str = config.EMBED_MODEL_ID):
 
     # Qwen3-Embedding pools the last token: left padding, as its model card recommends
     kwargs = {"tokenizer_kwargs": {"padding_side": "left"}} if "qwen3-embedding" in model_id.lower() else {}
-    return SentenceTransformer(model_id, **kwargs)
+    try:
+        return SentenceTransformer(model_id, **kwargs)
+    except OSError as exc:
+        if os.environ.get("HF_HUB_OFFLINE", "").lower() in ("1", "true", "yes"):
+            raise OSError(f"embedding model {model_id!r} is not in the local Hugging Face cache and HF_HUB_OFFLINE=1: "
+                          f"download it once with HF_HUB_OFFLINE=0, or choose a cached model with HGRAG_EMBED_MODEL "
+                          f"(e.g. sentence-transformers/all-MiniLM-L6-v2). Cause: {exc}") from exc
+        raise
 
 
 def make_chunker(
