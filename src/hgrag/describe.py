@@ -24,7 +24,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
-from . import config, generation, vlm_bench
+from . import config, generation, tracing, vlm_bench
 from .generation import GenerationError
 
 logger = logging.getLogger(__name__)
@@ -71,7 +71,7 @@ def describe_figures(figures: list[dict[str, Any]], doc_dir: str | Path, *, spec
             sp.end(error=exc)
 
     with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
-        list(pool.map(work, todo))
+        [f.result() for f in [tracing.submit(pool, work, x) for x in todo]]
     return {"model": spec, "n_todo": len(todo), "n_described": len(todo) - len(errors), "n_errors": len(errors),
             "errors": errors, "seconds": round(time.perf_counter() - t0, 2)}
 
@@ -140,7 +140,7 @@ def describe_tables(records: list[dict[str, Any]], previous: list[dict[str, Any]
             sp.end(error=exc)
 
     with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
-        list(pool.map(work, todo))
+        [f.result() for f in [tracing.submit(pool, work, x) for x in todo]]
     return {"model": spec, "n_todo": len(todo), "n_described": len(todo) - len(errors), "n_errors": len(errors),
             "errors": errors, "seconds": round(time.perf_counter() - t0, 2)}
 
@@ -252,7 +252,7 @@ def transcribe_formulas(doc_dir: str | Path, doc: Any, pdf_path: str | Path, *, 
                 sp.end(error=exc)
 
         with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
-            list(pool.map(work, todo))
+            [f.result() for f in [tracing.submit(pool, work, x) for x in todo]]
     for item in items:
         rec = done.get(item.self_ref)
         if rec and rec.get("latex"):
@@ -333,7 +333,7 @@ def read_formulas(doc_dir: str | Path, doc: Any, *, spec: str | None = None, for
             sp.end(error=exc)
 
     with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
-        list(pool.map(work, todo))
+        [f.result() for f in [tracing.submit(pool, work, x) for x in todo]]
     path.write_text(json.dumps(recs, indent=2, ensure_ascii=False), encoding="utf-8")
     return {"model": spec, "n_todo": len(todo), "n_read": len(todo) - len(errors), "errors": errors,
             "seconds": round(time.perf_counter() - t0, 1)}

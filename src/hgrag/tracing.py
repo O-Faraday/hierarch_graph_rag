@@ -14,6 +14,7 @@ Every MLflow call is failure-safe: tracing never breaks the pipeline.
 
 from __future__ import annotations
 
+import contextvars
 import json
 import logging
 from typing import Any
@@ -23,6 +24,7 @@ from . import config, tracking
 logger = logging.getLogger(__name__)
 
 _EXPERIMENT_IDS: dict[str, str] = {}
+ASSESSMENTS_ATTRIBUTE = "hgrag.assessments"
 
 
 def _experiment_id(experiment: str) -> str:
@@ -47,10 +49,11 @@ def _jsonable(value: Any) -> Any:
 class Span:
     """A live MLflow span, or a no-op one (tracing off, or MLflow failed). Use as a context manager, or ``end()``."""
 
-    def __init__(self, live: Any = None, root: Span | None = None):
+    def __init__(self, live: Any = None, root: Span | None = None, nested: bool = False):
         self._live = live
         self._ended = live is None
         self._root = root or self
+        self._nested = nested  # our root sits inside a trace opened by MLflow (genai.evaluate, @mlflow.trace)
         self._pending: list[tuple[str | None, Any]] = []  # (span id, assessment), on the root span only
 
     @property
@@ -108,6 +111,11 @@ class Span:
         if self._ended:
             return
         self._ended = True
+        if self._root is self and self._nested and self._pending:
+            # the enclosing trace is not stored yet, so no feedback can be logged on it: the checks travel in an
+            # attribute, read back by the evaluation scorers (``genai_eval.hgrag_checks``)
+            self.set(**{ASSESSMENTS_ATTRIBUTE: [{"span_id": sid, **a.to_dict()} for sid, a in self._pending]})
+            self._pending = []
         try:
             self.set(outputs, **attributes)
             if error is not None:
@@ -144,21 +152,42 @@ class Span:
 
 def root(name: str, pipeline: str, run_key: str | None, *, span_type: str = "CHAIN", inputs: Any = None,
          tags: dict[str, Any] | None = None) -> Span:
-    """Start a trace in the experiment of ``pipeline`` (``tracking.INDEXING``, ``tracking.RETRIEVAL``...)."""
+    """Start a trace in the experiment of ``pipeline`` (``tracking.INDEXING``, ``tracking.RETRIEVAL``...), linked to
+    the model registered for the current configuration (``versions``). Inside a trace that MLflow already opened
+    (``mlflow.genai.evaluate``, a function under ``@mlflow.trace``), the span is nested in it instead."""
     if run_key is None or not config.TRACING:
         return Span()
     try:
         import mlflow
 
+        from . import versions
+
+        from mlflow.entities.span import NoOpSpan
+
+        outer = mlflow.get_current_active_span()
+        if isinstance(outer, NoOpSpan):  # MLflow turned tracing off around this call (genai.evaluate's check run)
+            return Span()
+        if outer is not None:
+            return Span(mlflow.start_span_no_context(
+                name, span_type=span_type, parent_span=outer, inputs=_jsonable(inputs) if inputs is not None else None,
+                attributes={"hgrag.run_key": run_key}), nested=True)
+        model_id = versions.model_id("indexing" if pipeline == tracking.INDEXING else "rag")
         live = mlflow.start_span_no_context(
             name, span_type=span_type, inputs=_jsonable(inputs) if inputs is not None else None,
             experiment_id=_experiment_id(pipeline),
             tags={"hgrag.run_key": run_key, **{k: str(v) for k, v in (tags or {}).items()}},
-            metadata={"mlflow.trace.session": run_key})
+            metadata={"mlflow.trace.session": run_key, **({"mlflow.modelId": model_id} if model_id else {})})
         return Span(live)
     except Exception as exc:  # noqa: BLE001
         logger.warning("MLflow trace %s not started: %s", name, exc)
         return Span()
+
+
+def submit(pool: Any, fn: Any, *args: Any, **kwargs: Any) -> Any:
+    """``pool.submit`` running ``fn`` in a copy of the caller's context. A span opened in a worker thread without
+    it lost its whole trace under ``mlflow.genai.evaluate`` (the prediction context lives in a context variable);
+    one copy per task, a context cannot be entered by two threads at once."""
+    return pool.submit(contextvars.copy_context().run, fn, *args, **kwargs)
 
 
 def child_or_root(parent: Span | None, name: str, pipeline: str, run_key: str | None, *, span_type: str = "CHAIN",

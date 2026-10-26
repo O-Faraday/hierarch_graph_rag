@@ -13,7 +13,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
-from .. import config
+from .. import config, tracing
 from . import Assessment, sampled
 
 REFUSAL = re.compile(
@@ -267,7 +267,7 @@ def judge_items(figures: list[dict[str, Any]], formulas: list[dict[str, Any]], d
     jobs = [lambda f=f: _figure_judgement(cfg, doc_dir, f) for f in figs]
     jobs += [lambda r=r: _formula_judgement(cfg, doc_dir, r, contexts.get(r["self_ref"], ("", ""))) for r in forms]
     with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
-        results = list(pool.map(lambda job: job(), jobs))
+        results = [f.result() for f in [tracing.submit(pool, job) for job in jobs]]
     return [a for recs in results for a in recs]
 
 

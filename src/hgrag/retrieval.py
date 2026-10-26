@@ -412,8 +412,8 @@ def retrieve_sections(
         trees = {d: load_hierarchy(d, output_dir) for d in {h["doc_id"] for h in hits}}
         with ThreadPoolExecutor(max_workers=min(max_workers, len(hits))) as pool:
             futures = [
-                pool.submit(
-                    reconstruct_hit, h, include_children=include_children,
+                tracing.submit(
+                    pool, reconstruct_hit, h, include_children=include_children,
                     output_dir=output_dir, tree=trees[h["doc_id"]], run_key=run_key, trace=span,
                 )
                 for h in hits
@@ -473,8 +473,8 @@ def _retrieve_events(query: str, k: int, *, include_children: bool, output_dir: 
         futures = {}
         for s in sections:
             t0 = time.perf_counter()
-            fut = pool.submit(
-                reconstruct_hit, s, include_children=include_children,
+            fut = tracing.submit(
+                pool, reconstruct_hit, s, include_children=include_children,
                 output_dir=output_dir, tree=trees[s["doc_id"]], run_key=run_key, trace=span,
             )
             futures[fut] = t0
