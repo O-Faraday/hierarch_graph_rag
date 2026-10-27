@@ -180,11 +180,12 @@ def read_log(run_key: str, tail: int = 200, runs_dir: Path | None = None) -> str
 
 def start_indexing(pdf_dir: str | Path | None = None, *, describe_pictures: bool = config.DESCRIBE_PICTURES,
                    steps: tuple[str, ...] | list[str] = STEPS, pdfs: list[str] | None = None,
-                   runs_dir: Path | None = None) -> str:
+                   runs_dir: Path | None = None, assess_judges: bool | None = None) -> str:
     """Launch the indexing pipeline in a detached subprocess and return its ``run_key``.
 
     ``steps`` selects what to (re)run (the others reuse the outputs already on disk) and
     ``pdfs`` restricts the run to some file names (``None`` = every PDF of the folder).
+    ``assess_judges`` sets HGRAG_ASSESS_JUDGES for this run only (``None`` = the configured value).
     """
     if active_run(runs_dir):
         raise RuntimeError("An indexing run is already in progress (Qdrant local mode is single-process).")
@@ -198,8 +199,10 @@ def start_indexing(pdf_dir: str | Path | None = None, *, describe_pictures: bool
     for name in pdfs or []:
         cmd += ["--pdf", name]
     log = open(d / "log.txt", "ab")  # noqa: SIM115 - handed to the child process
-    kwargs: dict[str, Any] = {"stdout": log, "stderr": subprocess.STDOUT, "stdin": subprocess.DEVNULL,
-                              "env": {**os.environ, "PYTHONUNBUFFERED": "1", "MLFLOW_DISABLE_AGENT_HINT": "1"}}
+    env = {**os.environ, "PYTHONUNBUFFERED": "1", "MLFLOW_DISABLE_AGENT_HINT": "1"}
+    if assess_judges is not None:
+        env["HGRAG_ASSESS_JUDGES"] = "1" if assess_judges else "0"
+    kwargs: dict[str, Any] = {"stdout": log, "stderr": subprocess.STDOUT, "stdin": subprocess.DEVNULL, "env": env}
     if os.name == "nt":
         kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
     else:
@@ -296,7 +299,7 @@ def run_indexing(
     steps = [s_ for s_ in STEPS if s_ in set(steps)]
     status = StatusWriter(run_key, INDEXING_GRAPH,
                           {"pdf_dir": str(pdf_dir), "describe_pictures": describe_pictures,
-                           "steps": steps, "pdfs": pdfs or "all"}, runs_dir)
+                           "steps": steps, "pdfs": pdfs or "all", "assess_judges": config.ASSESS_JUDGES}, runs_dir)
     # one MLflow trace per PDF: its parse, hierarchy and index steps are child spans (all share the run_key session)
     traces: dict[str, tracing.Span] = {}
 

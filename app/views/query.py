@@ -52,6 +52,10 @@ with st.form("query"):
                          help="The vector search fetches more chunks, a cross-encoder reads (question, chunk) together and "
                               "keeps the best k. Slower (seconds on CPU), usually better ranked.")
     generate = st.checkbox("Generate the answer from the rebuilt sections", value=True)
+    judges = st.checkbox(f"LLM judges of the context and the answer ({config.ASSESS_JUDGE_MODEL})",
+                         value=config.ASSESS_JUDGES,
+                         help="Besides the deterministic checks, an LLM scores whether the sections are enough to answer "
+                              "and whether the answer is supported by them. Two more API calls per question.")
     go = st.form_submit_button("Search", type="primary")
 
 if go:
@@ -137,7 +141,7 @@ if go:
                 try:
                     with st.container(border=True):
                         st.write_stream(generation.answer_stream(query, final, cfg, run_key=run_key, info=answer_info,
-                                                                 trace=trace))
+                                                                 trace=trace, judges=judges))
                 except generation.GenerationError as exc:
                     st.error(f"{exc}", icon=":material/error:")
                 except Exception as exc:  # noqa: BLE001

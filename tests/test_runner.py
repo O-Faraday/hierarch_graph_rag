@@ -180,3 +180,21 @@ def test_retry_plan_picks_failed_pdfs_and_earliest_step():
     w["tasks"]["parse"]["instances"][1]["state"] = "success"
     assert runner.retry_plan(w) == (["a.pdf"], ["hierarchy", "index"])
     assert runner.retry_plan({"tasks": {}}) == ([], ["parse", "hierarchy", "index"])
+
+
+@pytest.mark.parametrize("judges, expected", [(True, "1"), (False, "0"), (None, "inherited")])
+def test_start_indexing_sets_the_judges_switch_of_the_child_only(tmp_path, monkeypatch, judges, expected):
+    seen = {}
+
+    class FakePopen:
+        def __init__(self, cmd, env, **kw):
+            seen["env"] = env
+
+        def poll(self):
+            return 0
+
+    monkeypatch.setattr(runner.subprocess, "Popen", FakePopen)
+    monkeypatch.setenv("HGRAG_ASSESS_JUDGES", "inherited")
+    runner.start_indexing(tmp_path, runs_dir=tmp_path / "runs", assess_judges=judges)
+    assert seen["env"]["HGRAG_ASSESS_JUDGES"] == expected
+    assert runner.os.environ["HGRAG_ASSESS_JUDGES"] == "inherited"  # the app's own setting is untouched

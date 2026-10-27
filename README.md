@@ -485,7 +485,7 @@ reçoivent l'id de l'expérience. Chaque ligne de `results.jsonl` du ragbench ga
 | `generate` | avec les juges : `answer.relevance`, `answer.completeness` |
 
 Les contrôles des documents s'écrivent aussi dans `<doc>/assessments.json`. Un contrôle sans objet (pas de figure à décrire, pas de recherche par mots-clés) n'est pas envoyé à MLflow, qui afficherait sa valeur vide comme une erreur. Les juges LLM (coût : appels d'API) ne
-tournent qu'avec `HGRAG_ASSESS_JUDGES=1` (pipeline, app) ou `--assess-judges` (ragbench). Les feedbacks sont écrits à la
+tournent qu'avec `HGRAG_ASSESS_JUDGES=1` (pipeline, app) ou `--assess-judges` (ragbench). Dans l'app, une case « LLM judges » les active pour un run (page Pipelines) ou une question (page Query), sans changer la configuration. Les feedbacks sont écrits à la
 fin de la trace, une fois celle-ci enregistrée.
 
 ### Modèles MLflow : versions, Model Registry, évaluation

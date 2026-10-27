@@ -55,6 +55,11 @@ def test_pipeline_page_empty_and_refresh_buttons_launch(tmp_path, monkeypatch):
     assert launched[-1]["steps"] == ["parse", "hierarchy", "index"]
     next(b for b in at.button if b.label == "Re-index only").click().run()
     assert launched[-1]["steps"] == ["index"]
+    assert launched[-1]["assess_judges"] is False  # config default in the tests
+    next(c for c in at.checkbox if c.label.startswith("LLM judges")).check().run()
+    assert any("ANTHROPIC_API_KEY" in w.value for w in at.warning)
+    next(b for b in at.button if b.label == "Re-index only").click().run()
+    assert launched[-1]["assess_judges"] is True
 
 
 def test_run_board_states_and_merged_cells(tmp_path):
@@ -119,12 +124,22 @@ def test_query_page_generates_the_answer_from_the_sections(store, monkeypatch): 
         yield {"usage": {"input_tokens": 99, "output_tokens": 6, "stop_reason": "end_turn"}}
 
     monkeypatch.setattr(generation, "stream_completion", fake_stream)
+    judged = []
+    real_events = generation._answer_events
+
+    def spy_events(*a, judges, **kw):  # records the switch, never calls a real judge
+        judged.append(judges)
+        return (yield from real_events(*a, judges=False, **kw))
+
+    monkeypatch.setattr(generation, "_answer_events", spy_events)
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
     at = AppTest.from_file(str(APP / "views" / "query.py"), default_timeout=60).run()
     next(t for t in at.text_input if t.label == "Query").set_value("settlement delay")
     next(c for c in at.checkbox if c.label.startswith("Track in MLflow")).uncheck()
+    next(c for c in at.checkbox if c.label.startswith("LLM judges")).check()
     at.button[0].click().run()
     assert not at.exception, at.exception
+    assert judged == [True]  # the box reaches the answer checks
     assert prompts and "Average settlement delay dropped sharply" in prompts[0] and "Question: settlement delay" in prompts[0]
     assert any("The delay dropped sharply [1]." in m.value for m in at.markdown)
     assert any("Sources:" in c.value and "[1]" in c.value for c in at.caption)

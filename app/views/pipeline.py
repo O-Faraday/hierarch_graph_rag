@@ -27,7 +27,7 @@ def _short(info) -> str:
 def launch(pdf_dir, vlm, steps, pdfs=None) -> None:
     try:
         st.session_state["selected_run"] = runner.start_indexing(
-            pdf_dir, describe_pictures=vlm, steps=steps, pdfs=pdfs)
+            pdf_dir, describe_pictures=vlm, steps=steps, pdfs=pdfs, assess_judges=st.session_state["assess_judges"])
     except Exception as exc:  # noqa: BLE001
         st.error(str(exc))
         return
@@ -62,6 +62,13 @@ vlm = st.checkbox(f"Describe figures and tables after parsing ({config.FIGURE_VL
                        "the PNG is still sent to the answer LLM.")
 if vlm and not os.environ.get("HF_TOKEN") and config.FIGURE_VLM.startswith("hf:"):
     st.warning("`HF_TOKEN` is not set: figures will not be described (add it to `.env` and restart the app).")
+st.session_state.setdefault("assess_judges", config.ASSESS_JUDGES)
+judges = st.checkbox(f"LLM judges in the quality checks ({config.ASSESS_JUDGE_MODEL})", key="assess_judges",
+                     help="Besides the deterministic checks, an LLM grades the figure descriptions and formulas against "
+                          f"their image (a share of {config.ASSESS_SAMPLE:.0%}, at most {config.ASSESS_MAX_JUDGED} per "
+                          "document and kind) and the outline. Costs API calls (needs ANTHROPIC_API_KEY in .env).")
+if judges and not os.environ.get("ANTHROPIC_API_KEY"):
+    st.warning("`ANTHROPIC_API_KEY` is not set: the judges will fail (add it to `.env` and restart the app).")
 
 st.markdown("##### Run")
 p1, p2, p3 = st.columns(3)
