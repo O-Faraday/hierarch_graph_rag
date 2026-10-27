@@ -60,7 +60,7 @@ uv run hgrag ragbench --docs 30 --negatives 30 -k 10 --generate   # validation (
 
 ## Interdits et vigilance
 
-- **Jamais de clé d'API écrite sur disque, dans MLflow, dans un export ou un zip.** Clés uniquement via l'environnement / `.env` (`ANTHROPIC_API_KEY`, `HF_TOKEN`, `OPENAI_API_KEY`). `.env` reste hors de git et hors des zips.
+- **Jamais de clé d'API écrite sur disque, dans MLflow, dans un export ou un zip.** Clés uniquement via l'environnement / `.env` (`ANTHROPIC_API_KEY`, `HF_TOKEN`, `OPENAI_API_KEY`). `.env` reste hors de git et hors des zips. Toute nouvelle variable `HGRAG_*` va aussi dans `env.example` (modèle commenté du `.env`, sans valeur secrète ; un test vérifie qu'il ne nomme que des variables lues par le code).
 - Ne pas lancer Docling CodeFormulaV2 sur CPU par défaut (≈ 3 min par élément, boucles) : `HGRAG_CODE_ENRICHMENT=0`, formules par le modèle de vision (`HGRAG_FORMULA_MODE=vlm`).
 - Ne pas préfixer le texte vectorisé avec le titre du document (éléments `title` de Docling) : les chunks de page de garde gagnent toutes les requêtes. Ne pas indexer les références ni les remerciements.
 - Le bac à sable ne peut pas exécuter Docling réel, HF, Anthropic ni les vrais embeddings : ne jamais annoncer un gain de qualité non mesuré ; les effets se mesurent sur les runs de l'utilisateur (`summary.json`, `questions.md`).

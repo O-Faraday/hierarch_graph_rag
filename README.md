@@ -30,13 +30,16 @@ cd ~/hierarch_graph_rag
 uv sync                      # un seul environnement (racine). `orchestration/` n'est pas nécessaire.
 ```
 
-Créer un fichier `.env` à la racine (jamais commité ; lu par l'app, la CLI et le runner : `HF_HUB_OFFLINE=1`, `ANTHROPIC_API_KEY=…`, `HF_TOKEN=…`, les variables `HGRAG_*`) :
+Créer le fichier `.env` à la racine à partir du modèle commenté `env.example` (le `.env` n'est jamais commité ; il
+est lu par l'app, la CLI et le runner, pas par les tests) :
 
-```ini
-HF_TOKEN=hf_xxx                       # évite les limites de téléchargement Hugging Face
-HF_HUB_OFFLINE=1                      # une fois les modèles en cache : plus aucun appel à Hugging Face
-ANTHROPIC_API_KEY=sk-ant-xxx          # réponse générée (page Query) et juge de `hgrag eval`
+```bash
+cp env.example .env     # puis renseigner ANTHROPIC_API_KEY et HF_TOKEN
 ```
+
+`env.example` décrit chaque variable par thème (clés d'API, cache Hugging Face, modèles de recherche et de réponse,
+descriptions, chunking, juges, contrôles de production et MLflow, dossiers), les valeurs par défaut en commentaire.
+Les clés restent vides dans le modèle : jamais de clé ailleurs que dans `.env` ou l'environnement.
 
 Déposer les PDF dans `data/pdf_sample/`. Vérifier sans télécharger de modèle : `uv run pytest`.
 
