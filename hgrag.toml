@@ -48,6 +48,8 @@ HGRAG_EMBED_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 # HGRAG_MIN_CHUNK_WORDS = 3
 # HGRAG_MIN_PROSE_WORDS = 5
 # HGRAG_HEADING_CONTEXT = 99
+# HGRAG_FIX_HEADING_LEVELS = true
+# HGRAG_DEMOTE_FAKE_HEADINGS = true
 
 [judges]
 # Evaluation and ragbench.

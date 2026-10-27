@@ -122,6 +122,12 @@ MIN_PROSE_WORDS = int(os.environ.get("HGRAG_MIN_PROSE_WORDS", "5"))
 # title (a Docling "title" item) is never prepended: it would make every chunk of the front matter (affiliations, dates)
 # match any query on the topic of the paper.
 HEADING_CONTEXT = int(os.environ.get("HGRAG_HEADING_CONTEXT", "99"))
+# Heading tree (hierarchy.py). Levels corrected from the numbering (roman parts, 1 / 1.2 / 1.2.3, appendix letters A / A.1,
+# EC.1 / EC.1.2) and the back matter; Docling's levels are used only for unnumbered headings before the first numbered one.
+FIX_HEADING_LEVELS = os.environ.get("HGRAG_FIX_HEADING_LEVELS", "1").lower() in ("1", "true", "yes")
+# Docling headings that are not section headings (algorithm or figure captions, author names, run-in "Proof of..." /
+# "Case 2:" labels, sentences) become paragraphs of the section they are in instead of opening a section of their own.
+DEMOTE_FAKE_HEADINGS = os.environ.get("HGRAG_DEMOTE_FAKE_HEADINGS", "1").lower() in ("1", "true", "yes")
 # Sections that are not indexed (bibliography, acknowledgements): their entries win searches on author names and topics.
 EXCLUDED_SECTIONS = os.environ.get(
     "HGRAG_EXCLUDED_SECTIONS", r"^\W*(?:[0-9ivx]+[.)]?\s+)?(references|bibliography|acknowledg(?:e)?ments?)\W*$")

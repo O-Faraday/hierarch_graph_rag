@@ -93,7 +93,8 @@ def test_paragraph_chunks_into_single_collection(doc, tmp_path):
 
 
 # ------------------------------------------------------------------------------- heading levels (roman numerals)
-from hgrag.hierarchy import heading_levels, roman_to_int  # noqa: E402
+from hgrag import config  # noqa: E402
+from hgrag.hierarchy import fake_headings, heading_levels, numbering_depth, roman_to_int  # noqa: E402
 
 
 def _hs(*items):
@@ -121,11 +122,60 @@ def test_single_letters_are_not_taken_for_roman_numbers():
     assert [heading_levels(hs)[r] for r, _t, _l in hs] == [1, 2]
 
 
-def test_arabic_numbering_is_untouched_but_references_return_to_the_top():
+def test_arabic_numbering_sets_levels_and_references_return_to_the_top():
     hs = _hs(("1 Introduction", 1), ("1.1 Related literature", 2), ("8 Conclusion", 1), ("References", 2),
              ("A Online Appendix", 1), ("A.1 Model", 2))
     assert [heading_levels(hs)[r] for r, _t, _l in hs] == [1, 2, 1, 1, 1, 2]
     assert heading_levels([("a", "Only one heading", 1), ("b", "References", 2)])["b"] == 2  # a single top level: keep
+
+
+def test_numbering_depth():
+    assert [numbering_depth(t) for t in ("3 PROBLEM SETUP", "4.2. Analysis", "6.1.2 LLMQueries", "A.1 Model",
+                                         "EC.2.1. Stability", "EC.1. Related", "Abstract", "3D scenes", "2024 Workshop")] \
+        == [1, 2, 3, 2, 2, 1, None, None, None]
+
+
+def test_numbering_fixes_docling_levels():
+    # 2403.05821v2 and 2404.00527v2 as Docling gave them
+    hs = _hs(("OPTIMIZING LLM QUERIES", 1), ("ABSTRACT", 2), ("1 INTRODUCTION", 1), ("4 REORDERING", 1), ("4.1 OPHR", 2),
+             ("4.2 GGR", 3), ("4.2.1 Dependencies", 3), ("REFERENCES", 2), ("A QUERY EXAMPLES", 2), ("B DATASETS", 2),
+             ("BIRD", 3), ("SQuAD", 4), ("C PROMPTS", 2), ("System Prompt", 4), ("D ABLATIONS", 2), ("D.1 PHR", 4),
+             ("EC.3. Omitted Proofs", 1), ("EC.3.1. Proof of Lemma 1", 4))
+    assert [heading_levels(hs)[r] for r, _t, _l in hs] == [1, 2, 1, 1, 2, 2, 3, 1, 1, 1, 2, 2, 1, 2, 1, 2, 1, 2]
+
+
+def test_appendix_letter_outside_the_sequence_is_a_part_when_it_numbers_subsections():
+    hs = _hs(("1 Intro", 1), ("2 Model", 1), ("2.1 Set-up", 2), ("References", 1), ("A Model Appendix", 1),
+             ("D Single-Action Appendix", 1), ("O Online Appendix", 2), ("O.1 Credibility", 2))
+    assert [heading_levels(hs)[r] for r, _t, _l in hs] == [1, 1, 2, 1, 1, 2, 1, 2]
+
+
+def test_fake_headings():
+    hs = _hs(("Prophet Inequalities with Cancellation Costs", 1), ("Farbod Ekbatani", 6), ("Jan Vondrák", 6),
+             ("1. Introduction", 1), ("Algorithm 1 (informal) candidate algorithm", 3), ("maximize prefix reuse.", 4),
+             ("Proof of Theorem 3.4.", 2), ("Steady case:", 1), ("(a) Weakly shill-proof auctions", 2),
+             ("Section 2.3.1: We start by providing an interpretation of Dual-Cont-LP and then argue informally", 3),
+             ("2.1 The geometric fixed points of TRR and TCR for fields of characteristic 2 and more", 2),
+             ("Related Work", 1), ("User Prompt - RAG", 4), ("References", 2))
+    assert list(fake_headings(hs).values()) == ["author name", "author name", "caption", "sentence fragment",
+                                                "run-in label", "run-in label", "sub-figure label", "sentence"]
+    assert fake_headings(_hs(("A Very Long Document Title That Goes On And On For Many Many Words", 1))) == {}
+
+
+def test_fake_headings_become_paragraphs_of_the_section_before(monkeypatch):
+    d = DoclingDocument(name="paper")
+    d.add_page(page_no=1, size=Size(width=600, height=800))
+    for text, lvl in [("1 Intro", 1), ("2 Method", 1), ("2.1 Setup", 2), ("Algorithm 1 Greedy", 4), ("2.2 Analysis", 3)]:
+        h = d.add_heading(text=text, level=lvl, prov=_prov())
+        d.add_text(label="text", text=f"Body of {text}.", parent=h, prov=_prov())
+    root = build_hierarchy(d, doc_title="paper")
+    nodes = {n.title: n for n in root.walk()}
+    assert "Algorithm 1 Greedy" not in nodes and nodes["2.2 Analysis"].path == "paper > 2 Method > 2.2 Analysis"
+    assert [e.text for e in nodes["2.1 Setup"].elements] == ["Body of 2.1 Setup.", "Algorithm 1 Greedy",
+                                                            "Body of Algorithm 1 Greedy."]
+    assert nodes["2.1 Setup"].elements[1].extra == {"demoted_heading": "caption"}
+    monkeypatch.setattr(config, "DEMOTE_FAKE_HEADINGS", False)
+    assert "Algorithm 1 Greedy" in {n.title for n in build_hierarchy(d, doc_title="paper").walk()}
 
 
 def test_build_hierarchy_uses_the_corrected_levels():
