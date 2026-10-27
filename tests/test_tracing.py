@@ -241,7 +241,10 @@ def test_index_step_goes_under_the_trace_of_its_pdf(tmp_path, mlflow_dir, monkey
 
     from hgrag.pipeline import build_and_save_hierarchy, index_documents
 
+    from docling_core.transforms.chunker.hierarchical_chunker import HierarchicalChunker
+
     monkeypatch.setattr("hgrag.indexing.load_embedder", lambda *a, **k: BagOfWordsEmbedder())
+    monkeypatch.setattr("hgrag.indexing.make_chunker", lambda *a, **k: HierarchicalChunker())  # no tokenizer download
     doc = DoclingDocument(name="r")
     doc.add_page(page_no=1, size=Size(width=600, height=800))
     prov = ProvenanceItem(page_no=1, bbox=BoundingBox(l=0, t=0, r=1, b=1), charspan=(0, 1))
