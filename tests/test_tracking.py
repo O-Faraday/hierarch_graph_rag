@@ -61,3 +61,14 @@ def test_tracking_disabled_and_failure_marked(mlflow_dir):
             raise ValueError("nope")
     step = next(r for r in _runs(tracking.INDEXING, key) if r.data.tags["hgrag.kind"] == "step")
     assert step.info.status == "FAILED" and "nope" in step.data.tags["error"]
+
+
+def test_experiment_deleted_in_the_ui_is_restored(mlflow_dir):
+    with tracking.track_step(tracking.INDEXING, "first", tracking.new_run_key()):
+        pass
+    mlflow.MlflowClient().delete_experiment(mlflow.get_experiment_by_name(tracking.INDEXING).experiment_id)
+    key = tracking.new_run_key()
+    with tracking.track_step(tracking.INDEXING, "again", key) as tr:
+        assert tr.enabled
+    assert mlflow.get_experiment_by_name(tracking.INDEXING).lifecycle_stage == "active"
+    assert any(r.data.tags["hgrag.kind"] == "step" for r in _runs(tracking.INDEXING, key))

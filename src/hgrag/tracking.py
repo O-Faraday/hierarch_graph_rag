@@ -112,6 +112,10 @@ def _setup(experiment: str) -> str:
             return mlflow.create_experiment(experiment, **kwargs)
         except Exception:  # noqa: BLE001 - concurrent creation by another task
             exp = mlflow.get_experiment_by_name(experiment)
+    if exp.lifecycle_stage == "deleted":
+        # Deleted in the UI: the name stays taken and every run is refused until it is restored.
+        logger.warning("MLflow experiment %s was deleted: restoring it", experiment)
+        mlflow.MlflowClient().restore_experiment(exp.experiment_id)
     return exp.experiment_id
 
 
