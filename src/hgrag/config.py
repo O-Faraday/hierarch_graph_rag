@@ -30,7 +30,38 @@ def load_dotenv(path: Path) -> None:
             os.environ.setdefault(key, value)
 
 
+SECRET_NAMES = ("ANTHROPIC_API_KEY", "HF_TOKEN", "HUGGINGFACE_API_KEY", "OPENAI_API_KEY")
+
+
+def load_config_file(path: Path) -> None:
+    """Read the versioned settings file (TOML, any table nesting, keys = variable names) into os.environ.
+
+    Never overrides a variable already set (environment or .env), so the order is: environment > .env > this
+    file > code defaults. Booleans become "1"/"0", numbers their text. Secrets are refused: they only live in .env.
+    """
+    if not path.is_file():
+        return
+    import tomllib
+
+    def flatten(table: dict) -> dict:
+        out = {}
+        for key, value in table.items():
+            out.update(flatten(value) if isinstance(value, dict) else {key: value})
+        return out
+
+    values = flatten(tomllib.loads(path.read_text(encoding="utf-8-sig")))
+    if secrets := sorted(set(values) & set(SECRET_NAMES)):
+        raise ValueError(f"{path.name} is versioned: move {', '.join(secrets)} to .env")
+    for key, value in values.items():
+        if isinstance(value, bool):
+            value = "1" if value else "0"
+        os.environ.setdefault(key, str(value))
+
+
 load_dotenv(PROJECT_ROOT / ".env")
+CONFIG_FILE = os.environ.get("HGRAG_CONFIG", str(PROJECT_ROOT / "hgrag.toml"))  # "" = no settings file
+if CONFIG_FILE:
+    load_config_file(Path(CONFIG_FILE))
 
 # Input PDFs (source to be defined later) and outputs.
 PDF_DIR = Path(os.environ.get("HGRAG_PDF_DIR", PROJECT_ROOT / "data" / "pdf_sample"))

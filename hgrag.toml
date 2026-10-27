@@ -1,0 +1,85 @@
+# Project settings read by hgrag (src/hgrag/config.py) at startup: CLI, Streamlit app, runner (not the tests).
+# Versioned: NO secret here (API keys go in .env, see env.example; a key here stops hgrag at startup).
+# Keys are the variable names, grouped in tables only for reading. Order of precedence:
+#     environment > .env > this file > code defaults
+# Commented lines show the code default: uncomment a line to change it. Booleans true/false, numbers unquoted.
+# Another file: HGRAG_CONFIG=path/to/file.toml ("" = none). Full list and explanations: README.md, "Configuration".
+
+[huggingface]
+# true = never contact huggingface.co: every model (Docling, embedding, reranker) must already be in the local cache.
+# Set it to false (or HF_HUB_OFFLINE=0 in the shell) once to download them (README, "Premier téléchargement des modèles").
+HF_HUB_OFFLINE = true
+
+[retrieval]
+# Embedding model. The code default is BAAI/bge-base-en-v1.5 (768 dimensions); all-MiniLM-L6-v2 (384) is the one
+# validated on the ragbench. Another model means other vectors: index into another collection or Qdrant folder.
+HGRAG_EMBED_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+# HGRAG_RERANK = true
+# HGRAG_RERANK_MODEL = "cross-encoder/ms-marco-MiniLM-L12-v2"
+# HGRAG_RERANK_CANDIDATES = 30
+# Share of the BM25 keyword score in the hybrid search (0 = dense only).
+# HGRAG_KEYWORD_WEIGHT = 0.3
+
+[answer]
+# HGRAG_LLM_PROVIDER = "anthropic"
+# HGRAG_LLM_MODEL = "claude-haiku-5-5"
+# HGRAG_LLM_MAX_TOKENS = 2000
+# Characters of rebuilt sections sent to the model, and figures sent as images.
+# HGRAG_LLM_MAX_CONTEXT_CHARS = 48000
+# HGRAG_LLM_MAX_IMAGES = 6
+# HGRAG_LLM_SEND_IMAGES = true
+# For a local OpenAI-compatible server (Ollama...): HGRAG_LLM_PROVIDER = "openai" and its URL.
+# HGRAG_LLM_BASE_URL = "http://localhost:11434/v1"
+
+[descriptions]
+# Figures, tables, formulas. Descriptions are on by default when HF_TOKEN is set.
+# HGRAG_DESCRIBE_PICTURES = true
+# HGRAG_FIGURE_VLM = "hf:Qwen/Qwen3-VL-30B-A3B-Instruct"
+# HGRAG_TABLE_MODEL = "hf:Qwen/Qwen3-VL-30B-A3B-Instruct"
+# Formulas to LaTeX: vlm (vision model, default) | docling (CodeFormulaV2 on CPU, about a minute per formula) | off
+# HGRAG_FORMULA_MODE = "vlm"
+# HGRAG_FORMULA_READING = true
+# Keep false: Docling's code enrichment takes about 3 minutes per item on a CPU.
+# HGRAG_CODE_ENRICHMENT = false
+
+[parsing]
+# HGRAG_TABLE_MODE = "accurate"
+# HGRAG_CHUNK_MAX_TOKENS = 256
+# HGRAG_MIN_CHUNK_WORDS = 3
+# HGRAG_MIN_PROSE_WORDS = 5
+# HGRAG_HEADING_CONTEXT = 99
+
+[judges]
+# Evaluation and ragbench.
+# HGRAG_JUDGE_MODEL = "claude-haiku-5-5"
+# HGRAG_REFINE_MODEL = "claude-haiku-5-5"
+
+[assessments]
+# LLM judges of the production checks in the pipeline and the app (descriptions, outline, context, answer): they
+# cost API calls. false = deterministic checks only.
+HGRAG_ASSESS_JUDGES = false
+# HGRAG_ASSESS_JUDGE_MODEL = "claude-haiku-5-5"
+# Share of the figures and formulas judged, at most this many per document and kind.
+# HGRAG_ASSESS_SAMPLE = 0.2
+# HGRAG_ASSESS_MAX_JUDGED = 10
+
+[mlflow]
+# MLflow traces of every step (inputs, outputs, checks) when MLflow tracking is on.
+# HGRAG_TRACING = true
+# MLflow sends usage telemetry unless this is set.
+MLFLOW_DISABLE_TELEMETRY = "true"
+# Default: SQLite store in data/mlflow/mlflow.db.
+# MLFLOW_TRACKING_URI = ""
+
+[folders]
+# Defaults under data/ in the project.
+# HGRAG_PDF_DIR = "data/pdf_sample"
+# HGRAG_OUTPUT_DIR = "data/output"
+# HGRAG_QDRANT_PATH = "data/qdrant"
+# HGRAG_COLLECTION = "hgrag_chunks"
+# HGRAG_MLFLOW_DIR = "data/mlflow"
+
+[airflow]
+# Set aside for now.
+# HGRAG_AIRFLOW_URL = "http://localhost:8080"
+# HGRAG_AIRFLOW_PASSWORD_FILE = ""

@@ -30,16 +30,20 @@ cd ~/hierarch_graph_rag
 uv sync                      # un seul environnement (racine). `orchestration/` n'est pas nécessaire.
 ```
 
-Créer le fichier `.env` à la racine à partir du modèle commenté `env.example` (le `.env` n'est jamais commité ; il
-est lu par l'app, la CLI et le runner, pas par les tests) :
+La configuration est en deux fichiers à la racine :
+
+- **`hgrag.toml`** (versionné) : tous les réglages non secrets, par thème (cache Hugging Face, modèles de recherche et
+  de réponse, descriptions, chunking, juges, contrôles de production et MLflow, dossiers), les valeurs par défaut en
+  commentaire. Les clés sont les noms des variables `HGRAG_*` du tableau ci-dessous ; les tables ne servent qu'à la lecture.
+- **`.env`** (jamais commité) : les clés d'API seulement, à créer depuis `env.example` :
 
 ```bash
 cp env.example .env     # puis renseigner ANTHROPIC_API_KEY et HF_TOKEN
 ```
 
-`env.example` décrit chaque variable par thème (clés d'API, cache Hugging Face, modèles de recherche et de réponse,
-descriptions, chunking, juges, contrôles de production et MLflow, dossiers), les valeurs par défaut en commentaire.
-Les clés restent vides dans le modèle : jamais de clé ailleurs que dans `.env` ou l'environnement.
+Priorité : environnement > `.env` > `hgrag.toml` > valeurs du code. Une ligne `HGRAG_*` dans `.env` reste donc possible
+pour un réglage propre à une machine. Une clé d'API dans `hgrag.toml` arrête `hgrag` au démarrage. Les deux fichiers
+sont lus par l'app, la CLI et le runner, pas par les tests (qui tournent sur les valeurs du code).
 
 Déposer les PDF dans `data/pdf_sample/`. Vérifier sans télécharger de modèle : `uv run pytest`.
 
@@ -530,6 +534,7 @@ contexte (`tracing.submit`) : sans elle, `mlflow.genai.evaluate` perdait la trac
 | Variable | Défaut | Rôle |
 |---|---|---|
 | `HF_TOKEN` | — | Token Hugging Face |
+| `HGRAG_CONFIG` | `hgrag.toml` | Fichier de réglages versionné (TOML) ; `""` = aucun |
 | `HGRAG_PDF_DIR` | `data/pdf_sample` | Dossier des PDF |
 | `HGRAG_OUTPUT_DIR` | `data/output` | Sorties du parsing |
 | `HGRAG_QDRANT_PATH` | `data/qdrant` | Stockage Qdrant |

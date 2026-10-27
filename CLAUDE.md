@@ -32,7 +32,7 @@ Répondre en **français**, de façon concise. Code, noms, commentaires et messa
 | `src/hgrag/assessments/` | Contrôles de production sans référence, un module par étape (`hgrag assess`, `assessments.json`, `Feedback` MLflow) |
 | `src/hgrag/tracking.py`, `tracing.py` | MLflow : runs par étape ; traces (entrées/sorties de chaque étape, parent explicite, jamais `mlflow.set_experiment`) |
 | `src/hgrag/versions.py`, `registry.py`, `mlflow_models.py`, `genai_eval.py` | Versions, modèles pyfunc enregistrés (`hgrag register`), évaluation `mlflow.genai.evaluate` (`hgrag evaluate-rag`) |
-| `src/hgrag/config.py` | Toute la configuration (`HGRAG_*`) |
+| `src/hgrag/config.py` | Toute la configuration (`HGRAG_*`), lue depuis l'environnement, `.env` (clés) et `hgrag.toml` (réglages versionnés) |
 | `src/hgrag/cli.py` | Commande `hgrag` |
 | `app/` | Application Streamlit (`views/` : pipeline, query, vlm) |
 | `orchestration/` | DAG Airflow |
@@ -51,7 +51,7 @@ uv run hgrag ragbench --docs 30 --negatives 30 -k 10 --generate   # validation (
 ## Conventions
 
 - **Lire la documentation la plus récente** de chaque bibliothèque avant de l'utiliser ou de changer son usage (signatures, options). Ne pas se fier à la mémoire.
-- Toute nouvelle option va dans `config.py`, avec une variable `HGRAG_*`, une ligne dans le tableau du `README.md` et, si elle change le parsing, dans `parse_options()` (invalide le cache de parsing).
+- Toute nouvelle option va dans `config.py`, avec une variable `HGRAG_*`, une ligne (commentée, valeur par défaut) dans `hgrag.toml`, une ligne dans le tableau du `README.md` et, si elle change le parsing, dans `parse_options()` (invalide le cache de parsing).
 - Tout changement de comportement s'accompagne d'un test ; les tests ne chargent jamais de vrai modèle (voir `tests/conftest.py`: reranker coupé, préfixes vides) ni n'appellent d'API.
 - Un changement d'embedding change la taille des vecteurs : un autre dossier/collection Qdrant (le ragbench le fait seul via `qdrant_dirname`).
 - Windows est la machine de l'utilisateur : chemins `\` dans d'anciens `png_path`, fichiers en lecture seule, encodage cp1252 déjà gérés, ne pas les casser.
@@ -60,7 +60,7 @@ uv run hgrag ragbench --docs 30 --negatives 30 -k 10 --generate   # validation (
 
 ## Interdits et vigilance
 
-- **Jamais de clé d'API écrite sur disque, dans MLflow, dans un export ou un zip.** Clés uniquement via l'environnement / `.env` (`ANTHROPIC_API_KEY`, `HF_TOKEN`, `OPENAI_API_KEY`). `.env` reste hors de git et hors des zips. Toute nouvelle variable `HGRAG_*` va aussi dans `env.example` (modèle commenté du `.env`, sans valeur secrète ; un test vérifie qu'il ne nomme que des variables lues par le code).
+- **Jamais de clé d'API écrite sur disque, dans MLflow, dans un export ou un zip.** Clés uniquement via l'environnement / `.env` (`ANTHROPIC_API_KEY`, `HF_TOKEN`, `OPENAI_API_KEY`). `.env` reste hors de git et hors des zips. `env.example` (modèle du `.env`) ne contient que les clés, vides ; les réglages non secrets vont dans `hgrag.toml` (versionné, refuse les clés au chargement ; un test vérifie que les deux ne nomment que des variables lues par le code).
 - Ne pas lancer Docling CodeFormulaV2 sur CPU par défaut (≈ 3 min par élément, boucles) : `HGRAG_CODE_ENRICHMENT=0`, formules par le modèle de vision (`HGRAG_FORMULA_MODE=vlm`).
 - Ne pas préfixer le texte vectorisé avec le titre du document (éléments `title` de Docling) : les chunks de page de garde gagnent toutes les requêtes. Ne pas indexer les références ni les remerciements.
 - Le bac à sable ne peut pas exécuter Docling réel, HF, Anthropic ni les vrais embeddings : ne jamais annoncer un gain de qualité non mesuré ; les effets se mesurent sur les runs de l'utilisateur (`summary.json`, `questions.md`).

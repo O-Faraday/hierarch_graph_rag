@@ -7,6 +7,8 @@ import pytest
 # Offline: MLflow would otherwise fetch its telemetry configuration (config.mlflow-telemetry.io) and send usage
 # events whenever a test tracks a run or a trace. Set before mlflow is imported.
 os.environ["MLFLOW_DISABLE_TELEMETRY"] = "true"
+# The tests run on the code defaults, not on the project settings of hgrag.toml.
+os.environ["HGRAG_CONFIG"] = ""
 
 from hgrag import config
 
