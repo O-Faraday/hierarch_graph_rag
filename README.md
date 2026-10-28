@@ -289,12 +289,15 @@ contrôles sont des mesures maison, calibrées sur les 60 papiers de `check_full
   Les lettres d'annexe `A B C` après les sections de fin sont de premier niveau (avant, les annexes tombaient sous References),
   et un titre non numéroté se place juste sous le dernier titre numéroté. Le journal indique combien de titres ont été
   corrigés ; `HGRAG_FIX_HEADING_LEVELS=0` désactive la correction.
-- Les **faux titres** de Docling (`hierarchy.fake_headings`) deviennent des paragraphes de la section qui les précède, au
-  lieu d'ouvrir une section qui capte tout le texte suivant : légendes (`Algorithm 2 …`, `Figure 3`), noms d'auteurs avant le
-  résumé, étiquettes en début de paragraphe (`Proof of Lemma 3.`, `Case 2 λ > 0.`, `Steady case:`), sous-légendes `(a) …`,
-  fragments en minuscule et phrases de plus de 12 mots. Les titres numérotés, les sections de fin et le premier titre ne sont
-  jamais touchés ; `HGRAG_DEMOTE_FAKE_HEADINGS=0` désactive ce filtre. Les chunks gardent pour l'instant la chaîne de titres de
-  Docling comme préfixe d'embedding.
+- Les **sections possibles** sont délimitées (`hierarchy.section_headings`) plutôt que les anomalies filtrées : un titre de
+  Docling n'ouvre une section que s'il est le premier titre (le titre du document), un nom standard (Abstract, Introduction,
+  Conclusion, References, Appendix…) ou, dans un document numéroté, le numéro qui suit dans la numérotation (`2.2` → `2.3`,
+  `2.2.1` ou `3` ; un saut de 3 au plus est accepté si le numéro suivant le confirme ; annexes `A`, `A.1`, `EC.1` comme des
+  séries à part). Tout autre titre (légende d'algorithme, auteurs, « Proof of… », élément de liste numéroté, intertitre non
+  numéroté) devient un paragraphe de la section en cours. Sans numérotation, la taille décide : si les titres standard sont
+  plus grands que le texte, une section a leur taille (sur deux lignes au plus) ; sinon tous les titres sont gardés.
+  `HGRAG_STRICT_HEADINGS=0` désactive cette délimitation. Les chunks gardent pour l'instant la chaîne de titres de Docling
+  comme préfixe d'embedding.
 - Les **légendes** sont indexées (`caption` dans `HGRAG_CHUNK_LABELS`) et rattachées à la section de leur figure ou tableau
   (avant, un chunk de légende n'avait pas de section et ne pouvait pas être retrouvé) ; la légende d'un tableau est affichée avant
   ses lignes dans la section reconstruite.
@@ -564,7 +567,7 @@ contexte (`tracing.submit`) : sans elle, `mlflow.genai.evaluate` perdait la trac
 | `HGRAG_MIN_PROSE_WORDS` | `5` | Les chunks de texte de moins de N mots (ligne de date, nom d'auteur…) ne sont pas indexés |
 | `HGRAG_HEADING_CONTEXT` | `99` | Nombre de titres (les plus proches) ajoutés devant le texte embeddé ; `0` = aucun. Le titre du document n'est jamais ajouté |
 | `HGRAG_FIX_HEADING_LEVELS` | `1` | Niveaux des titres corrigés par la numérotation (romaine, `1.2.3`, annexes `A` / `A.1`, `EC.1.2`) et les sections de fin |
-| `HGRAG_DEMOTE_FAKE_HEADINGS` | `1` | Les faux titres de Docling (légende d'algorithme, auteurs, « Proof of… », « Case 2: », phrases) deviennent des paragraphes |
+| `HGRAG_STRICT_HEADINGS` | `1` | Seuls les titres qui délimitent une section possible (titre, noms standard, numéro suivant de la numérotation ; taille des titres standard sans numérotation) ouvrent une section ; les autres deviennent des paragraphes |
 | `HGRAG_EXCLUDED_SECTIONS` | `references\|bibliography\|acknowledg…` | Expression régulière des sections non indexées (bibliographie, remerciements) ; vide = tout indexer |
 | `HGRAG_TABLE_MODE` | `accurate` | Modèle de structure des tableaux Docling (`accurate` ou `fast`) |
 | `HGRAG_TABLE_CELL_MATCHING` | `1` | Associe les cellules détectées au texte du PDF |

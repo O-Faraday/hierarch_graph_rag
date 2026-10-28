@@ -55,7 +55,7 @@ def config_snapshot(kind: str) -> dict[str, str]:
             "chunk_max_tokens": config.CHUNK_MAX_TOKENS, "min_chunk_words": config.MIN_CHUNK_WORDS,
             "min_prose_words": config.MIN_PROSE_WORDS, "heading_context": config.HEADING_CONTEXT,
             "excluded_sections": config.EXCLUDED_SECTIONS, "fix_heading_levels": config.FIX_HEADING_LEVELS,
-            "demote_fake_headings": config.DEMOTE_FAKE_HEADINGS,
+            "strict_headings": config.STRICT_HEADINGS,
         }
     else:
         raise ValueError(f"unknown application {kind!r} (choose from {KINDS})")

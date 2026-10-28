@@ -94,7 +94,7 @@ def test_paragraph_chunks_into_single_collection(doc, tmp_path):
 
 # ------------------------------------------------------------------------------- heading levels (roman numerals)
 from hgrag import config  # noqa: E402
-from hgrag.hierarchy import fake_headings, heading_levels, numbering_depth, roman_to_int  # noqa: E402
+from hgrag.hierarchy import _follows, heading_levels, numbering_depth, roman_to_int, section_headings  # noqa: E402
 
 
 def _hs(*items):
@@ -150,19 +150,51 @@ def test_appendix_letter_outside_the_sequence_is_a_part_when_it_numbers_subsecti
     assert [heading_levels(hs)[r] for r, _t, _l in hs] == [1, 1, 2, 1, 1, 2, 1, 2]
 
 
-def test_fake_headings():
-    hs = _hs(("Prophet Inequalities with Cancellation Costs", 1), ("Farbod Ekbatani", 6), ("Jan Vondrák", 6),
-             ("1. Introduction", 1), ("Algorithm 1 (informal) candidate algorithm", 3), ("maximize prefix reuse.", 4),
-             ("Proof of Theorem 3.4.", 2), ("Steady case:", 1), ("(a) Weakly shill-proof auctions", 2),
-             ("Section 2.3.1: We start by providing an interpretation of Dual-Cont-LP and then argue informally", 3),
-             ("2.1 The geometric fixed points of TRR and TCR for fields of characteristic 2 and more", 2),
-             ("Related Work", 1), ("User Prompt - RAG", 4), ("References", 2))
-    assert list(fake_headings(hs).values()) == ["author name", "author name", "caption", "sentence fragment",
-                                                "run-in label", "run-in label", "sub-figure label", "sentence"]
-    assert fake_headings(_hs(("A Very Long Document Title That Goes On And On For Many Many Words", 1))) == {}
+def test_follows():
+    assert all(_follows(p, c) for p, c in [((0,), (1,)), ((0,), (1, 1)), ((2, 2), (2, 3)), ((2, 2), (3,)),
+                                           ((2, 2), (2, 2, 1)), ((2, 4), (3, 1)), ((1, 3), (2, 1))])
+    assert not any(_follows(p, c) for p, c in [((3, 2), (1,)), ((2, 2), (2, 4)), ((2, 2), (2, 2, 2)), ((1,), (1,)),
+                                               ((2,), (3, 2))])
+    assert _follows((2, 2), (2, 4), max_step=3)
 
 
-def test_fake_headings_become_paragraphs_of_the_section_before(monkeypatch):
+def test_numbered_document_keeps_only_the_numbering_and_standard_names():
+    # 2404.00527v2 and 2403.05821v2: author names, algorithm captions, a sentence, unnumbered appendix sub-headings
+    hs = _hs(("Prophet Inequalities", 1), ("Farbod Ekbatani", 6), ("Abstract", 2), ("1. Introduction", 1),
+             ("2. Model", 1), ("2.1. Setup", 2), ("Algorithm 1 (informal) candidate", 3), ("maximize prefix reuse.", 4),
+             ("Section 2.3.1: We start by providing an interpretation", 3), ("2.2. Analysis", 3),
+             ("1. We assume that the values are independent", 2), ("Conclusion", 1), ("References", 2),
+             ("A QUERY EXAMPLES", 2), ("B DATASETS", 2), ("BIRD", 3), ("B.1 Sizes", 4), ("EC.1. Related", 1))
+    rejected = section_headings(hs)
+    assert [t for r, t, _l in hs if r in rejected] == [
+        "Farbod Ekbatani", "Algorithm 1 (informal) candidate", "maximize prefix reuse.",
+        "Section 2.3.1: We start by providing an interpretation", "1. We assume that the values are independent", "BIRD"]
+    assert rejected[hs[10][0]] == "out of the numbering" and rejected[hs[1][0]] == "not numbered"
+
+
+def test_skipped_numbers_are_kept_only_when_the_next_number_confirms_them():
+    hs = _hs(("1 Intro", 1), ("2 Model", 1), ("2.1 A", 2), ("2.3 C", 2), ("2.4 D", 2),  # 2.2 missed by Docling
+             ("3 Results", 1), ("5 Item of a list", 1), ("4 Discussion", 1))
+    assert [t for r, t, _l in hs if r in section_headings(hs)] == ["5 Item of a list"]
+
+
+def test_roman_document_keeps_parts_and_their_letters():
+    hs = _hs(("Title", 1), ("I. INTRODUCTION", 1), ("II. METHODS", 1), ("A. Setup", 2), ("Proof of Lemma 1.", 2),
+             ("B. Data", 2), ("III. RESULTS", 1), ("REFERENCES", 1))
+    assert [t for r, t, _l in hs if r in section_headings(hs)] == ["Proof of Lemma 1."]
+
+
+def test_unnumbered_document_uses_the_size_of_the_standard_headings():
+    hs = _hs(("Title", 1), ("Introduction", 1), ("Our model", 1), ("Algorithm 1 Greedy", 2), ("A sub-heading", 2),
+             ("Some paragraph read as a heading that runs over many lines", 1), ("Conclusion", 1))
+    heights = {"0": 20.0, "1": 12.0, "2": 12.2, "3": 9.0, "4": 10.0, "5": 45.0, "6": 12.0}
+    assert section_headings(hs, heights, body_height=9.0) == {
+        "3": "smaller than the section headings", "4": "smaller than the section headings", "5": "longer than a heading"}
+    assert section_headings(hs, heights, body_height=12.0) == {}  # headings set like the body: nothing to tell
+    assert section_headings(hs) == {}
+
+
+def test_headings_that_are_not_sections_become_paragraphs_of_the_section_before(monkeypatch):
     d = DoclingDocument(name="paper")
     d.add_page(page_no=1, size=Size(width=600, height=800))
     for text, lvl in [("1 Intro", 1), ("2 Method", 1), ("2.1 Setup", 2), ("Algorithm 1 Greedy", 4), ("2.2 Analysis", 3)]:
@@ -173,8 +205,8 @@ def test_fake_headings_become_paragraphs_of_the_section_before(monkeypatch):
     assert "Algorithm 1 Greedy" not in nodes and nodes["2.2 Analysis"].path == "paper > 2 Method > 2.2 Analysis"
     assert [e.text for e in nodes["2.1 Setup"].elements] == ["Body of 2.1 Setup.", "Algorithm 1 Greedy",
                                                             "Body of Algorithm 1 Greedy."]
-    assert nodes["2.1 Setup"].elements[1].extra == {"demoted_heading": "caption"}
-    monkeypatch.setattr(config, "DEMOTE_FAKE_HEADINGS", False)
+    assert nodes["2.1 Setup"].elements[1].extra == {"demoted_heading": "not numbered"}
+    monkeypatch.setattr(config, "STRICT_HEADINGS", False)
     assert "Algorithm 1 Greedy" in {n.title for n in build_hierarchy(d, doc_title="paper").walk()}
 
 
