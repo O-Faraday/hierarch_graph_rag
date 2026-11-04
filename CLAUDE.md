@@ -32,6 +32,7 @@ Répondre en **français**, de façon concise. Code, noms, commentaires et messa
 | `src/hgrag/assessments/` | Contrôles de production sans référence, un module par étape (`hgrag assess`, `assessments.json`, `Feedback` MLflow) |
 | `src/hgrag/tracking.py`, `tracing.py` | MLflow : runs par étape ; traces (entrées/sorties de chaque étape, parent explicite, jamais `mlflow.set_experiment`) |
 | `src/hgrag/versions.py`, `registry.py`, `mlflow_models.py`, `genai_eval.py` | Versions, modèles pyfunc enregistrés (`hgrag register`), évaluation `mlflow.genai.evaluate` (`hgrag evaluate-rag`) |
+| `src/hgrag/dbx/`, `databricks/notebooks/` | Backend Databricks (Docling et VLM comme en local, AI Search à la place de Qdrant) ; jamais d'import de Spark, session passée en argument, tests avec des faux ; notebooks minces |
 | `src/hgrag/config.py` | Toute la configuration (`HGRAG_*`), lue depuis l'environnement, `.env` (clés) et `hgrag.toml` (réglages versionnés) |
 | `src/hgrag/cli.py` | Commande `hgrag` |
 | `app/` | Application Streamlit (`views/` : pipeline, query, vlm) |

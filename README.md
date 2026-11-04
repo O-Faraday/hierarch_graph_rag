@@ -375,6 +375,34 @@ avec leurs métadonnées. Les logs du run (`Log`) reprennent les mêmes chiffres
 
 ---
 
+## 1 bis. Sur Databricks (en construction : parsing seulement, écrit et testé avec des faux, à valider sur Databricks)
+
+Mêmes étapes qu'en local, Docling et le modèle de vision compris ; AI Search remplacera Qdrant. `src/hgrag/dbx/parsing.py` :
+Auto Loader lit les nouveaux PDF du volume (`availableNow` : le cluster s'arrête ensuite), `parse_pdf` écrit ses fichiers
+habituels dans `output/<doc_id>/` sur le volume, et la table `documents` garde l'état de chaque document.
+
+| Statut | Sens |
+|---|---|
+| `parsed` | Document complet ; ignoré si on le rejoue avec les mêmes options |
+| `partial` | Utilisable mais incomplet : limite de temps atteinte, ou éléments sans description (`error` dit lesquels) |
+| `failed` | Échec, le lot continue ; à relancer avec `retry_incomplete` |
+| `superseded` | Remplacé par un nouveau contenu au même chemin |
+
+Pas de doublon : `doc_id` est l'empreinte du contenu, chaque document est fusionné (`MERGE`) dès qu'il est fini, et un
+document déjà `parsed` n'est ni reconverti ni redécrit, même si le checkpoint est perdu.
+
+```bash
+uv build --wheel
+databricks fs cp dist/hgrag-0.1.0-py3-none-any.whl dbfs:/Volumes/<catalogue>/<schéma>/<volume>/wheels/ --overwrite
+databricks fs cp data/pdf_control/<fichier>.pdf dbfs:/Volumes/<catalogue>/<schéma>/<volume>/pdf/
+```
+
+Le jeton HF est lu dans le scope de secrets (`HF_TOKEN`). Importer `databricks/notebooks/01_parse_documents.py`, l'attacher
+à un cluster CPU à un nœud (Runtime ≥ 17.3 LTS, accès dédié), renseigner les widgets et l'exécuter. La sortie indique le
+temps de chargement du convertisseur, de conversion et de description ; le temps de démarrage se lit sur le run.
+
+---
+
 ## 2. Dépannage
 
 | Symptôme | Cause / remède |
@@ -557,6 +585,10 @@ contexte (`tracing.submit`) : sans elle, `mlflow.genai.evaluate` perdait la trac
 | `HGRAG_CONFIG` | `hgrag.toml` | Fichier de réglages versionné (TOML) ; `""` = aucun |
 | `HGRAG_BACKEND` | `local` | Lieu d'exécution : `local` (Qdrant, fichiers sous `data/`) ou `databricks` (AI Search, Unity Catalog, en cours de construction : la valeur n'a pas encore d'effet) |
 | `HGRAG_DBX_CATALOG` / `HGRAG_DBX_SCHEMA` / `HGRAG_DBX_VOLUME` | — | Noms Unity Catalog du backend Databricks |
+| `HGRAG_DBX_PDF_DIR` / `HGRAG_DBX_OUTPUT_DIR` / `HGRAG_DBX_CHECKPOINT` | `pdf`, `output`, `checkpoints/parse` du volume | Dossiers de l'étape de parsing Databricks |
+| `HGRAG_DBX_ALLOW_OVERWRITES` | `0` | Auto Loader retraite un PDF remplacé sous le même nom (Databricks conseille des fichiers immuables) |
+| `HGRAG_DOCLING_ARTIFACTS` | — | Dossier des modèles Docling déjà téléchargés (vide : téléchargés au premier usage) |
+| `HGRAG_DOCLING_TIMEOUT` | `0` | Secondes après lesquelles Docling arrête un document et garde ce qu'il a (`0` : pas de limite) ; entre dans `parse_options` si défini |
 | `HGRAG_PDF_DIR` | `data/pdf_sample` | Dossier des PDF |
 | `HGRAG_OUTPUT_DIR` | `data/output` | Sorties du parsing |
 | `HGRAG_QDRANT_PATH` | `data/qdrant` | Stockage Qdrant |
