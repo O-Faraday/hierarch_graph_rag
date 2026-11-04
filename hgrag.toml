@@ -81,6 +81,14 @@ MLFLOW_DISABLE_TELEMETRY = "true"
 # HGRAG_COLLECTION = "hgrag_chunks"
 # HGRAG_MLFLOW_DIR = "data/mlflow"
 
+[databricks]
+# "local" (Qdrant, files under data/) or "databricks" (AI Search, Unity Catalog).
+# HGRAG_BACKEND = "local"
+# Unity Catalog names of the Databricks backend (no default).
+# HGRAG_DBX_CATALOG = ""
+# HGRAG_DBX_SCHEMA = ""
+# HGRAG_DBX_VOLUME = ""
+
 [airflow]
 # Set aside for now.
 # HGRAG_AIRFLOW_URL = "http://localhost:8080"

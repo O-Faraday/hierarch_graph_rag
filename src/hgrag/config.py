@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 
 PROJECT_ROOT = Path(os.environ.get("HGRAG_PROJECT_ROOT", Path(__file__).resolve().parents[2]))
@@ -62,6 +63,42 @@ load_dotenv(PROJECT_ROOT / ".env")
 CONFIG_FILE = os.environ.get("HGRAG_CONFIG", str(PROJECT_ROOT / "hgrag.toml"))  # "" = no settings file
 if CONFIG_FILE:
     load_config_file(Path(CONFIG_FILE))
+
+
+def parse_backend(value: str) -> str:
+    backend = value.strip().lower()
+    if backend not in ("local", "databricks"):
+        raise ValueError(f"HGRAG_BACKEND must be 'local' or 'databricks', not {value!r}")
+    return backend
+
+
+# Where the pipeline runs: "local" (Qdrant, files under data/) or "databricks" (AI Search, Unity Catalog).
+BACKEND = parse_backend(os.environ.get("HGRAG_BACKEND", "local"))
+# Unity Catalog names of the Databricks backend: no default, each installation chooses its own.
+DBX_CATALOG = os.environ.get("HGRAG_DBX_CATALOG", "")
+DBX_SCHEMA = os.environ.get("HGRAG_DBX_SCHEMA", "")
+DBX_VOLUME = os.environ.get("HGRAG_DBX_VOLUME", "")
+
+
+def _dbx_name(variable: str, value: str) -> str:
+    """A Unity Catalog name, checked because it goes into SQL statements and paths."""
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", value):
+        raise ValueError(f"{variable} must be set to a Unity Catalog name (letters, digits, _ and -), not {value!r}")
+    return value
+
+
+def dbx_table(name: str) -> str:
+    """Quoted three-part name of a table of the Databricks backend."""
+    parts = (_dbx_name("HGRAG_DBX_CATALOG", DBX_CATALOG), _dbx_name("HGRAG_DBX_SCHEMA", DBX_SCHEMA),
+             _dbx_name("table name", name))
+    return ".".join(f"`{p}`" for p in parts)
+
+
+def dbx_volume_path() -> str:
+    """Root of the Unity Catalog volume of the Databricks backend."""
+    return (f"/Volumes/{_dbx_name('HGRAG_DBX_CATALOG', DBX_CATALOG)}/{_dbx_name('HGRAG_DBX_SCHEMA', DBX_SCHEMA)}"
+            f"/{_dbx_name('HGRAG_DBX_VOLUME', DBX_VOLUME)}")
+
 
 # Input PDFs (source to be defined later) and outputs.
 PDF_DIR = Path(os.environ.get("HGRAG_PDF_DIR", PROJECT_ROOT / "data" / "pdf_sample"))

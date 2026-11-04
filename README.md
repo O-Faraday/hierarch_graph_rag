@@ -555,6 +555,8 @@ contexte (`tracing.submit`) : sans elle, `mlflow.genai.evaluate` perdait la trac
 |---|---|---|
 | `HF_TOKEN` | — | Token Hugging Face |
 | `HGRAG_CONFIG` | `hgrag.toml` | Fichier de réglages versionné (TOML) ; `""` = aucun |
+| `HGRAG_BACKEND` | `local` | Lieu d'exécution : `local` (Qdrant, fichiers sous `data/`) ou `databricks` (AI Search, Unity Catalog, en cours de construction : la valeur n'a pas encore d'effet) |
+| `HGRAG_DBX_CATALOG` / `HGRAG_DBX_SCHEMA` / `HGRAG_DBX_VOLUME` | — | Noms Unity Catalog du backend Databricks |
 | `HGRAG_PDF_DIR` | `data/pdf_sample` | Dossier des PDF |
 | `HGRAG_OUTPUT_DIR` | `data/output` | Sorties du parsing |
 | `HGRAG_QDRANT_PATH` | `data/qdrant` | Stockage Qdrant |
