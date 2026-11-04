@@ -30,7 +30,7 @@ def load_dotenv(path: Path) -> None:
             os.environ.setdefault(key, value)
 
 
-SECRET_NAMES = ("ANTHROPIC_API_KEY", "HF_TOKEN", "HUGGINGFACE_API_KEY", "OPENAI_API_KEY")
+SECRET_NAMES = ("ANTHROPIC_API_KEY", "DATABRICKS_TOKEN", "HF_TOKEN", "HUGGINGFACE_API_KEY", "OPENAI_API_KEY")
 
 
 def load_config_file(path: Path) -> None:

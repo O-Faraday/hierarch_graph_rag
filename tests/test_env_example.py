@@ -13,7 +13,8 @@ from hgrag import config
 ROOT = Path(__file__).resolve().parents[1]
 EXAMPLE = ROOT / "env.example"
 SETTINGS = ROOT / "hgrag.toml"
-THIRD_PARTY = {"HF_HUB_OFFLINE", "MLFLOW_DISABLE_TELEMETRY", "MLFLOW_TRACKING_URI"}  # read by the libraries
+THIRD_PARTY = {"DATABRICKS_HOST", "DATABRICKS_TOKEN", "HF_HUB_OFFLINE", "MLFLOW_DISABLE_TELEMETRY",
+               "MLFLOW_TRACKING_URI"}  # read by the libraries
 
 
 def _code() -> str:
@@ -49,6 +50,15 @@ def test_config_file_never_overrides_and_refuses_secrets(tmp_path, monkeypatch):
     f.write_text('[x]\nHF_TOKEN = "hf_abc"\n', encoding="utf-8")
     with pytest.raises(ValueError, match="HF_TOKEN"):
         config.load_config_file(f)
+
+
+def test_databricks_credentials_stay_out_of_settings_and_git(tmp_path):
+    f = tmp_path / "s.toml"
+    f.write_text('[x]\nDATABRICKS_TOKEN = "dapi123"\n', encoding="utf-8")
+    with pytest.raises(ValueError, match="DATABRICKS_TOKEN"):
+        config.load_config_file(f)
+    ignored = (ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
+    assert {".env", ".databricks/", ".databrickscfg"} <= set(ignored)
 
 
 def test_every_variable_of_env_example_and_settings_is_read_by_the_code():
