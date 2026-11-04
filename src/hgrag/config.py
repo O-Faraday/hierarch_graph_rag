@@ -100,6 +100,24 @@ def dbx_volume_path() -> str:
             f"/{_dbx_name('HGRAG_DBX_VOLUME', DBX_VOLUME)}")
 
 
+# Paths of the Databricks parsing step; by default, folders of the volume above.
+DBX_PDF_DIR = os.environ.get("HGRAG_DBX_PDF_DIR", "")
+DBX_OUTPUT_DIR = os.environ.get("HGRAG_DBX_OUTPUT_DIR", "")
+DBX_CHECKPOINT = os.environ.get("HGRAG_DBX_CHECKPOINT", "")
+
+
+def dbx_pdf_dir() -> str:
+    return DBX_PDF_DIR or f"{dbx_volume_path()}/pdf"
+
+
+def dbx_output_dir() -> str:
+    return DBX_OUTPUT_DIR or f"{dbx_volume_path()}/output"
+
+
+def dbx_checkpoint() -> str:
+    return DBX_CHECKPOINT or f"{dbx_volume_path()}/checkpoints/parse"
+
+
 # Input PDFs (source to be defined later) and outputs.
 PDF_DIR = Path(os.environ.get("HGRAG_PDF_DIR", PROJECT_ROOT / "data" / "pdf_sample"))
 CONTROL_PDF_DIR = Path(os.environ.get("HGRAG_CONTROL_PDF_DIR", PROJECT_ROOT / "data" / "pdf_control"))
@@ -187,6 +205,13 @@ FORMULA_ENRICHMENT = FORMULA_MODE == "docling"  # Docling's own enrichment (the 
 CODE_ENRICHMENT = _flag("HGRAG_CODE_ENRICHMENT", False)  # code blocks: language + indentation (CodeFormulaV2 on CPU: ~3 min per item)
 PICTURE_CLASSIFICATION = _flag("HGRAG_PICTURE_CLASSIFICATION", False)  # figure type (chart, diagram...) in the metadata
 TABLE_IMAGES = _flag("HGRAG_TABLE_IMAGES", False)  # PNG of each table (to describe a table from its picture)
+# Folder of pre-downloaded Docling models ("" = downloaded on first use): spares a new cluster the download.
+DOCLING_ARTIFACTS = os.environ.get("HGRAG_DOCLING_ARTIFACTS", "")
+# Seconds after which Docling stops a document and keeps what it has (0 = no limit); one conversion took 2.4 hours.
+DOCLING_TIMEOUT = float(os.environ.get("HGRAG_DOCLING_TIMEOUT", "0"))
+# Auto Loader: reprocess a PDF replaced under the same name. Databricks advises immutable files (off): drop a new
+# version under a new name, or turn this on.
+DBX_ALLOW_OVERWRITES = _flag("HGRAG_DBX_ALLOW_OVERWRITES", False)
 
 # Figure export / description.
 IMAGES_SCALE = float(os.environ.get("HGRAG_IMAGES_SCALE", "2.0"))

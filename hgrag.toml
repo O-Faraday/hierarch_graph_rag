@@ -88,6 +88,16 @@ MLFLOW_DISABLE_TELEMETRY = "true"
 # HGRAG_DBX_CATALOG = ""
 # HGRAG_DBX_SCHEMA = ""
 # HGRAG_DBX_VOLUME = ""
+# Folders of the parsing step; empty = pdf, output and checkpoints/parse in the volume above.
+# HGRAG_DBX_PDF_DIR = ""
+# HGRAG_DBX_OUTPUT_DIR = ""
+# HGRAG_DBX_CHECKPOINT = ""
+# Reprocess a PDF replaced under the same name (Databricks advises immutable files).
+# HGRAG_DBX_ALLOW_OVERWRITES = false
+# Folder of pre-downloaded Docling models ("" = downloaded on first use).
+# HGRAG_DOCLING_ARTIFACTS = ""
+# Seconds after which Docling stops a document and keeps what it has (0 = no limit).
+# HGRAG_DOCLING_TIMEOUT = 0
 
 [airflow]
 # Set aside for now.

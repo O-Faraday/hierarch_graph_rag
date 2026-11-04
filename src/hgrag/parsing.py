@@ -33,7 +33,9 @@ def parse_options() -> dict[str, Any]:
     """Docling options that change the content of a parsed document (stored in the manifest, used as cache key)."""
     return {"table_mode": config.TABLE_MODE, "table_cell_matching": config.TABLE_CELL_MATCHING,
             "formula_enrichment": config.FORMULA_ENRICHMENT, "code_enrichment": config.CODE_ENRICHMENT,
-            "picture_classification": config.PICTURE_CLASSIFICATION, "table_images": config.TABLE_IMAGES}
+            "picture_classification": config.PICTURE_CLASSIFICATION, "table_images": config.TABLE_IMAGES,
+            # only when set: the parsings made without a time limit stay valid in the cache
+            **({"document_timeout": config.DOCLING_TIMEOUT} if config.DOCLING_TIMEOUT else {})}
 
 
 def build_converter(
@@ -56,6 +58,10 @@ def build_converter(
     opts.do_code_enrichment = config.CODE_ENRICHMENT
     opts.do_picture_classification = config.PICTURE_CLASSIFICATION
     opts.generate_table_images = config.TABLE_IMAGES
+    if config.DOCLING_ARTIFACTS:
+        opts.artifacts_path = config.DOCLING_ARTIFACTS
+    if config.DOCLING_TIMEOUT:
+        opts.document_timeout = config.DOCLING_TIMEOUT
     return DocumentConverter(format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=opts)})
 
 
@@ -196,7 +202,8 @@ def parse_pdf(
     converter = converter or build_converter(describe_pictures=describe_pictures)
     t0 = time.perf_counter()
     with trace.child("docling", "PARSER", inputs={"pdf": str(pdf_path), "options": parse_options()}) as docling_span:
-        doc = converter.convert(pdf_path).document
+        result = converter.convert(pdf_path)
+        doc = result.document
         docling_span.set({"stats": doc_stats(doc, []), "markdown": doc.export_to_markdown()})
     convert_seconds = time.perf_counter() - t0
 
@@ -219,6 +226,7 @@ def parse_pdf(
         "doc_dir": str(doc_dir),
         "n_figures": len(figures),
         "convert_seconds": round(convert_seconds, 2),
+        "conversion_status": getattr(getattr(result, "status", None), "value", None),  # partial_success: time limit hit
         "parse_options": parse_options(),
         **doc_stats(doc, figures),
     }
