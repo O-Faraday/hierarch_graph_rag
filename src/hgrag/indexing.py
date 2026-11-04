@@ -8,26 +8,17 @@ import re
 import uuid
 from collections import Counter
 from pathlib import Path
-from typing import Any, Protocol, Sequence
+from typing import TYPE_CHECKING, Any, Protocol, Sequence
 
 from docling.chunking import HybridChunker
 from docling_core.transforms.chunker.base import BaseChunker
 from docling_core.types.doc import DocItemLabel, DoclingDocument
-from qdrant_client import QdrantClient
-from qdrant_client.models import (
-    Distance,
-    FieldCondition,
-    Filter,
-    FilterSelector,
-    MatchValue,
-    Modifier,
-    PointStruct,
-    SparseVectorParams,
-    VectorParams,
-)
 
 from . import config, keywords
 from .hierarchy import SectionNode, section_index
+
+if TYPE_CHECKING:  # Qdrant is only installed with the local backend: the chunking above runs without it
+    from qdrant_client import QdrantClient
 
 logger = logging.getLogger(__name__)
 
@@ -192,6 +183,8 @@ def figure_chunks(root: SectionNode, doc_id: str, start_index: int = 0) -> list[
 def ensure_collection(client: QdrantClient, name: str, dim: int) -> None:
     """New collections get the dense vector (unnamed) and the BM25 keyword vector (``keywords.SPARSE_NAME``, IDF
     applied by Qdrant); a collection made before the hybrid search keeps its single dense vector."""
+    from qdrant_client.models import Distance, Modifier, SparseVectorParams, VectorParams
+
     if not client.collection_exists(name):
         client.create_collection(
             collection_name=name,
@@ -226,6 +219,8 @@ def index_chunks(
     ``model_id`` only selects the passage prefix the model expects (``config.embed_prefixes``)."""
     if not chunks:
         return 0
+    from qdrant_client.models import FieldCondition, Filter, FilterSelector, MatchValue, PointStruct
+
     _, doc_prefix = config.embed_prefixes(model_id)
     vectors = embedder.encode(
         [doc_prefix + c["embed_text"] for c in chunks], batch_size=batch_size, normalize_embeddings=True
@@ -258,5 +253,7 @@ def _vectors(dense: list[float], sparse: Any) -> Any:
 
 
 def open_store(path: str | Path = config.QDRANT_PATH) -> QdrantClient:
+    from qdrant_client import QdrantClient
+
     Path(path).mkdir(parents=True, exist_ok=True)
     return QdrantClient(path=str(path))

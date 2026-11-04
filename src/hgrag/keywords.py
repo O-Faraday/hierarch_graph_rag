@@ -14,9 +14,10 @@ from __future__ import annotations
 import re
 import zlib
 from collections import Counter
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from qdrant_client.models import SparseVector
+if TYPE_CHECKING:  # Qdrant is only installed with the local backend
+    from qdrant_client.models import SparseVector
 
 SPARSE_NAME = "keywords"  # name of the sparse vector in the collection
 K1, B = 1.2, 0.75
@@ -44,6 +45,8 @@ def term_id(term: str) -> int:
 def _vector(weights: dict[int, float]) -> SparseVector | None:
     if not weights:
         return None
+    from qdrant_client.models import SparseVector
+
     ids = sorted(weights)
     return SparseVector(indices=ids, values=[weights[i] for i in ids])
 
