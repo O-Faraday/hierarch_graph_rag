@@ -13,7 +13,7 @@ Répondre en **français**, de façon concise. Code, noms, commentaires et messa
 
 ## Stack
 
-- Python ≥ 3.13, gestionnaire **`uv`** (jamais `pip install` directement dans le dépôt).
+- Python ≥ 3.12 (runtimes Databricks en 3.12, 3.13 en local), gestionnaire **`uv`** (jamais `pip install` directement dans le dépôt). Noyau léger + extras `local` et `databricks` ; `uv sync` installe tout (groupe `dev`).
 - Docling 2.x (parsing), Qdrant en mode local (un seul processus à la fois sur le dossier), Sentence-Transformers (embedding + cross-encoder), MLflow (suivi), Streamlit (app), Airflow (code dans `orchestration/`, mis de côté pour l'instant).
 - Figures, tableaux et formules décrits par un modèle de vision via l'API (routeur Hugging Face) ; réponses et juge via l'API Claude.
 

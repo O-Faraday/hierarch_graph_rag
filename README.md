@@ -30,6 +30,14 @@ cd ~/hierarch_graph_rag
 uv sync                      # un seul environnement (racine). `orchestration/` n'est pas nécessaire.
 ```
 
+Le paquet demande Python ≥ 3.12 (les runtimes Databricks sont en 3.12) ; le dépôt reste en 3.13 en local (`.python-version`).
+`uv sync` installe tout (groupe `dev`, qui inclut les deux extras). Le paquet publié a un noyau léger et deux extras :
+
+| Extra | Pour | Contenu |
+|---|---|---|
+| `local` | Backend local et application | Docling, MLflow, Qdrant, sentence-transformers, Streamlit, psutil |
+| `databricks` | Exécution sur Databricks | Docling, `databricks-ai-search`, `databricks-sdk`, `mlflow-skinny`, filelock |
+
 La configuration est en deux fichiers à la racine :
 
 - **`hgrag.toml`** (versionné) : tous les réglages non secrets, par thème (cache Hugging Face, modèles de recherche et
