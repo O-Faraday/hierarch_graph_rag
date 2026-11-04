@@ -15,6 +15,7 @@ class FakeSession:
 
     def __init__(self):
         self.table: dict[str, dict] = {}
+        self.queue: list[str] = []
         self.view: list[tuple] = []
         self.merges = 0
         self.statements: list[str] = []
@@ -38,6 +39,9 @@ class FakeSession:
         if "SELECT doc_id" in statement:
             rows = [SimpleNamespace(doc_id=d) for d, r in self.table.items()
                     if r["status"] == "parsed" and r["parse_options"] == args["options"]]
+        elif "LEFT ANTI JOIN" in statement:
+            known = {r["path"] for r in self.table.values()}
+            rows = [SimpleNamespace(path=p.removeprefix("dbfs:")) for p in self.queue if p.removeprefix("dbfs:") not in known]
         elif "SELECT path" in statement:
             rows = [SimpleNamespace(path=r["path"]) for r in self.table.values() if r["status"] in ("failed", "partial")]
         return SimpleNamespace(collect=lambda: rows)
@@ -176,20 +180,20 @@ def test_summary_separates_conversion_and_descriptions(uc, tmp_path, monkeypatch
     assert summary["convert_seconds_per_page"] == 1.5
 
 
-def test_parse_batch_reads_only_the_paths_and_uses_the_session_of_the_batch(uc, tmp_path, monkeypatch):
-    seen = {}
-    monkeypatch.setattr(dbx_parsing, "parse_paths", lambda s, paths: seen.update(session=s, paths=list(paths)))
+def test_parse_pending_parses_the_queue_once(uc, tmp_path):
+    session, parse = FakeSession(), FakeParse()
+    pdf = _pdf(tmp_path, "a.pdf")
+    session.queue = [f"dbfs:{pdf}"]
+    assert dbx_parsing.parse_pending(session, parse=parse, converter=object())["parsed"] == 1
+    assert dbx_parsing.parse_pending(session, parse=parse, converter=object())["parsed"] == 0
+    assert parse.calls == [(pdf, config.dbx_output_dir(), True)]
+
+
+def test_a_file_changed_after_its_row_is_pending_again(uc):
     session = FakeSession()
-
-    class Batch:
-        sparkSession = session
-
-        def select(self, *columns):
-            seen["columns"] = columns
-            return SimpleNamespace(toLocalIterator=lambda: iter([SimpleNamespace(path="dbfs:/Volumes/c/s/v/a.pdf")]))
-
-    dbx_parsing.parse_batch(Batch(), 7)
-    assert seen == {"columns": ("path",), "session": session, "paths": ["dbfs:/Volumes/c/s/v/a.pdf"]}
+    dbx_parsing.parse_pending(session, parse=FakeParse(), converter=object())
+    pending = next(s for s in session.statements if "LEFT ANTI JOIN" in s)
+    assert "d.updated_at >= q.modificationTime" in pending
 
 
 class _Chain:
@@ -206,17 +210,20 @@ class _Chain:
         return call
 
 
-def test_the_stream_stops_when_the_new_files_are_done(uc, monkeypatch):
-    monkeypatch.setattr(config, "DBX_CHECKPOINT", "/Volumes/demo/checkpoints/unstructured_docs_docling/parse")
+def test_discovery_stops_when_the_new_files_are_done_and_runs_no_python_in_the_stream(uc, monkeypatch):
+    checkpoint = "/Volumes/demo/checkpoints/unstructured_docs_docling/parse_queue"
+    monkeypatch.setattr(config, "DBX_CHECKPOINT", checkpoint)
     chain = _Chain()
     spark = SimpleNamespace(readStream=chain, sql=lambda *_a, **_k: None)
-    dbx_parsing.run_stream(spark)
+    dbx_parsing.discover_pdfs(spark)
     assert chain.calls["trigger"] == [{"availableNow": True}] and chain.calls["awaitTermination"]
-    assert ("checkpointLocation", "/Volumes/demo/checkpoints/unstructured_docs_docling/parse") in chain.calls["option"]
+    assert ("checkpointLocation", checkpoint) in chain.calls["option"]
     assert ("pathGlobFilter", "*.pdf") in chain.calls["option"]
     assert ("cloudFiles.allowOverwrites", "false") in chain.calls["option"]
     assert chain.calls["load"] == [("/Volumes/demo/pdf_bench/pdf_store/pdf",)]
-    assert chain.calls["foreachBatch"] == [(dbx_parsing.parse_batch,)]
+    assert chain.calls["select"] == [("path", "modificationTime")]
+    assert chain.calls["toTable"] == [("`demo`.`pdf_bench`.`parse_queue`",)]
+    assert "foreachBatch" not in chain.calls  # another Python process with Spark Connect: no configuration, no secret
 
 
 def test_table_statement_is_created_with_the_configured_name(uc):

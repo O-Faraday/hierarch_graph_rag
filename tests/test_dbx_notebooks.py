@@ -24,6 +24,19 @@ def test_notebook_is_a_source_notebook_without_secret(path):
 
 
 @pytest.mark.parametrize("path", NOTEBOOKS, ids=lambda p: p.name)
+def test_magic_commands_are_alone_in_their_cell(path):
+    for cell in path.read_text(encoding="utf-8").split("# COMMAND ----------"):
+        lines = [line for line in cell.splitlines() if line.strip() and line != "# Databricks notebook source"]
+        if any(line.startswith("# MAGIC") for line in lines):
+            assert all(line.startswith("# MAGIC") for line in lines), cell
+
+
+def test_parsing_notebook_keeps_opencv_below_the_fips_abort():
+    text = (NOTEBOOKS[0].parent / "01_parse_documents.py").read_text(encoding="utf-8")
+    assert '%pip install "opencv-python-headless==4.11.0.86" $wheel_spec' in text
+
+
+@pytest.mark.parametrize("path", NOTEBOOKS, ids=lambda p: p.name)
 def test_configuration_is_set_before_hgrag_is_imported(path):
     text = path.read_text(encoding="utf-8")
     if "from hgrag" in text:

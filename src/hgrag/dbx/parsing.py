@@ -1,9 +1,10 @@
-"""Databricks parsing step: new PDFs of a volume (Auto Loader) -> ``parse_pdf`` -> files on a volume + ``documents`` table.
+"""Databricks parsing step: new PDFs of a volume (Auto Loader, queue table) -> ``parse_pdf`` -> files on a volume +
+``documents`` table.
 
-The same parsing as the local backend, descriptions by the vision model included. Everything runs on the driver, one PDF
-after the other, so a single-node cluster is enough.
+The same parsing as the local backend, descriptions by the vision model included. Everything runs in the process of the
+job, one PDF after the other, so a single-node cluster is enough.
 
-No duplicate, whatever is replayed (``foreachBatch`` is at-least-once, a checkpoint can be lost):
+No duplicate, whatever is replayed (a run can stop midway, a checkpoint can be lost):
 
 * ``doc_id`` is the hash of the content: one row and one folder per content, whatever the file names;
 * a document already ``parsed`` with the same options is skipped, so neither Docling nor the vision model run again;
@@ -28,6 +29,7 @@ from ..ids import compute_doc_id
 logger = logging.getLogger(__name__)
 
 TABLE = "documents"
+QUEUE = "parse_queue"
 _VIEW = "hgrag_parsed_document"
 _SCHEMA = ("doc_id string, path string, status string, error string, parse_options string, n_pages int, "
            "convert_seconds double, parse_seconds double")
@@ -167,9 +169,12 @@ def parse_paths(session: Any, paths: Iterable[str], *, parse: Any = None, conver
     return summary
 
 
-def parse_batch(batch_df: Any, batch_id: int) -> None:
-    """``foreachBatch`` of the stream: only the paths are read, ``parse_pdf`` opens each PDF on the volume."""
-    parse_paths(batch_df.sparkSession, (r.path for r in batch_df.select("path").toLocalIterator()))
+def parse_pending(session: Any, *, parse: Any = None, converter: Any = None) -> dict[str, Any]:
+    """Parse the discovered PDFs without a row in ``documents``, or changed since that row was written."""
+    rows = session.sql(f"""SELECT DISTINCT regexp_replace(q.path, '^(dbfs|file):', '') AS path
+        FROM {config.dbx_table(QUEUE)} q LEFT ANTI JOIN {config.dbx_table(TABLE)} d
+        ON regexp_replace(q.path, '^(dbfs|file):', '') = d.path AND d.updated_at >= q.modificationTime""").collect()
+    return parse_paths(session, [r.path for r in rows], parse=parse, converter=converter)
 
 
 def retry_incomplete(session: Any, *, parse: Any = None, converter: Any = None) -> dict[str, Any]:
@@ -178,8 +183,10 @@ def retry_incomplete(session: Any, *, parse: Any = None, converter: Any = None) 
     return parse_paths(session, [r.path for r in rows], parse=parse, converter=converter)
 
 
-def run_stream(spark: Any) -> Any:
-    """Parse the new PDFs of the volume, then stop (``availableNow``): the cluster does not stay up between deposits."""
+def discover_pdfs(spark: Any) -> Any:
+    """Record the new PDFs of the volume in the queue table, then stop (``availableNow``). The parsing is not done in
+    ``foreachBatch``: with Spark Connect it runs in another Python process, without the configuration and the secrets
+    of the job, and the secrets must not travel with the function."""
     ensure_table(spark)
     query = (
         spark.readStream.format("cloudFiles")
@@ -187,12 +194,11 @@ def run_stream(spark: Any) -> Any:
         .option("cloudFiles.allowOverwrites", str(config.DBX_ALLOW_OVERWRITES).lower())
         .option("pathGlobFilter", "*.pdf")
         .load(config.dbx_pdf_dir())
-        .select("path")
+        .select("path", "modificationTime")
         .writeStream
         .option("checkpointLocation", config.dbx_checkpoint())
-        .foreachBatch(parse_batch)
         .trigger(availableNow=True)
-        .start()
+        .toTable(config.dbx_table(QUEUE))
     )
     query.awaitTermination()
     return query

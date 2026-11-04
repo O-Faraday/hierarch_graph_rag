@@ -1,7 +1,8 @@
 # Databricks notebook source
 # MAGIC %md
 # MAGIC # Parse the new PDFs of a volume with Docling
-# MAGIC Thin notebook: the logic is in `hgrag.dbx.parsing`. Single-node CPU cluster, dedicated access mode, Runtime 17.3 LTS or above.
+# MAGIC Thin notebook: the logic is in `hgrag.dbx.parsing`. Runtime 17.3 LTS or above.
+# MAGIC OpenCV stays at 4.11: recent versions abort the process on import here (FIPS self-test of their bundled OpenSSL).
 
 # COMMAND ----------
 
@@ -18,7 +19,7 @@ wheel_spec = dbutils.widgets.get("wheel") + "[databricks]"
 
 # COMMAND ----------
 
-# MAGIC %pip install $wheel_spec
+# MAGIC %pip install "opencv-python-headless==4.11.0.86" $wheel_spec
 
 # COMMAND ----------
 
@@ -47,7 +48,8 @@ from hgrag import config
 from hgrag.dbx import parsing
 
 parsing.prefetch_models(config.DOCLING_ARTIFACTS)
-parsing.run_stream(spark)
+parsing.discover_pdfs(spark)
+parsing.parse_pending(spark)
 if dbutils.widgets.get("retry_incomplete") == "true":
     parsing.retry_incomplete(spark)
 

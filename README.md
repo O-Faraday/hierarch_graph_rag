@@ -378,8 +378,10 @@ avec leurs métadonnées. Les logs du run (`Log`) reprennent les mêmes chiffres
 ## 1 bis. Sur Databricks (en construction : parsing seulement, écrit et testé avec des faux, à valider sur Databricks)
 
 Mêmes étapes qu'en local, Docling et le modèle de vision compris ; AI Search remplacera Qdrant. `src/hgrag/dbx/parsing.py` :
-Auto Loader lit les nouveaux PDF du volume (`availableNow` : le cluster s'arrête ensuite), `parse_pdf` écrit ses fichiers
-habituels dans `output/<doc_id>/` sur le volume, et la table `documents` garde l'état de chaque document.
+Auto Loader note les nouveaux PDF du volume dans la table `parse_queue` (`availableNow` : le flux s'arrête ensuite), puis
+`parse_pdf` les traite dans le processus du notebook et écrit ses fichiers habituels dans `output/<doc_id>/` sur le volume.
+La table `documents` garde l'état de chaque document. Le parsing n'est pas fait dans `foreachBatch` : en Spark Connect,
+il tourne dans un autre processus Python, sans la configuration ni les secrets du notebook.
 
 | Statut | Sens |
 |---|---|
@@ -393,12 +395,14 @@ document déjà `parsed` n'est ni reconverti ni redécrit, même si le checkpoin
 
 ```bash
 uv build --wheel
-databricks fs cp dist/hgrag-0.1.0-py3-none-any.whl dbfs:/Volumes/<catalogue>/<schéma>/<volume>/wheels/ --overwrite
+databricks fs cp dist/hgrag-0.1.1-py3-none-any.whl dbfs:/Volumes/<catalogue>/<schéma>/<volume>/wheels/ --overwrite
 databricks fs cp data/pdf_control/<fichier>.pdf dbfs:/Volumes/<catalogue>/<schéma>/<volume>/pdf/
 ```
 
 Le jeton HF est lu dans le scope de secrets (`HF_TOKEN`). Importer `databricks/notebooks/01_parse_documents.py`, l'attacher
-à un cluster CPU à un nœud (Runtime ≥ 17.3 LTS, accès dédié), renseigner les widgets et l'exécuter. La sortie indique le
+à une compute (Runtime ≥ 17.3 LTS), renseigner les widgets et l'exécuter. Changer de version du paquet à chaque nouveau
+wheel : pip n'installe pas un wheel de même version. OpenCV reste en 4.11 dans le notebook : les versions récentes arrêtent
+le processus à l'import sur Databricks (contrôle FIPS de leur OpenSSL embarqué). La sortie indique le
 temps de chargement du convertisseur, de conversion et de description ; le temps de démarrage se lit sur le run.
 
 ---
