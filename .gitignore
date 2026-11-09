@@ -16,7 +16,7 @@ data/pdf_sample/*.pdf
 orchestration/.airflow/
 data/mlflow
 data/eval/
-data/eval_run/
+data/eval_run*/
 data/eval_run*.log
 data/bundles/
 .env
