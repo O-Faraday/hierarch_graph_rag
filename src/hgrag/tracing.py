@@ -183,6 +183,29 @@ def root(name: str, pipeline: str, run_key: str | None, *, span_type: str = "CHA
         return Span()
 
 
+def report(pipeline: str, run_key: str) -> dict[str, Any]:
+    """Read back the traces and the checks that MLflow stored for an execution, and print them: tracing never breaks
+    the pipeline, so a failing store would otherwise only show as warnings. The write queue is flushed first, so that
+    nothing is lost when a job ends right after."""
+    out: dict[str, Any] = {"experiment": tracking.experiment_name(pipeline), "run_key": run_key}
+    try:
+        import mlflow
+
+        experiment_id = _experiment_id(pipeline)
+        mlflow.flush_trace_async_logging()
+        traces = mlflow.search_traces(locations=[experiment_id], filter_string=f"tag.`hgrag.run_key` = '{run_key}'",
+                                      return_type="list")
+        checks = [a for t in traces for a in t.info.assessments]
+        out.update(traces=len(traces), checks=len(checks),
+                   judged=sum(a.source.source_type == "LLM_JUDGE" for a in checks),
+                   failed=sum((a.metadata or {}).get("passed") == "false" for a in checks),
+                   errors=sum(a.error is not None for a in checks))
+    except Exception as exc:  # noqa: BLE001
+        out["error"] = f"{type(exc).__name__}: {exc}"[:300]
+    print(json.dumps({"hgrag_mlflow": out}))
+    return out
+
+
 def submit(pool: Any, fn: Any, *args: Any, **kwargs: Any) -> Any:
     """``pool.submit`` running ``fn`` in a copy of the caller's context. A span opened in a worker thread without
     it lost its whole trace under ``mlflow.genai.evaluate`` (the prediction context lives in a context variable);

@@ -18,8 +18,9 @@ def top_score(diagnostics: dict[str, Any], *, min_score: float | None = None) ->
     if score is None:
         return Assessment("retrieval.top_score", None, passed=False, rationale="no candidate found")
     if kind != "rerank":
+        label = "dense similarity" if kind == "dense" else f"score of the service ({kind})"
         return Assessment("retrieval.top_score", round(score, 4), metadata={"kind": kind},
-                          rationale=f"best dense similarity {score:.3f} (no reranker: no threshold)")
+                          rationale=f"best {label} {score:.3f} (no known scale: no threshold)")
     return Assessment("retrieval.top_score", round(score, 4), passed=score >= min_score, metadata={"kind": kind},
                       rationale=f"best reranker score {score:.3f} (threshold {min_score})"
                                 + ("" if score >= min_score else ": the corpus probably does not hold the answer"))

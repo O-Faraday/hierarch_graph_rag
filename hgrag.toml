@@ -97,6 +97,15 @@ MLFLOW_DISABLE_TELEMETRY = "true"
 # HGRAG_DBX_CHECKPOINT = ""
 # Reprocess a PDF replaced under the same name (Databricks advises immutable files).
 # HGRAG_DBX_ALLOW_OVERWRITES = false
+# AI Search endpoint (no default, billed while it runs), embedding endpoint, and the tokenizer of that model for the chunker.
+# HGRAG_DBX_SEARCH_ENDPOINT = ""
+# HGRAG_DBX_EMBED_ENDPOINT = "databricks-gte-large-en"
+# HGRAG_DBX_CHUNK_TOKENIZER = "thenlper/gte-large"
+# Second-stage ranking: the AI Search reranker, or on a workspace without it HGRAG_RERANK_MODEL on
+# HGRAG_RERANK_CANDIDATES chunks through the Hugging Face API (HF_TOKEN).
+# HGRAG_DBX_RERANK = true
+# Workspace folder of the MLflow experiments, with MLFLOW_TRACKING_URI = "databricks" (it must exist, e.g. /Shared).
+# HGRAG_MLFLOW_EXPERIMENT_ROOT = ""
 # Folder of pre-downloaded Docling models ("" = downloaded on first use).
 # HGRAG_DOCLING_ARTIFACTS = ""
 # Seconds after which Docling stops a document and keeps what it has (0 = no limit).

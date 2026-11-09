@@ -1,0 +1,63 @@
+# Bundle of the Databricks backend. Its root is this folder, so that only the notebooks and the job are synchronized:
+# never the data of the repository (data/pdf_ragbench is under CC BY-NC).
+# No secret here: the keys are in a secret scope, the authentication comes from the environment or a profile.
+bundle:
+  name: hgrag
+
+include:
+  - resources/*.yml
+
+# The notebooks receive the name given in `schema`: development mode must not prefix it.
+experimental:
+  skip_name_prefix_for_schema: true
+
+# Built at each deployment, then uploaded to <artifact_path>/.internal/ even if no task library references it: the
+# notebooks install it with %pip, from the `wheel` job parameter. It stays in the workspace folder of the target, so
+# that it needs no volume and that dev and prod never share a wheel.
+artifacts:
+  hgrag:
+    type: whl
+    path: ..
+    build: uv build --wheel
+    files:
+      # Relative to this file, not to `path`. The exact name: dist/ also keeps the wheels of the previous versions.
+      - source: ../dist/hgrag-${var.package_version}-py3-none-any.whl
+
+variables:
+  catalog:
+    description: Unity Catalog catalog of the tables and the index
+  schema:
+    description: Schema of the tables and the index
+  volume:
+    description: Volume holding pdf/, output/ and models/
+  search_endpoint:
+    description: AI Search endpoint, created if missing and billed until it is deleted
+  embedding_endpoint:
+    description: Embedding endpoint of the index
+    default: databricks-gte-large-en
+  secret_scope:
+    description: Secret scope holding HF_TOKEN and ANTHROPIC_API_KEY
+    default: hgrag
+  mlflow_root:
+    description: Workspace folder of the MLflow experiments. Traces hold document text, restrict it for client documents
+    default: /Shared
+  assess_judges:
+    description: LLM judges of the checks, in the traces (extra Claude API calls, ANTHROPIC_API_KEY in the scope)
+    default: "true"
+  stop_search_schedule:
+    description: PAUSED or UNPAUSED, the schedule that deletes the index every Friday evening
+    default: PAUSED
+  package_version:
+    description: Version of the hgrag wheel built and deployed, the one of pyproject.toml
+    default: "0.1.10"
+
+targets:
+  dev:
+    default: true
+    mode: development
+
+  prod:
+    mode: production
+    workspace:
+      # Not /Workspace/Shared: it would be writable by all the users of the workspace.
+      root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}

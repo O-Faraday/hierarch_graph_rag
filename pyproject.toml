@@ -1,6 +1,6 @@
 [project]
 name = "hgrag"
-version = "0.1.1"
+version = "0.1.10"
 description = "Hierarchical RAG: PDF -> Docling -> heading tree -> Qdrant paragraph chunks"
 readme = "README.md"
 authors = [
@@ -23,7 +23,12 @@ local = [
 databricks = [
     "databricks-ai-search>=0.82",
     "databricks-sdk>=0.49.0",
-    "docling>=2.138.0",
+    # Exact versions: the same PDF gives other chunks with another Docling, and the documents already parsed on the
+    # volume must stay readable (docling-core reads only its own schema version and the older ones).
+    "docling==2.147.0",
+    "docling-core==2.106.0",
+    "docling-ibm-models==4.0.4",  # layout and table models
+    "docling-parse==7.24.2",  # text layer of the PDF
     "filelock>=3.0",
     "mlflow-skinny>=3.10.1",
 ]

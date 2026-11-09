@@ -9,9 +9,51 @@ import pytest
 
 from hgrag import config
 from hgrag.indexing import ensure_collection, open_store
-from hgrag.rerank import pair_text, rerank_points
+from hgrag import rerank as rerank_module
+from hgrag.rerank import HFRouterReranker, RerankError, pair_text, rerank_points
 from hgrag.retrieval import search_hits, search_steps
 from test_retrieval import BagOfWordsEmbedder, store  # noqa: F401  (fixture)
+
+
+def _fake_post(monkeypatch, body, status=200):
+    calls = []
+
+    def post(url, **kwargs):
+        calls.append((url, kwargs))
+        return SimpleNamespace(ok=status < 400, status_code=status, text=str(body), json=lambda: body)
+
+    monkeypatch.setattr(rerank_module.requests, "post", post)
+    return calls
+
+
+def test_hf_reranker_puts_the_scores_back_in_the_order_of_the_pairs(monkeypatch):
+    calls = _fake_post(monkeypatch, [{"index": 1, "score": 9.0}, {"index": 0, "score": -4.0}])
+    scores = HFRouterReranker("org/model", token="t").predict([("q", "a"), ("q", "b")])
+    url, kwargs = calls[0]
+    assert url.endswith("/hf-inference/models/org/model")
+    assert kwargs["json"] == {"inputs": {"query": "q", "texts": ["a", "b"]}}
+    assert kwargs["headers"]["Authorization"] == "Bearer t"
+    assert 0 < scores[0] < 0.5 < scores[1] < 1
+
+
+def test_hf_reranker_needs_a_token(monkeypatch):
+    calls = _fake_post(monkeypatch, [])
+    with pytest.raises(RerankError, match="HF_TOKEN"):
+        HFRouterReranker("org/model").predict([("q", "a")])
+    assert calls == []
+
+
+def test_hf_reranker_error_names_the_status_but_not_the_token(monkeypatch):
+    _fake_post(monkeypatch, {"error": "no credit"}, status=402)
+    with pytest.raises(RerankError, match="402") as error:
+        HFRouterReranker("org/model", token="secret-token").predict([("q", "a")])
+    assert "secret-token" not in str(error.value)
+
+
+def test_hf_reranker_refuses_an_incomplete_ranking(monkeypatch):
+    _fake_post(monkeypatch, [{"index": 0, "score": 1.0}])
+    with pytest.raises(RerankError, match="1 scores for 2 texts"):
+        HFRouterReranker("org/model", token="t").predict([("q", "a"), ("q", "b")])
 
 
 class WordOverlapReranker:

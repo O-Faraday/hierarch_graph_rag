@@ -1,0 +1,27 @@
+# Deletes the index of the kit to stop the billing of AI Search: `databricks bundle run hgrag_stop_search`.
+# The schedule stays paused unless stop_search_schedule is UNPAUSED. Not during an ingestion: it removes the index being synced.
+resources:
+  jobs:
+    hgrag_stop_search:
+      name: hgrag_stop_search
+      max_concurrent_runs: 1
+
+      schedule:
+        quartz_cron_expression: "0 0 20 ? * FRI"
+        timezone_id: Europe/Paris
+        pause_status: ${var.stop_search_schedule}
+
+      parameters:
+        - name: wheel
+          default: ${workspace.artifact_path}/.internal/hgrag-${var.package_version}-py3-none-any.whl
+        - name: catalog
+          default: ${var.catalog}
+        - name: schema
+          default: ${var.schema}
+        - name: search_endpoint
+          default: ${var.search_endpoint}
+
+      tasks:
+        - task_key: stop_search
+          notebook_task:
+            notebook_path: ../notebooks/04_stop_search.py

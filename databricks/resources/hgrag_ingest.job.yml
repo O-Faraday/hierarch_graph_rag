@@ -1,0 +1,43 @@
+# New PDFs of the volume -> documents table -> chunks table -> AI Search index.
+# Without a cluster the tasks run on serverless compute, like the notebooks validated so far. Both steps skip what is
+# already done, so a run can be started again. No schedule: `databricks bundle run hgrag_ingest`.
+resources:
+  jobs:
+    hgrag_ingest:
+      name: hgrag_ingest
+      max_concurrent_runs: 1
+
+      parameters:
+        - name: wheel
+          default: ${workspace.artifact_path}/.internal/hgrag-${var.package_version}-py3-none-any.whl
+        - name: catalog
+          default: ${var.catalog}
+        - name: schema
+          default: ${var.schema}
+        - name: volume
+          default: ${var.volume}
+        - name: search_endpoint
+          default: ${var.search_endpoint}
+        - name: embedding_endpoint
+          default: ${var.embedding_endpoint}
+        - name: secret_scope
+          default: ${var.secret_scope}
+        - name: mlflow_root
+          default: ${var.mlflow_root}
+        - name: judges
+          default: ${var.assess_judges}
+        - name: retry_incomplete
+          default: "false"
+        - name: reassess
+          default: "false"
+
+      tasks:
+        - task_key: parse_documents
+          notebook_task:
+            notebook_path: ../notebooks/01_parse_documents.py
+
+        - task_key: index_chunks
+          depends_on:
+            - task_key: parse_documents
+          notebook_task:
+            notebook_path: ../notebooks/02_index_chunks.py

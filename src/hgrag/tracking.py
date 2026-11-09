@@ -96,6 +96,11 @@ class StepTracker:
 _DISABLED = StepTracker(False)
 
 
+def experiment_name(pipeline: str) -> str:
+    """The name of a pipeline's experiment, under ``HGRAG_MLFLOW_EXPERIMENT_ROOT`` when it is set."""
+    return f"{config.MLFLOW_EXPERIMENT_ROOT}/{pipeline}" if config.MLFLOW_EXPERIMENT_ROOT else pipeline
+
+
 def _setup(experiment: str) -> str:
     """Tracking URI set, experiment created if needed; returns its id. ``mlflow.set_experiment`` is not called: in
     MLflow 3 it resets the tracer provider, which drops the spans still open (``tracing``: a question's trace spans
@@ -104,17 +109,18 @@ def _setup(experiment: str) -> str:
 
     TRACKING_DIR.mkdir(parents=True, exist_ok=True)
     mlflow.set_tracking_uri(TRACKING_URI)  # resets the tracer only when the URI changes
-    exp = mlflow.get_experiment_by_name(experiment)
+    name = experiment_name(experiment)
+    exp = mlflow.get_experiment_by_name(name)
     if exp is None:
         try:
             kwargs = ({"artifact_location": (TRACKING_DIR / "artifacts" / experiment).as_uri()}
                       if TRACKING_URI.startswith("sqlite") else {})
-            return mlflow.create_experiment(experiment, **kwargs)
+            return mlflow.create_experiment(name, **kwargs)
         except Exception:  # noqa: BLE001 - concurrent creation by another task
-            exp = mlflow.get_experiment_by_name(experiment)
+            exp = mlflow.get_experiment_by_name(name)
     if exp.lifecycle_stage == "deleted":
         # Deleted in the UI: the name stays taken and every run is refused until it is restored.
-        logger.warning("MLflow experiment %s was deleted: restoring it", experiment)
+        logger.warning("MLflow experiment %s was deleted: restoring it", name)
         mlflow.MlflowClient().restore_experiment(exp.experiment_id)
     return exp.experiment_id
 
@@ -124,7 +130,7 @@ def _parent_run_id(experiment: str, run_key: str) -> str:
     import mlflow
     from filelock import FileLock
 
-    exp = mlflow.get_experiment_by_name(experiment)
+    exp = mlflow.get_experiment_by_name(experiment_name(experiment))
     with FileLock(str(TRACKING_DIR / f"{experiment}.lock"), timeout=60):
         found = mlflow.search_runs(
             experiment_ids=[exp.experiment_id],

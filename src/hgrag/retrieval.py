@@ -405,22 +405,35 @@ def retrieve_sections(
                                  inputs={"query": query, "k": k, "include_children": include_children})
     with span:
         hits = search_hits(query, k, run_key=run_key, trace=span, **search_kwargs)
-        if not hits:
-            span.set({"sections": []})
-            return []
-        # Each hierarchy.json is read once, then shared by the workers.
-        trees = {d: load_hierarchy(d, output_dir) for d in {h["doc_id"] for h in hits}}
-        with ThreadPoolExecutor(max_workers=min(max_workers, len(hits))) as pool:
-            futures = [
-                tracing.submit(
-                    pool, reconstruct_hit, h, include_children=include_children,
-                    output_dir=output_dir, tree=trees[h["doc_id"]], run_key=run_key, trace=span,
-                )
-                for h in hits
-            ]
-            docs = [f.result() for f in futures]  # same order as hits: best score first
+        docs = reconstruct_hits(hits, include_children=include_children, output_dir=output_dir,
+                                max_workers=max_workers, run_key=run_key, trace=span)
         span.set({"sections": _sections_view(docs)})
         return docs
+
+
+def reconstruct_hits(
+    hits: list[dict[str, Any]],
+    *,
+    include_children: bool = False,
+    output_dir: str | Path = config.OUTPUT_DIR,
+    max_workers: int = 8,
+    run_key: str | None = None,
+    trace: tracing.Span | None = None,
+) -> list[dict[str, Any]]:
+    """Rebuild every matched section in parallel, in the order of ``hits``; whatever store found them."""
+    if not hits:
+        return []
+    # Each hierarchy.json is read once, then shared by the workers.
+    trees = {d: load_hierarchy(d, output_dir) for d in {h["doc_id"] for h in hits}}
+    with ThreadPoolExecutor(max_workers=min(max_workers, len(hits))) as pool:
+        futures = [
+            tracing.submit(
+                pool, reconstruct_hit, h, include_children=include_children,
+                output_dir=output_dir, tree=trees[h["doc_id"]], run_key=run_key, trace=trace,
+            )
+            for h in hits
+        ]
+        return [f.result() for f in futures]  # same order as hits: best score first
 
 
 def retrieve_steps(

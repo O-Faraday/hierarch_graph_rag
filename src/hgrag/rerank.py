@@ -7,11 +7,52 @@ sees the ``RERANK_CANDIDATES`` best chunks of the vector search.
 
 from __future__ import annotations
 
+import math
+import os
 from functools import lru_cache
 from types import SimpleNamespace
 from typing import Any
 
+import requests
+
 from . import config
+
+HF_RANKING_URL = "https://router.huggingface.co/hf-inference/models/{model}"
+
+
+class RerankError(RuntimeError):
+    pass
+
+
+class HFRouterReranker:
+    """The cross-encoder through the Hugging Face API, for a compute without sentence-transformers: same ``predict``
+    as ``load_reranker``, same scores in [0, 1] (the API returns the logits). The server truncates long texts."""
+
+    def __init__(self, model_id: str | None = None, *, token: str | None = None, timeout: float = 60.0) -> None:
+        self.model_id = model_id or config.RERANK_MODEL
+        self.token = token
+        self.timeout = timeout
+
+    def predict(self, pairs: list[tuple[str, str]], batch_size: int = 0) -> list[float]:
+        """Scores of the (query, text) pairs, in their order. ``batch_size`` is ignored: one request per query."""
+        token = self.token or os.environ.get("HF_TOKEN")
+        if not token:
+            raise RerankError("HF_TOKEN is not set (token with the 'Make calls to Inference Providers' permission).")
+        queries = {query for query, _ in pairs}
+        if len(queries) != 1:
+            raise RerankError(f"expected the pairs of one query, got {len(queries)} queries")
+        texts = [text for _, text in pairs]
+        response = requests.post(HF_RANKING_URL.format(model=self.model_id), timeout=self.timeout,
+                                 headers={"Authorization": f"Bearer {token}"},
+                                 json={"inputs": {"query": pairs[0][0], "texts": texts}})
+        if not response.ok:
+            raise RerankError(f"Hugging Face reranking with {self.model_id}: HTTP {response.status_code} "
+                              f"{response.text[:200]}")
+        ranking = response.json()
+        scores = {item["index"]: item["score"] for item in ranking}
+        if set(scores) != set(range(len(texts))):
+            raise RerankError(f"Hugging Face reranking with {self.model_id}: {len(scores)} scores for {len(texts)} texts")
+        return [1.0 / (1.0 + math.exp(-scores[i])) for i in range(len(texts))]
 
 
 @lru_cache(maxsize=2)

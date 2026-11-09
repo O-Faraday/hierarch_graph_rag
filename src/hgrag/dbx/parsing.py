@@ -23,8 +23,9 @@ import time
 from pathlib import Path
 from typing import Any, Iterable
 
-from .. import config
+from .. import config, tracing, tracking
 from ..ids import compute_doc_id
+from . import progress
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +64,7 @@ def prefetch_models(target: str | Path) -> Path:
     done = target / ".complete"
     if done.exists():
         return target
+    progress.report(f"models: downloading to {target}")
     with tempfile.TemporaryDirectory() as tmp:
         download_models(output_dir=Path(tmp), with_layout=True, with_tableformer=True, with_rapidocr=True,
                         with_code_formula=config.CODE_ENRICHMENT or config.FORMULA_ENRICHMENT,
@@ -121,20 +123,38 @@ def _save(session: Any, row: tuple) -> None:
         WHERE path = :path AND doc_id != :doc_id AND status != 'superseded'""", args={"path": row[1], "doc_id": row[0]})
 
 
-def _parse_one(pdf: str, doc_id: str, options: str, parse: Any, converter: Any) -> tuple:
+def _parse_one(pdf: str, doc_id: str, options: str, parse: Any, converter: Any, run_key: str | None = None) -> tuple:
+    """One trace per parsed document, with the checks and the judges of the parsing and of the descriptions."""
     t0 = time.perf_counter()
-    try:
-        manifest = parse(pdf, output_root=config.dbx_output_dir(), converter=converter, describe_pictures=True)
-    except Exception as exc:  # noqa: BLE001 - one bad PDF must not stop the batch
-        logger.warning("%s: parsing failed: %s", pdf, exc)
-        return doc_id, pdf, "failed", str(exc)[:2000], options, None, None, round(time.perf_counter() - t0, 2)
+    span = tracing.root("parse", tracking.INDEXING, run_key, span_type="PARSER",
+                        tags={"hgrag.pdf": Path(pdf).name, "hgrag.doc_id": doc_id},
+                        inputs={"pdf": Path(pdf).name, "options": options})
+    with span:
+        try:
+            manifest = parse(pdf, output_root=config.dbx_output_dir(), converter=converter, describe_pictures=True,
+                             trace=span)
+        except Exception as exc:  # noqa: BLE001 - one bad PDF must not stop the batch
+            logger.warning("%s: parsing failed: %s", pdf, exc)
+            span.end(error=exc)
+            return doc_id, pdf, "failed", str(exc)[:2000], options, None, None, round(time.perf_counter() - t0, 2)
+        span.set(manifest, doc_id=doc_id)
     status, error = _outcome(manifest)
     return (doc_id, pdf, status, error, options, manifest.get("n_pages"), manifest.get("convert_seconds"),
             round(time.perf_counter() - t0, 2))
 
 
-def parse_paths(session: Any, paths: Iterable[str], *, parse: Any = None, converter: Any = None) -> dict[str, Any]:
-    """Parse the PDFs not parsed yet with the current options; returns the counts and durations of the run."""
+def parse_paths(session: Any, paths: Iterable[str], *, parse: Any = None, converter: Any = None,
+                run_key: str | None = None) -> dict[str, Any]:
+    """Parse the PDFs not parsed yet with the current options; returns the counts and durations of the run, also
+    logged to MLflow when ``run_key`` is given."""
+    with tracking.track_step(tracking.INDEXING, "parse", run_key, options=_options()) as tracker:
+        summary = _parse_paths(session, paths, parse, converter, run_key)
+        tracker.metrics(**summary)
+    return summary
+
+
+def _parse_paths(session: Any, paths: Iterable[str], parse: Any, converter: Any,
+                 run_key: str | None = None) -> dict[str, Any]:
     if parse is None:
         from ..parsing import parse_pdf as parse
 
@@ -142,8 +162,11 @@ def parse_paths(session: Any, paths: Iterable[str], *, parse: Any = None, conver
     seen = _already_parsed(session, options)
     counts = {"parsed": 0, "partial": 0, "failed": 0, "skipped": 0}
     pages, convert_seconds, parse_seconds = 0, 0.0, 0.0
-    for path in paths:
+    paths = list(paths)
+    progress.report(f"parse: {len(paths)} PDF(s) to process")
+    for position, path in enumerate(paths, 1):
         pdf = _local_path(path)
+        label = f"parse {position}/{len(paths)} {Path(pdf).name}"
         try:
             doc_id = compute_doc_id(pdf)
         except OSError as exc:  # unreadable: no content to hash, the row is identified by its path
@@ -152,14 +175,18 @@ def parse_paths(session: Any, paths: Iterable[str], *, parse: Any = None, conver
         else:
             if doc_id in seen:
                 counts["skipped"] += 1
+                progress.report(f"{label}: already parsed")
                 continue
-            row = _parse_one(pdf, doc_id, options, parse, converter if converter is not None else get_converter())
+            progress.report(f"{label}: started")
+            row = _parse_one(pdf, doc_id, options, parse, converter if converter is not None else get_converter(), run_key)
         seen.add(doc_id)
         _save(session, row)
         counts[row[2]] += 1
         pages += row[5] or 0
         convert_seconds += row[6] or 0.0
         parse_seconds += row[7] or 0.0
+        problem = f" ({row[3][:200]})" if row[3] else ""
+        progress.report(f"{label}: {row[2]}, {row[5] or 0} page(s), {row[7] or 0:.0f} s{problem}")
     summary = {**counts, "pages": pages, "converter_load_seconds": round(_converter_seconds, 2),
                "convert_seconds": round(convert_seconds, 2),
                "describe_seconds": round(max(parse_seconds - convert_seconds, 0.0), 2),
@@ -169,18 +196,18 @@ def parse_paths(session: Any, paths: Iterable[str], *, parse: Any = None, conver
     return summary
 
 
-def parse_pending(session: Any, *, parse: Any = None, converter: Any = None) -> dict[str, Any]:
+def parse_pending(session: Any, *, parse: Any = None, converter: Any = None, run_key: str | None = None) -> dict[str, Any]:
     """Parse the discovered PDFs without a row in ``documents``, or changed since that row was written."""
     rows = session.sql(f"""SELECT DISTINCT regexp_replace(q.path, '^(dbfs|file):', '') AS path
         FROM {config.dbx_table(QUEUE)} q LEFT ANTI JOIN {config.dbx_table(TABLE)} d
         ON regexp_replace(q.path, '^(dbfs|file):', '') = d.path AND d.updated_at >= q.modificationTime""").collect()
-    return parse_paths(session, [r.path for r in rows], parse=parse, converter=converter)
+    return parse_paths(session, [r.path for r in rows], parse=parse, converter=converter, run_key=run_key)
 
 
-def retry_incomplete(session: Any, *, parse: Any = None, converter: Any = None) -> dict[str, Any]:
+def retry_incomplete(session: Any, *, parse: Any = None, converter: Any = None, run_key: str | None = None) -> dict[str, Any]:
     """Parse again the ``failed`` and ``partial`` documents: Auto Loader will not offer them twice."""
     rows = session.sql(f"SELECT path FROM {config.dbx_table(TABLE)} WHERE status IN ('failed', 'partial')").collect()
-    return parse_paths(session, [r.path for r in rows], parse=parse, converter=converter)
+    return parse_paths(session, [r.path for r in rows], parse=parse, converter=converter, run_key=run_key)
 
 
 def discover_pdfs(spark: Any) -> Any:
@@ -188,6 +215,7 @@ def discover_pdfs(spark: Any) -> Any:
     ``foreachBatch``: with Spark Connect it runs in another Python process, without the configuration and the secrets
     of the job, and the secrets must not travel with the function."""
     ensure_table(spark)
+    progress.report("discovery: looking for new PDFs")
     query = (
         spark.readStream.format("cloudFiles")
         .option("cloudFiles.format", "binaryFile")
@@ -201,4 +229,5 @@ def discover_pdfs(spark: Any) -> Any:
         .toTable(config.dbx_table(QUEUE))
     )
     query.awaitTermination()
+    progress.report("discovery: done")
     return query

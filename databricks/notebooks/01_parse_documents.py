@@ -14,6 +14,8 @@ dbutils.widgets.text("checkpoint", "", "Checkpoint path (empty = in the volume)"
 dbutils.widgets.text("secret_scope", "hgrag", "Secret scope")
 dbutils.widgets.text("document_timeout", "1800", "Seconds per document (0 = no limit)")
 dbutils.widgets.dropdown("retry_incomplete", "false", ["false", "true"], "Parse failed and partial documents again")
+dbutils.widgets.text("mlflow_root", "/Shared", "Workspace folder of the MLflow experiments")
+dbutils.widgets.dropdown("judges", "true", ["true", "false"], "LLM judges of the checks (extra API calls)")
 
 wheel_spec = dbutils.widgets.get("wheel") + "[databricks]"
 
@@ -40,18 +42,26 @@ os.environ.update(
     HGRAG_DOCLING_ARTIFACTS=f"{volume_root}/models/docling",
     HGRAG_DOCLING_TIMEOUT=dbutils.widgets.get("document_timeout"),
     HF_TOKEN=dbutils.secrets.get(dbutils.widgets.get("secret_scope"), "HF_TOKEN"),
+    ANTHROPIC_API_KEY=dbutils.secrets.get(dbutils.widgets.get("secret_scope"), "ANTHROPIC_API_KEY"),
+    HGRAG_ASSESS_JUDGES=dbutils.widgets.get("judges"),
+    MLFLOW_TRACKING_URI="databricks",
+    HGRAG_MLFLOW_EXPERIMENT_ROOT=dbutils.widgets.get("mlflow_root"),
+    HGRAG_MLFLOW_DIR="/tmp/hgrag_mlflow",  # only a lock file: not on a volume
 )
 
 # COMMAND ----------
 
-from hgrag import config
+from hgrag import config, tracing, tracking
 from hgrag.dbx import parsing
 
+run_key = tracking.new_run_key()
 parsing.prefetch_models(config.DOCLING_ARTIFACTS)
 parsing.discover_pdfs(spark)
-parsing.parse_pending(spark)
+parsing.parse_pending(spark, run_key=run_key)
 if dbutils.widgets.get("retry_incomplete") == "true":
-    parsing.retry_incomplete(spark)
+    parsing.retry_incomplete(spark, run_key=run_key)
+tracking.finish_execution(tracking.INDEXING, run_key)
+tracing.report(tracking.INDEXING, run_key)
 
 # COMMAND ----------
 

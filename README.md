@@ -405,6 +405,59 @@ wheel : pip n'installe pas un wheel de même version. OpenCV reste en 4.11 dans 
 le processus à l'import sur Databricks (contrôle FIPS de leur OpenSSL embarqué). La sortie indique le
 temps de chargement du convertisseur, de conversion et de description ; le temps de démarrage se lit sur le run.
 
+**Job d'ingestion (bundle).** `databricks/databricks.yml` déploie le job `hgrag_ingest` : parsing des nouveaux PDF, puis
+chunks et index AI Search, sur compute serverless. La racine du bundle est `databricks/` : seuls le job et les notebooks
+sont synchronisés, jamais `data/`. Prérequis : `uv`, le catalogue, le droit d'y créer un schéma et le scope de secrets
+(`HF_TOKEN`, `ANTHROPIC_API_KEY`). Le schéma et le volume (`MANAGED`) sont créés au déploiement, sans préfixe de
+développement. S'ils existent déjà, les lier avant le premier déploiement, puis relire `bundle plan` : il ne doit rien
+créer ni supprimer.
+
+```bash
+databricks bundle deployment bind hgrag_schema <catalogue>.<schéma> -t dev --var="..."
+databricks bundle deployment bind hgrag_volume <catalogue>.<schéma>.<volume> -t dev --var="..."
+databricks bundle plan -t dev --var="..."
+```
+
+Supprimer un volume managé supprime ses fichiers : `prevent_destroy` fait donc refuser `bundle destroy`. L'endpoint et l'index
+AI Search, créés par le code, restent à supprimer à part. Déposer les PDF dans `pdf/` du volume avant de lancer le job.
+
+Le déploiement construit le wheel et l'envoie dans le dossier de la cible, sous `artifacts/.internal/` : le paramètre `wheel`
+du job y pointe et la copie manuelle ne sert plus qu'aux notebooks lancés à la main. Le nom du wheel vient de `package_version`
+dans `databricks.yml` (un test vérifie qu'elle suit `pyproject.toml`). Ne pas déployer pendant un run : le dossier est vidé
+avant chaque envoi.
+
+```bash
+cd databricks
+databricks bundle validate --strict -t dev --var="catalog=<catalogue>,schema=<schéma>,volume=<volume>,search_endpoint=<endpoint>"
+databricks bundle deploy -t dev --var="..."   # mêmes variables
+databricks bundle run hgrag_ingest -t dev --var="..."
+```
+
+Les variables peuvent aussi être placées dans `.databricks/bundle/<cible>/variable-overrides.json` (hors de git). Le run
+reprend là où il s'est arrêté : les documents déjà traités sont ignorés. Il finit en échec si un document a échoué, une
+fois les autres indexés ; `retry_incomplete=true` retente les documents échoués ou partiels. Aucune planification n'est
+déclarée. Le notebook `03_ask` est déployé avec le bundle et reste interactif.
+
+**Avancement.** Les cellules écrivent une ligne par document et par étape, avec l'heure UTC et la mémoire du processus :
+`parse 3/30 a.pdf: started`, puis `parse 3/30 a.pdf: parsed, 12 page(s), 240 s`. Si le processus est tué, la dernière ligne
+`started` désigne le document en cours.
+
+**Arrêter la facturation d'AI Search.** AI Search n'a pas de pause : un endpoint qui héberge un index est facturé même sans
+requête, et il cesse de l'être 24 h après la suppression de son dernier index. Le job `hgrag_stop_search` supprime l'index du
+kit, jamais l'endpoint ni un autre index, puis écrit `hgrag_stop_search` (`billing_stops` est faux si d'autres index
+restent sur l'endpoint). À ne pas lancer pendant une ingestion. Sa planification (vendredi 20 h) reste en pause sauf
+`--var="stop_search_schedule=UNPAUSED"` ; le mode `development` met de toute façon les planifications en pause. Pour
+repartir, relancer `hgrag_ingest` : il recrée l'index depuis `chunks`, sans reparser, en recalculant les embeddings.
+
+**Traces et contrôles dans MLflow.** Sous `mlflow_root`, `hgrag_pipeline` reçoit une trace `parse` par document parsé, une
+trace `index` par document découpé (`hierarchy.*`, `chunks.*`) et une trace `sync_index` (`index.rows_indexed`) ;
+`hgrag_retrieval` reçoit une trace `question` (`retrieval.*`, `prompt.*`, `answer.*`). Les juges LLM y sont actifs par
+défaut (variable `assess_judges`, widget `judges`) et coûtent des appels à l'API Claude. Un document déjà traité n'est
+pas retracé : `reassess=true` relance les contrôles et les juges sur tous les documents, sans Docling ni nouvel index
+(traces `assess`). Chaque notebook finit par une ligne `hgrag_mlflow`, relue dans MLflow : `traces`, `checks`, `judged`,
+`failed`, `errors`, ou `error` si l'écriture a échoué. Ces traces contiennent le texte des documents : pour des documents
+client, choisir un dossier à accès restreint plutôt que `/Shared`.
+
 ---
 
 ## 2. Dépannage
@@ -591,6 +644,11 @@ contexte (`tracing.submit`) : sans elle, `mlflow.genai.evaluate` perdait la trac
 | `HGRAG_DBX_CATALOG` / `HGRAG_DBX_SCHEMA` / `HGRAG_DBX_VOLUME` | — | Noms Unity Catalog du backend Databricks |
 | `HGRAG_DBX_PDF_DIR` / `HGRAG_DBX_OUTPUT_DIR` / `HGRAG_DBX_CHECKPOINT` | `pdf`, `output`, `checkpoints/parse` du volume | Dossiers de l'étape de parsing Databricks |
 | `HGRAG_DBX_ALLOW_OVERWRITES` | `0` | Auto Loader retraite un PDF remplacé sous le même nom (Databricks conseille des fichiers immuables) |
+| `HGRAG_DBX_SEARCH_ENDPOINT` | (aucune) | Endpoint AI Search, créé s'il n'existe pas et facturé tant qu'il n'est pas supprimé |
+| `HGRAG_DBX_EMBED_ENDPOINT` | `databricks-gte-large-en` | Endpoint qui calcule les vecteurs des chunks et des questions |
+| `HGRAG_DBX_CHUNK_TOKENIZER` | `thenlper/gte-large` | Tokenizer du chunker, celui du modèle d'embedding |
+| `HGRAG_DBX_RERANK` | `1` | Second classement sur Databricks : le reranker d'AI Search, ou, si le workspace ne l'a pas activé, `HGRAG_RERANK_MODEL` sur `HGRAG_RERANK_CANDIDATES` chunks via l'API Hugging Face (`HF_TOKEN`). Dans ce second cas, la question et le texte de ces chunks sont envoyés à Hugging Face. Le notebook affiche le reranker utilisé (`hgrag_reranker`) |
+| `HGRAG_MLFLOW_EXPERIMENT_ROOT` | (aucune) | Dossier du workspace des expériences MLflow, avec `MLFLOW_TRACKING_URI=databricks` (doit exister, par exemple `/Shared`) |
 | `HGRAG_DOCLING_ARTIFACTS` | — | Dossier des modèles Docling déjà téléchargés (vide : téléchargés au premier usage) |
 | `HGRAG_DOCLING_TIMEOUT` | `0` | Secondes après lesquelles Docling arrête un document et garde ce qu'il a (`0` : pas de limite) ; entre dans `parse_options` si défini |
 | `HGRAG_PDF_DIR` | `data/pdf_sample` | Dossier des PDF |

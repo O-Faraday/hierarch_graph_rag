@@ -118,6 +118,26 @@ def dbx_checkpoint() -> str:
     return DBX_CHECKPOINT or f"{dbx_volume_path()}/checkpoints/parse"
 
 
+# AI Search: the endpoint has no default (it is billed while it runs); the embedding endpoint computes the vectors of the
+# chunks and of the queries; the tokenizer is the one of that model, for the chunker (1024 dimensions, 512-token window).
+DBX_SEARCH_ENDPOINT = os.environ.get("HGRAG_DBX_SEARCH_ENDPOINT", "")
+DBX_EMBED_ENDPOINT = os.environ.get("HGRAG_DBX_EMBED_ENDPOINT", "databricks-gte-large-en")
+DBX_CHUNK_TOKENIZER = os.environ.get("HGRAG_DBX_CHUNK_TOKENIZER", "thenlper/gte-large")
+
+
+def dbx_search_endpoint() -> str:
+    return _dbx_name("HGRAG_DBX_SEARCH_ENDPOINT", DBX_SEARCH_ENDPOINT)
+
+
+def dbx_uc_name(name: str) -> str:
+    """Unquoted three-part name, as the AI Search API expects it."""
+    return dbx_table(name).replace("`", "")
+
+
+# Folder of the MLflow experiments: Databricks only takes absolute workspace paths (the folder must exist), e.g. /Shared.
+MLFLOW_EXPERIMENT_ROOT = os.environ.get("HGRAG_MLFLOW_EXPERIMENT_ROOT", "").rstrip("/")
+
+
 # Input PDFs (source to be defined later) and outputs.
 PDF_DIR = Path(os.environ.get("HGRAG_PDF_DIR", PROJECT_ROOT / "data" / "pdf_sample"))
 CONTROL_PDF_DIR = Path(os.environ.get("HGRAG_CONTROL_PDF_DIR", PROJECT_ROOT / "data" / "pdf_control"))
@@ -221,6 +241,9 @@ DOCLING_TIMEOUT = float(os.environ.get("HGRAG_DOCLING_TIMEOUT", "0"))
 # Auto Loader: reprocess a PDF replaced under the same name. Databricks advises immutable files (off): drop a new
 # version under a new name, or turn this on.
 DBX_ALLOW_OVERWRITES = _flag("HGRAG_DBX_ALLOW_OVERWRITES", False)
+# Second-stage ranking of the Databricks backend: the AI Search reranker, or on a workspace without it RERANK_MODEL on
+# RERANK_CANDIDATES chunks through the Hugging Face API (HF_TOKEN; sentence-transformers is not installed there).
+DBX_RERANK = _flag("HGRAG_DBX_RERANK", True)
 
 # Figure export / description.
 IMAGES_SCALE = float(os.environ.get("HGRAG_IMAGES_SCALE", "2.0"))

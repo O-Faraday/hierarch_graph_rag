@@ -61,7 +61,7 @@ class FakeParse:
         self.error = error
         self.calls = []
 
-    def __call__(self, pdf, *, output_root, converter, describe_pictures):
+    def __call__(self, pdf, *, output_root, converter, describe_pictures, trace=None):
         self.calls.append((pdf, output_root, describe_pictures))
         if self.error:
             raise self.error
@@ -76,6 +76,19 @@ def _pdf(tmp_path, name, content=b"%PDF one"):
 
 def _run(session, paths, parse):
     return dbx_parsing.parse_paths(session, paths, parse=parse, converter=object())
+
+
+def test_progress_names_the_document_before_it_is_parsed(uc, tmp_path, capsys):
+    pdf = _pdf(tmp_path, "a.pdf")
+
+    def killed(_pdf, **kwargs):  # what a killed process leaves in the output
+        lines.append(capsys.readouterr().out)
+        return {"n_pages": 2, "convert_seconds": 3.0}
+
+    lines = []
+    _run(FakeSession(), [pdf], killed)
+    assert "parse 1/1 a.pdf: started" in lines[0]
+    assert "parse 1/1 a.pdf: parsed, 2 page(s)" in capsys.readouterr().out
 
 
 def test_a_replayed_batch_parses_and_writes_nothing_again(uc, tmp_path):

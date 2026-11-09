@@ -1,0 +1,18 @@
+# Schema and volume of the kit. The catalog is a prerequisite. If they already exist, bind them before deploying (see
+# the README). Deleting a managed volume deletes its files: `prevent_destroy` makes `bundle destroy` refuse.
+resources:
+  schemas:
+    hgrag_schema:
+      catalog_name: ${var.catalog}
+      name: ${var.schema}
+      lifecycle:
+        prevent_destroy: true
+
+  volumes:
+    hgrag_volume:
+      catalog_name: ${var.catalog}
+      schema_name: ${resources.schemas.hgrag_schema.name}
+      name: ${var.volume}
+      volume_type: MANAGED
+      lifecycle:
+        prevent_destroy: true

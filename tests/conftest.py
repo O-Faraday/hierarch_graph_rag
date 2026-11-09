@@ -21,6 +21,7 @@ def _plain_models(monkeypatch):
         monkeypatch.delenv(key, raising=False)
     monkeypatch.setattr(config, "ASSESS_JUDGES", False)
     monkeypatch.setattr(config, "RERANK", False)
+    monkeypatch.setattr(config, "DBX_RERANK", False)
     # the fake providers of the tests answer an error on purpose: no new attempt (and no wait), unless a test asks
     monkeypatch.setattr(config, "LLM_RETRIES", 0)
     monkeypatch.setenv("HGRAG_EMBED_QUERY_PREFIX", "")
