@@ -220,6 +220,10 @@ MAX_HEADING_WORDS = int(os.environ.get("HGRAG_MAX_HEADING_WORDS", "25"))
 # into that heading and the rest, and the headings found in the bookmarks keep their level whatever the numbering says.
 # For headings run into their paragraph ("2.2. Title. Text..."), which Docling labels as text.
 OUTLINE_HEADINGS = os.environ.get("HGRAG_OUTLINE_HEADINGS", "1").lower() in ("1", "true", "yes")
+# Repairs of the Docling output (``repair.py``): a table cut by a page break (one table per page, header repeated) is
+# joined into one; a page-1 title that the reading order put after the text is moved back to the start.
+MERGE_SPLIT_TABLES = os.environ.get("HGRAG_MERGE_SPLIT_TABLES", "1").lower() in ("1", "true", "yes")
+TITLE_FIRST = os.environ.get("HGRAG_TITLE_FIRST", "1").lower() in ("1", "true", "yes")
 # Sections that are not indexed (bibliography, acknowledgements): their entries win searches on author names and topics.
 EXCLUDED_SECTIONS = os.environ.get(
     "HGRAG_EXCLUDED_SECTIONS", r"^\W*(?:[0-9ivx]+[.)]?\s+)?(references|bibliography|acknowledg(?:e)?ments?)\W*$")
