@@ -72,28 +72,52 @@ def test_descriptions_of_the_pieces_are_joined():
     assert repair.merge_descriptions({"#/tables/5": "x"}, {}) == {"#/tables/5": "x"}
 
 
-def _policy(title_last: bool = True) -> DoclingDocument:
-    """The remote work policy: Docling put the centred title, the highest item of page 1, after the text."""
+def _box(page: int, left: float, right: float, top: float, bottom: float) -> ProvenanceItem:
+    return ProvenanceItem(page_no=page, bbox=BoundingBox(l=left, t=top, r=right, b=bottom,
+                                                         coord_origin=CoordOrigin.BOTTOMLEFT), charspan=(0, 1))
+
+
+def _policy(title_last: bool = True, page: int = 1) -> DoclingDocument:
+    """The remote work policy as Docling ordered it: the centred title (x 172-423), the highest item of the page, after
+    the column that starts with the narrow left-aligned heading "Purpose" (x 68-106)."""
     d = DoclingDocument(name="x")
-    d.add_page(page_no=1, size=Size(width=600, height=800))
+    for p in range(1, page + 1):
+        d.add_page(page_no=p, size=Size(width=595, height=842))
+    if page > 1:
+        d.add_text(label=DocItemLabel.TEXT, text="End of the previous page.", prov=_box(1, 68, 509, 700, 676))
+    title = ("Remote Work Policy", _box(page, 172, 423, 766, 742))
     if not title_last:
-        d.add_heading(text="Remote Work Policy", level=1, prov=_prov(1, 766, 742))
-    d.add_heading(text="Purpose", level=1, prov=_prov(1, 721, 712))
-    d.add_text(label=DocItemLabel.TEXT, text="This policy sets the rules.", prov=_prov(1, 700, 676))
+        d.add_heading(text=title[0], level=1, prov=title[1])
+    d.add_heading(text="Purpose", level=1, prov=_box(page, 68, 106, 721, 712))
+    d.add_text(label=DocItemLabel.TEXT, text="This policy sets the rules.", prov=_box(page, 68, 509, 700, 676))
     if title_last:
-        d.add_heading(text="Remote Work Policy", level=1, prov=_prov(1, 766, 742))
+        d.add_heading(text=title[0], level=1, prov=title[1])
     return d
 
 
-def test_the_highest_heading_of_page_one_goes_back_to_the_start():
+def _titles(doc):
+    return [n.title for n in build_hierarchy(doc, [], doc_title="x").walk() if n.level]
+
+
+def test_a_centred_heading_at_the_top_of_a_page_is_read_first():
     doc, _ = repair.repair_document(_policy())
-    root = build_hierarchy(doc, [], doc_title="x")
-    assert [n.title for n in root.walk() if n.level][:2] == ["Remote Work Policy", "Purpose"]
-    assert repair.title_first(_policy(title_last=False)) is None  # already first: nothing moves
+    assert _titles(doc)[:2] == ["Remote Work Policy", "Purpose"]
+    doc, _ = repair.repair_document(_policy(page=2))  # any page, not only the first
+    assert _titles(doc)[:2] == ["Remote Work Policy", "Purpose"]
+    assert repair.top_headings_first(_policy(title_last=False)) == []  # already first: nothing moves
+
+
+def test_the_heading_of_a_right_hand_column_stays_in_place():
+    d = DoclingDocument(name="x")
+    d.add_page(page_no=1, size=Size(width=595, height=842))
+    d.add_heading(text="Left column", level=1, prov=_box(1, 50, 280, 760, 745))
+    d.add_text(label=DocItemLabel.TEXT, text="Left text.", prov=_box(1, 50, 280, 740, 600))
+    d.add_heading(text="Right column", level=1, prov=_box(1, 315, 545, 765, 750))  # a little higher, right column
+    assert repair.top_headings_first(d) == []
 
 
 def test_repairs_can_be_turned_off(monkeypatch):
     monkeypatch.setattr(config, "MERGE_SPLIT_TABLES", False)
-    monkeypatch.setattr(config, "TITLE_FIRST", False)
+    monkeypatch.setattr(config, "TOP_HEADING_FIRST", False)
     doc = _register()
     assert repair.repair_document(doc) == (doc, {})

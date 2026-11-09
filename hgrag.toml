@@ -57,9 +57,9 @@ HGRAG_EMBED_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 # HGRAG_MAX_HEADING_WORDS = 25
 # Headings run into their paragraph ("2.2. Title. Text..."), split with the PDF bookmarks.
 # HGRAG_OUTLINE_HEADINGS = true
-# Repairs of the Docling output: tables cut by a page break joined, page-1 title back at the start.
+# Repairs of the Docling output: tables cut by a page break joined, centred heading at the top of a page read first.
 # HGRAG_MERGE_SPLIT_TABLES = true
-# HGRAG_TITLE_FIRST = true
+# HGRAG_TOP_HEADING_FIRST = true
 
 [judges]
 # Evaluation and ragbench.

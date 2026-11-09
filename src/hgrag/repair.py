@@ -3,9 +3,9 @@ chunks. The Docling parsing on disk is unchanged; every item keeps its ref (figu
 
 * A table that runs over a page break comes out of Docling as one table per page, the header row repeated on each:
   the pieces are joined into the first one (``HGRAG_MERGE_SPLIT_TABLES``).
-* Docling's reading order may put the title of the first page at the end of the page (a centred title above a
-  single column): the heading that sits above everything else on page 1 is moved back to the start
-  (``HGRAG_TITLE_FIRST``).
+* Docling's reading order may put a centred heading at the top of a page after the column below it (the title of
+  a one-column page was read last): the heading that sits above everything else on its page, across the middle of
+  the page, is moved back to the start of that page (``HGRAG_TOP_HEADING_FIRST``).
 """
 
 from __future__ import annotations
@@ -24,12 +24,12 @@ MANIFEST_KEY = "merged_tables"  # first table ref -> refs of the pieces joined t
 
 def repair_document(doc: DoclingDocument) -> tuple[DoclingDocument, dict[str, list[str]]]:
     """A repaired copy of ``doc`` and ``first table ref -> refs of the pieces joined to it``."""
-    if not (config.MERGE_SPLIT_TABLES or config.TITLE_FIRST):
+    if not (config.MERGE_SPLIT_TABLES or config.TOP_HEADING_FIRST):
         return doc, {}
     doc = doc.model_copy(deep=True)
     merged = merge_split_tables(doc) if config.MERGE_SPLIT_TABLES else {}
-    if config.TITLE_FIRST:
-        title_first(doc)
+    if config.TOP_HEADING_FIRST:
+        top_headings_first(doc)
     return doc, merged
 
 
@@ -88,33 +88,41 @@ def merge_split_tables(doc: DoclingDocument) -> dict[str, list[str]]:
     return merged
 
 
-def _top(item: Any, doc: DoclingDocument) -> float:
-    """Distance of the top of ``item`` from the top of its page (smaller = higher)."""
+def _box(item: Any, doc: DoclingDocument) -> Any:
+    """Box of ``item`` with the origin at the top left of its page (smaller ``t`` = higher)."""
     prov = item.prov[0]
-    height = doc.pages[prov.page_no].size.height
-    return prov.bbox.to_top_left_origin(page_height=height).t
+    return prov.bbox.to_top_left_origin(page_height=doc.pages[prov.page_no].size.height)
 
 
-def title_first(doc: DoclingDocument) -> str | None:
-    """Move back to the start of the body the heading that is the highest item of page 1 when the reading order put
-    it after other items of that page. Returns its ref when moved."""
-    page_one = []
+def top_headings_first(doc: DoclingDocument) -> list[str]:
+    """Put back at the start of its page the heading that sits above everything else on that page.
+
+    Docling's rule-based reading order links an element to the one above it only when they overlap horizontally,
+    and sorts the elements that have nothing above them from left to right. A centred title above a narrow
+    left-aligned heading ("Purpose") therefore starts its own chain, placed after the left column: the title of a
+    one-column page was read last. The heading is moved only when it is the highest item of its page and crosses
+    the middle of the page (a centred or full-width heading, not the heading of a right-hand column)."""
+    by_page: dict[int, list[Any]] = {}
     for ref in doc.body.children:
         item = ref.resolve(doc)
-        if (getattr(item, "prov", None) and item.prov[0].page_no == 1
-                and getattr(item, "content_layer", ContentLayer.BODY) == ContentLayer.BODY):
-            page_one.append((ref, item))
-    if len(page_one) < 2 or 1 not in doc.pages:
-        return None
-    ref, item = min(page_one, key=lambda pair: _top(pair[1], doc))
-    is_heading = isinstance(item, SectionHeaderItem) or (isinstance(item, TextItem) and item.label == DocItemLabel.TITLE)
-    if not is_heading or ref.cref == page_one[0][0].cref:
-        return None
-    children = doc.body.children
-    children.remove(ref)
-    children.insert(children.index(page_one[0][0]), ref)
-    logger.info("title %r moved to the start of the reading order", item.text[:60])
-    return ref.cref
+        if getattr(item, "prov", None) and getattr(item, "content_layer", ContentLayer.BODY) == ContentLayer.BODY:
+            by_page.setdefault(item.prov[0].page_no, []).append((ref, item))
+    moved = []
+    for page_no, items in by_page.items():
+        if len(items) < 2 or page_no not in doc.pages:
+            continue
+        ref, item = min(items, key=lambda pair: _box(pair[1], doc).t)
+        heading = isinstance(item, SectionHeaderItem) or (isinstance(item, TextItem) and item.label == DocItemLabel.TITLE)
+        box, middle = _box(item, doc), doc.pages[page_no].size.width / 2
+        if not heading or ref.cref == items[0][0].cref or not box.l < middle < box.r:
+            continue
+        children = doc.body.children
+        children.remove(ref)
+        children.insert(children.index(items[0][0]), ref)
+        moved.append(ref.cref)
+        logger.info("heading %r (top of page %d) moved to the start of its page in the reading order",
+                    item.text[:60], page_no)
+    return moved
 
 
 def merge_descriptions(descriptions: dict[str, str], merged: dict[str, list[str]] | None) -> dict[str, str]:
