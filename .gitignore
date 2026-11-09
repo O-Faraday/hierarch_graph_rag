@@ -16,9 +16,13 @@ data/pdf_sample/*.pdf
 orchestration/.airflow/
 data/mlflow
 data/eval/
+data/eval_run/
+data/eval_run*.log
 data/bundles/
 .env
 data/ragbench/
+# arXiv papers of the evaluation set: downloaded by scripts/fetch_eval_arxiv.py (checked by their SHA-256)
+data/pdf_eval/24*.pdf
 
 # Claude Code: personal files (the shared ones are committed)
 CLAUDE.local.md

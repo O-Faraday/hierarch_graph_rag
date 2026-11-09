@@ -1,0 +1,4 @@
+# Never convert line endings in binary files (some generated PDFs hold no NUL byte and look like text).
+*.pdf binary
+*.png binary
+*.jpg binary
