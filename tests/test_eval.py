@@ -231,3 +231,11 @@ def test_section_names_ignore_the_final_point_of_run_in_headings():
     from hgrag.verify import _norm
 
     assert _norm("4. Posterior inference.") == _norm("4 Posterior inference") == "posterior inference"
+
+
+def test_judge_source_puts_the_reference_first_then_the_context():
+    sections = [{"section_path": "doc > 1 General", "text": "It replaces SR-09."}]
+    assert evaluation.judge_source("2.1.2 Lighting\nThree red LED lamps.", sections) == (
+        "2.1.2 Lighting\nThree red LED lamps.\n\n[doc > 1 General]\nIt replaces SR-09.")
+    assert evaluation.judge_source(None, sections) == "[doc > 1 General]\nIt replaces SR-09."
+    assert evaluation.judge_source(None, []) is None

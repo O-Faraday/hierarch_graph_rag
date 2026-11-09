@@ -53,11 +53,11 @@ Reply with ONLY a JSON object, no other text:
 # Added when the judge also gets the text of the reference section: without it, every true detail that is not in the
 # short ground truth looked "unverifiable" and cost a point (9 of 20 imperfect scores of the first pdf_eval run).
 JUDGE_SOURCE_RULE = """
-You also receive SOURCE, the text of the document section that holds the answer (it may be truncated).
+You also receive SOURCE: the document section that holds the answer, then the other sections the system gave to the candidate (it may be truncated).
 - An extra detail of the candidate that SOURCE supports is correct: it costs nothing.
 - An extra detail that neither SOURCE nor the ground truth supports is unverified: at most 4.
 - SOURCE never replaces the ground truth: the facts of the ground truth must still be in the candidate."""
-SOURCE_MAX_CHARS = 12000
+SOURCE_MAX_CHARS = 40000
 
 
 class JudgeError(RuntimeError):
@@ -249,6 +249,14 @@ def section_source(output_dir: str | Path, pdf: str | None, section: str | None)
     return None
 
 
+def judge_source(reference: str | None, sections: list[dict[str, Any]] | None) -> str | None:
+    """What the judge checks the answer against: the reference section first, then the sections given to the answer
+    model (an exact detail taken from another retrieved section no longer looks invented)."""
+    parts = [reference] if reference else []
+    parts += [f"[{s.get('section_path')}]\n{s.get('text') or ''}" for s in sections or []]
+    return "\n\n".join(parts)[:SOURCE_MAX_CHARS] or None
+
+
 def section_rank(sections: list[dict[str, Any]], pdf: str | None, section: str | None) -> int | None:
     """1-based rank of the expected section among the retrieved ones (grouped by section), else None."""
     if not pdf or not section:
@@ -282,7 +290,8 @@ def evaluate_row(row: dict[str, Any], *, client: Any, embedder: Any, output_dir:
             res["error"] = f"generation: {exc}"
     if judge_cfg is not None and res.get("answer") is not None:
         try:
-            source = section_source(output_dir, row["pdf"], row["section"]) if config.JUDGE_WITH_SOURCE else None
+            source = (judge_source(section_source(output_dir, row["pdf"], row["section"]), sections)
+                      if config.JUDGE_WITH_SOURCE else None)
             j = judge_answer(judge_cfg, row["question"], row["expected_answer"], res["answer"], source=source)
             res["judge_saw_source"] = source is not None
             res.update(score=j["score"], rationale=j["rationale"])
