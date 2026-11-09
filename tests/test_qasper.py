@@ -51,6 +51,11 @@ def test_build_files_types_answers_and_evidence():
     assert corpus[rel["q3"]["section_id"]]["text"] == "Screes text.\n\nFigure 2. Species per hiking day."
     assert files["corpus/2401.0001.json"]["sections"][rel["q4"]["section_id"]]["text"] == ""  # no evidence
     assert files["pdf_urls.json"]["2401.0002"] == "https://arxiv.org/pdf/2401.0002"
+    # the question is aimed at its paper by the title, as the official setting gives the paper with it
+    assert q["q4"]["query"] == 'In the paper "Aurora": Who is the chief executive of the bank?'
+    assert q["q4"]["question_original"] == "Who is the chief executive of the bank?"
+    assert qasper.scoped_question("  A  long\n title ", "Why?") == 'In the paper "A long title": Why?'
+    assert qasper.scoped_question(None, "Why?") == "Why?"
 
 
 def test_answer_f1_is_the_official_token_f1():
@@ -95,7 +100,8 @@ def test_run_on_qasper_questions(bench, monkeypatch):  # noqa: F811
     work, orb, parse = bench
     evidence = {pid: [s["text"] for s in orb.files[f"corpus/{pid}.json"]["sections"] if s["text"] != "x"]
                 for pid in ("2401.0001", "2401.0002", "2401.0003")}
-    src = _FakeQasper(qasper.build_files(_papers(evidence)))
+    papers = {pid: {**p, "title": None} for pid, p in _papers(evidence).items()}  # titles would sway the toy embedder
+    src = _FakeQasper(qasper.build_files(papers))
     monkeypatch.setattr(ragbench, "fetch_pdfs", lambda ids, urls, d, **kw: ({p: d / f"{p}.pdf" for p in ids}, {}))
     monkeypatch.setenv("ANTHROPIC_API_KEY", "k")
     _fake_llm(monkeypatch)

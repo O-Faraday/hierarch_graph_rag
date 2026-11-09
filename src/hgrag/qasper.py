@@ -5,6 +5,10 @@ other NLP practitioners who marked the paragraphs (or tables, figures) that supp
 arXiv under their QASPER id, so the runner parses the real PDFs; the evidence comes from the dataset's own text
 (S2ORC), compared with our sections by word overlap like the Open RAG Bench gold sections.
 
+A QASPER question is asked about one paper ("Do they release code?"): the official setting gives the paper with
+the question. In a corpus, such a question names no paper, so the title of the paper is put before it
+(``In the paper "<title>": <question>``); the question as written is kept in ``question_original``.
+
 The source exposes the same files as the Open RAG Bench one (``queries.json``, ``qrels.json``, ``answers.json``,
 ``pdf_urls.json``, ``corpus/<paper>.json``): the "gold section" of a question is its evidence, the paragraphs of all
 annotators joined. Unanswerable questions (every annotator said so) have no evidence: they are judged on abstention
@@ -76,6 +80,12 @@ def expected_answer(refs: list[dict[str, Any]]) -> str:
     return "Any of these annotator answers is correct: " + " | ".join(answers)
 
 
+def scoped_question(title: str | None, question: str) -> str:
+    """The question aimed at its paper, as the official setting does by giving the paper with the question."""
+    title = " ".join((title or "").split())
+    return f'In the paper "{title}": {question}' if title else question
+
+
 def build_files(papers: dict[str, Any]) -> dict[str, Any]:
     """The source files of the runner, from the QASPER JSON (``{paper id: {title, full_text, qas...}}``)."""
     queries: dict[str, Any] = {}
@@ -92,7 +102,8 @@ def build_files(papers: dict[str, Any]) -> dict[str, Any]:
             answerable = [r for r in refs if r["type"] != "none"]
             evidence = _evidence(answerable)
             qid = qa["question_id"]
-            queries[qid] = {"query": question, "type": answerable[0]["type"] if answerable else "none",
+            queries[qid] = {"query": scoped_question(paper.get("title"), question), "question_original": question,
+                            "type": answerable[0]["type"] if answerable else "none",
                             "source": "figure-table" if any(FLOAT in t for r in answerable for t in r["evidence"]) else "text",
                             "unanswerable": not answerable, "references": [r["answer"] for r in refs]}
             qrels[qid] = {"doc_id": pid, "section_id": len(sections)}
