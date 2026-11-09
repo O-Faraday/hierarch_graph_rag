@@ -49,6 +49,44 @@ def _doc():
     return d, build_hierarchy(d, doc_title="x")
 
 
+def _doc_with_long_heading(heading_words: int):
+    d = DoclingDocument(name="x")
+    d.add_page(page_no=1, size=Size(width=600, height=800))
+    h = d.add_heading(text="long " * heading_words, level=1, prov=_prov())
+    d.add_text(label="text", text=" ".join(f"word{i}" for i in range(220)), parent=h, prov=_prov())
+    return d
+
+
+def test_a_paragraph_read_as_a_heading_does_not_cut_the_next_chunks(monkeypatch):
+    monkeypatch.setattr(config, "STRICT_HEADINGS", False)
+    d = _doc_with_long_heading(250)
+    chunker = HybridChunker(tokenizer=WhitespaceTokenizer(max_tokens=256), merge_peers=False)
+
+    monkeypatch.setattr(config, "MAX_HEADING_WORDS", 0)
+    before = chunk_paragraphs(d, chunker, build_hierarchy(d, doc_title="x"), "doc1", min_words=0)
+    assert len(before) > 30 and before[0]["headings"]  # what the limit prevents: pieces of 6 words after 250 of heading
+
+    monkeypatch.setattr(config, "MAX_HEADING_WORDS", 25)
+    root = build_hierarchy(d, doc_title="x")
+    chunks = chunk_paragraphs(d, chunker, root, "doc1", min_words=0)
+    assert [c["headings"] for c in chunks] == [[], []]
+    assert chunks[0]["text"].startswith("long long") and chunks[1]["text"].startswith("word0")  # nothing is lost
+    assert chunks[1]["embed_text"] == chunks[1]["text"]
+    assert [e.extra.get("demoted_heading") for e in root.elements][0] == "longer than a heading"
+    assert {c["section_title"] for c in chunks} == {root.title} and not root.children
+    assert len(d.texts[0].text.split()) == 250 and d.texts[0].label == DocItemLabel.SECTION_HEADER  # document untouched
+
+
+def test_a_heading_at_the_limit_stays_a_heading(monkeypatch):
+    monkeypatch.setattr(config, "STRICT_HEADINGS", False)
+    monkeypatch.setattr(config, "MAX_HEADING_WORDS", 25)
+    d = _doc_with_long_heading(25)
+    chunker = HybridChunker(tokenizer=WhitespaceTokenizer(max_tokens=256), merge_peers=False)
+    root = build_hierarchy(d, doc_title="x")
+    chunks = chunk_paragraphs(d, chunker, root, "doc1", min_words=0)
+    assert len(root.children) == 1 and chunks[0]["headings"]
+
+
 def test_hybrid_chunker_keeps_paragraphs_and_list_items(monkeypatch):
     monkeypatch.setattr(config, "MIN_PROSE_WORDS", 0)
     d, root = _doc()

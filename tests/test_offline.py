@@ -184,6 +184,14 @@ def test_roman_document_keeps_parts_and_their_letters():
     assert [t for r, t, _l in hs if r in section_headings(hs)] == ["Proof of Lemma 1."]
 
 
+def test_an_appendix_with_a_title_is_a_part_of_a_roman_document():
+    # the evaluation PDF 07: the appendix was a paragraph of References, a section that is not indexed
+    hs = _hs(("Title", 1), ("I. Introduction", 1), ("II. Results", 1), ("A. Nitrates", 2), ("References", 1),
+             ("Appendix A. Laboratory", 1), ("Appendix B: Proofs", 1))
+    assert section_headings(hs) == {}
+    assert [heading_levels(hs)[r] for r, _t, _l in hs] == [1, 1, 1, 2, 1, 1, 1]
+
+
 def test_unnumbered_document_uses_the_size_of_the_standard_headings():
     hs = _hs(("Title", 1), ("Introduction", 1), ("Our model", 1), ("Algorithm 1 Greedy", 2), ("A sub-heading", 2),
              ("Some paragraph read as a heading that runs over many lines", 1), ("Conclusion", 1))

@@ -15,7 +15,7 @@ from docling_core.transforms.chunker.base import BaseChunker
 from docling_core.types.doc import DocItemLabel, DoclingDocument
 
 from . import config, keywords
-from .hierarchy import SectionNode, section_index
+from .hierarchy import SectionNode, section_index, without_long_headings
 
 if TYPE_CHECKING:  # Qdrant is only installed with the local backend: the chunking above runs without it
     from qdrant_client import QdrantClient
@@ -102,7 +102,7 @@ def chunk_paragraphs(
     excluded = re.compile(config.EXCLUDED_SECTIONS, re.I) if config.EXCLUDED_SECTIONS else None
     out: list[dict[str, Any]] = []
     dropped: Counter[str] = Counter()
-    for chunk in chunker.chunk(dl_doc=doc):
+    for chunk in chunker.chunk(dl_doc=without_long_headings(doc)):
         # HybridChunker exposes generic ``DocItem`` objects (not ``TextItem``), so only the
         # label can be relied on to recognise paragraphs.
         resolved = list(chunk.meta.doc_items)

@@ -100,7 +100,9 @@ def _page_of(item: Any) -> int | None:
 _ROMAN_RE = re.compile(r"^\s*([IVXLCDM]+)[.)]\s+\S")
 _LETTER_RE = re.compile(r"^\s*([A-Z])[.)]\s+\S")
 _BACK_RE = re.compile(
-    r"^\s*(?:(?:[A-Z]|\d+|[IVXLCDM]+)[.)]?\s+)?(?:references?|bibliography|acknowledg(?:e)?ments?|appendix(?:\s+[A-Z0-9]+)?|"
+    # "Appendix", "Appendix B", and with a title: "Appendix A. Laboratory", "Appendix B: Proofs"
+    r"^\s*(?:(?:[A-Z]|\d+|[IVXLCDM]+)[.)]?\s+)?(?:references?|bibliography|acknowledg(?:e)?ments?|"
+    r"appendix(?:\s+[A-Z0-9]{1,3}(?:[.:)]\s+\S.*)?)?|"
     r"appendices|supplementary\s+(?:materials?|information)|supporting\s+information|"
     r"data\s+availability(?:\s+statement)?|competing\s+interests?|conflicts?\s+of\s+interests?|declarations?|"
     r"funding|author\s+contributions?)\s*[:.]?\s*$", re.I)
@@ -346,6 +348,26 @@ def _unnumbered_rejects(headings: list[tuple[str, str, int]], heights: dict[str,
     return out
 
 
+def long_headings(doc: DoclingDocument) -> set[str]:
+    """Refs of the Docling headings too long to be headings (``HGRAG_MAX_HEADING_WORDS``): paragraphs read as headings."""
+    if config.MAX_HEADING_WORDS <= 0:
+        return set()
+    return {t.self_ref for t in doc.texts
+            if isinstance(t, SectionHeaderItem) and len(t.text.split()) > config.MAX_HEADING_WORDS}
+
+
+def without_long_headings(doc: DoclingDocument) -> DoclingDocument:
+    """The document to give to the chunker, which reads the headings of Docling and not the tree: these headings become
+    text items under the same ref, so their text is chunked and no longer repeated before the next chunks."""
+    long = long_headings(doc)
+    if not long:
+        return doc
+    def as_text(item: Any) -> TextItem:
+        return TextItem(**{**{name: getattr(item, name) for name in TextItem.model_fields}, "label": DocItemLabel.TEXT})
+
+    return doc.model_copy(update={"texts": [as_text(t) if t.self_ref in long else t for t in doc.texts]})
+
+
 def _line_heights(doc: DoclingDocument) -> tuple[dict[str, float], float | None]:
     """Box height of each heading, and the median height of a short body line (one line of body text)."""
     heights: dict[str, float] = {}
@@ -391,9 +413,11 @@ def build_hierarchy(
     root.path = root.title
     stack: list[SectionNode] = [root]
 
+    long = long_headings(doc)
     headings = [(it.self_ref, it.text, int(it.level)) for it, _d in doc.iterate_items()
-                if isinstance(it, SectionHeaderItem)]
+                if isinstance(it, SectionHeaderItem) and it.self_ref not in long]
     demoted = section_headings(headings, *_line_heights(doc)) if config.STRICT_HEADINGS else {}
+    demoted.update(dict.fromkeys(long, "longer than a heading"))
     if demoted:
         logger.info("%d of %d headings turned into paragraphs: %s", len(demoted), len(headings),
                     dict(Counter(demoted.values())))

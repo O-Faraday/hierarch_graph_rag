@@ -52,6 +52,7 @@ HGRAG_EMBED_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 # HGRAG_HEADING_CONTEXT = 99
 # HGRAG_FIX_HEADING_LEVELS = true
 # HGRAG_STRICT_HEADINGS = true
+# HGRAG_MAX_HEADING_WORDS = 25
 
 [judges]
 # Evaluation and ragbench.

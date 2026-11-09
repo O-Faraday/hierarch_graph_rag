@@ -189,6 +189,10 @@ FIX_HEADING_LEVELS = os.environ.get("HGRAG_FIX_HEADING_LEVELS", "1").lower() in 
 # Introduction, References...), the next number of the numbering; in unnumbered documents, the size of the standard
 # headings. Any other Docling heading (caption, author name, "Proof of...", unnumbered sub-heading) becomes a paragraph.
 STRICT_HEADINGS = os.environ.get("HGRAG_STRICT_HEADINGS", "1").lower() in ("1", "true", "yes")
+# A Docling heading longer than this is a paragraph, in the tree and in the chunks: kept as a heading, it would be repeated
+# before every following chunk and leave almost no room for their text (0 = no limit). On 2 756 headings of 116 papers,
+# those of 26 words or more are paragraphs, those of 20 or fewer are real titles, none is in between.
+MAX_HEADING_WORDS = int(os.environ.get("HGRAG_MAX_HEADING_WORDS", "25"))
 # Sections that are not indexed (bibliography, acknowledgements): their entries win searches on author names and topics.
 EXCLUDED_SECTIONS = os.environ.get(
     "HGRAG_EXCLUDED_SECTIONS", r"^\W*(?:[0-9ivx]+[.)]?\s+)?(references|bibliography|acknowledg(?:e)?ments?)\W*$")
