@@ -53,7 +53,7 @@ def config_snapshot(kind: str) -> dict[str, str]:
             "formula_reading": config.FORMULA_READING, "embed_model": config.EMBED_MODEL_ID,
             "collection": config.COLLECTION_NAME, "chunk_labels": ",".join(config.CHUNK_LABELS),
             "chunk_max_tokens": config.CHUNK_MAX_TOKENS, "min_chunk_words": config.MIN_CHUNK_WORDS,
-            "min_prose_words": config.MIN_PROSE_WORDS, "heading_context": config.HEADING_CONTEXT,
+            "min_prose_words": config.MIN_PROSE_WORDS, "merge_short_lines": config.MERGE_SHORT_LINES, "heading_context": config.HEADING_CONTEXT,
             "excluded_sections": config.EXCLUDED_SECTIONS, "fix_heading_levels": config.FIX_HEADING_LEVELS,
             "strict_headings": config.STRICT_HEADINGS, "max_heading_words": config.MAX_HEADING_WORDS,
             "outline_headings": config.OUTLINE_HEADINGS,

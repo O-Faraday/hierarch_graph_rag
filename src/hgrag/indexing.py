@@ -6,6 +6,7 @@ import logging
 import os
 import re
 import uuid
+from dataclasses import dataclass
 from collections import Counter
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol, Sequence
@@ -77,6 +78,55 @@ def make_chunker(
 
 
 PROSE_LABELS = {"text", "paragraph", "list_item", "footnote"}
+MERGE_LABELS = PROSE_LABELS | {"code"}  # the lines of a code block cut by Docling are text or code items
+MAX_MERGED_WORDS = 120  # a run of short lines is cut into chunks of about this size
+
+
+@dataclass
+class _Piece:
+    """A chunk of the chunker, before the filters: its text, its Docling items, headings and labels."""
+
+    text: str
+    items: list[Any]
+    headings: list[str]
+    labels: set[str]
+
+
+def _too_short(n_words: int, labels: set[str], min_words: int) -> bool:
+    return n_words < min_words or bool(min_words and n_words < config.MIN_PROSE_WORDS and labels <= PROSE_LABELS)
+
+
+def _merge_short_pieces(pieces: list[_Piece], by_ref: dict[str, SectionNode], min_words: int) -> list[_Piece]:
+    """Join the consecutive short pieces of one section (``HGRAG_MERGE_SHORT_LINES``): Docling cuts a code block or a
+    list of values into lines of a few words, each dropped as too short, and the command it holds was never indexed.
+    Joined, the lines form one chunk; what is still short after joining is dropped as before."""
+    out: list[_Piece] = []
+    run: list[_Piece] = []
+
+    def section(piece: _Piece) -> str | None:
+        node = by_ref.get(piece.items[0].self_ref)
+        return node.ref if node else None
+
+    def flush() -> None:
+        if len(run) == 1:
+            out.append(run[0])
+        elif run:
+            out.append(_Piece("\n".join(p.text for p in run), [i for p in run for i in p.items], run[0].headings,
+                              set().union(*(p.labels for p in run))))
+        run.clear()
+
+    for piece in pieces:
+        short = _too_short(len(piece.text.split()), piece.labels, min_words) and piece.labels <= MERGE_LABELS
+        if not short:
+            flush()
+            out.append(piece)
+            continue
+        words = sum(len(p.text.split()) for p in run)
+        if run and (section(run[0]) != section(piece) or words >= MAX_MERGED_WORDS):
+            flush()
+        run.append(piece)
+    flush()
+    return out
 
 
 def chunk_paragraphs(
@@ -102,6 +152,7 @@ def chunk_paragraphs(
     excluded = re.compile(config.EXCLUDED_SECTIONS, re.I) if config.EXCLUDED_SECTIONS else None
     out: list[dict[str, Any]] = []
     dropped: Counter[str] = Counter()
+    pieces = []
     for chunk in chunker.chunk(dl_doc=without_long_headings(doc)):
         # HybridChunker exposes generic ``DocItem`` objects (not ``TextItem``), so only the
         # label can be relied on to recognise paragraphs.
@@ -110,38 +161,43 @@ def chunk_paragraphs(
         if not resolved or not all(r.label in allowed for r in resolved):
             dropped.update(labels_ or {"<no items>"})
             continue
-        n_words = len(chunk.text.split())
-        if n_words < min_words or (min_words and n_words < config.MIN_PROSE_WORDS and labels_ <= PROSE_LABELS):
+        pieces.append(_Piece(chunk.text, resolved, list(chunk.meta.headings or []), labels_))
+    if config.MERGE_SHORT_LINES:
+        pieces = _merge_short_pieces(pieces, by_ref, min_words)
+    for piece in pieces:
+        text, resolved, labels_ = piece.text, piece.items, piece.labels
+        n_words = len(text.split())
+        if _too_short(n_words, labels_, min_words):
             dropped["too_short"] += 1
             continue
         first = resolved[0]
-        chain = [h for h in (chunk.meta.headings or [])]
+        chain = list(piece.headings)
         if excluded and any(excluded.match(h.strip()) for h in chain):
             dropped["excluded_section"] += 1
             continue
         chain = [h for h in chain if h.strip() not in titles]
         context = chain[-config.HEADING_CONTEXT:] if config.HEADING_CONTEXT > 0 else []
         heading_prefix = "\n".join(context)
-        embed_text = f"{heading_prefix}\n{chunk.text}" if heading_prefix else chunk.text
+        embed_text = f"{heading_prefix}\n{text}" if heading_prefix else text
         description = next((table_descriptions[r.self_ref] for r in resolved
                             if table_descriptions and r.self_ref in table_descriptions), None)
         reading = next((formula_readings[r.self_ref] for r in resolved
                         if formula_readings and r.self_ref in formula_readings), None)
         if description or reading:  # generated text first: a long table is truncated by the encoder, not the description
             embed_text = "\n".join([*([heading_prefix] if heading_prefix else []),
-                                    *(x for x in (description, reading) if x), chunk.text])
+                                    *(x for x in (description, reading) if x), text])
         section = by_ref.get(first.self_ref)
         page_no = first.prov[0].page_no if first.prov else None
         out.append(
             {
                 "chunk_index": len(out),
                 "doc_id": doc_id,
-                "text": chunk.text,
+                "text": text,
                 "embed_text": embed_text,
                 **({"table_description": description} if description else {}),
                 **({"formula_reading": reading} if reading else {}),
                 "kinds": sorted(labels_),
-                "headings": list(chunk.meta.headings or []),
+                "headings": list(piece.headings),
                 "element_refs": [r.self_ref for r in resolved],
                 "page_no": page_no,
                 "section_ref": section.ref if section else None,

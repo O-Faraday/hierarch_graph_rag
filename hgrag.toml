@@ -49,6 +49,8 @@ HGRAG_EMBED_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 # HGRAG_CHUNK_MAX_TOKENS = 256
 # HGRAG_MIN_CHUNK_WORDS = 3
 # HGRAG_MIN_PROSE_WORDS = 5
+# Join the consecutive short chunks of a section (lines of a code block) before the two filters above.
+# HGRAG_MERGE_SHORT_LINES = true
 # HGRAG_HEADING_CONTEXT = 99
 # HGRAG_FIX_HEADING_LEVELS = true
 # HGRAG_STRICT_HEADINGS = true

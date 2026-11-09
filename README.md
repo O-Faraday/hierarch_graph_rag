@@ -669,6 +669,7 @@ contexte (`tracing.submit`) : sans elle, `mlflow.genai.evaluate` perdait la trac
 | `HGRAG_FIGURE_VLM` | `hf:Qwen/Qwen3-VL-30B-A3B-Instruct` | Modèle de description des figures |
 | `HGRAG_TABLE_MODEL` | = `HGRAG_FIGURE_VLM` | Modèle de description des tableaux (texte) |
 | `HGRAG_MIN_PROSE_WORDS` | `5` | Les chunks de texte de moins de N mots (ligne de date, nom d'auteur…) ne sont pas indexés |
+| `HGRAG_MERGE_SHORT_LINES` | `1` | Les chunks courts consécutifs d'une même section (lignes d'un bloc de code coupé par Docling, liste de valeurs) sont réunis avant les deux filtres de longueur, au lieu d'être jetés un à un |
 | `HGRAG_HEADING_CONTEXT` | `99` | Nombre de titres (les plus proches) ajoutés devant le texte embeddé ; `0` = aucun. Le titre du document n'est jamais ajouté |
 | `HGRAG_FIX_HEADING_LEVELS` | `1` | Niveaux des titres corrigés par la numérotation (romaine, `1.2.3`, annexes `A` / `A.1`, `EC.1.2`) et les sections de fin |
 | `HGRAG_STRICT_HEADINGS` | `1` | Seuls les titres qui délimitent une section possible (titre, noms standard, numéro suivant de la numérotation ; taille des titres standard sans numérotation) ouvrent une section ; les autres deviennent des paragraphes |

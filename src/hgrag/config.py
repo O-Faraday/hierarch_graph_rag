@@ -198,6 +198,9 @@ MIN_CHUNK_WORDS = int(os.environ.get("HGRAG_MIN_CHUNK_WORDS", "3"))
 # Prose chunks (text, paragraph, list item, footnote) with fewer words than this are dropped as well: a date line or an
 # author name carries no content, and with the heading prepended it would win every search on the document title.
 MIN_PROSE_WORDS = int(os.environ.get("HGRAG_MIN_PROSE_WORDS", "5"))
+# Consecutive short chunks of one section (the lines of a code block, a list of values) are joined before these two
+# filters, instead of being dropped one by one: a command such as "wtctl mode maintenance --confirm" stays searchable.
+MERGE_SHORT_LINES = os.environ.get("HGRAG_MERGE_SHORT_LINES", "1").lower() in ("1", "true", "yes")
 # Number of closest headings prepended to the text that is embedded (0 = none, 99 = the whole chain). The document
 # title (a Docling "title" item) is never prepended: it would make every chunk of the front matter (affiliations, dates)
 # match any query on the topic of the paper.
