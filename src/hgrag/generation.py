@@ -159,6 +159,37 @@ def _content_parts(cfg: LLMConfig, msgs: dict[str, Any], images: list[dict[str, 
 
 
 # ------------------------------------------------------------------------------------- providers
+RETRY_STATUSES = (429, 500, 502, 503, 504)  # overloaded or failing provider: worth a new attempt
+MAX_RETRY_WAIT = 60.0
+
+
+def _retry_wait(resp: requests.Response | None, attempt: int) -> float:
+    """Seconds before the next attempt: the ``Retry-After`` of the provider when it gives one, else doubling waits."""
+    after = resp.headers.get("retry-after") if resp is not None else None
+    try:
+        return min(float(after), MAX_RETRY_WAIT)
+    except (TypeError, ValueError):
+        return min(config.LLM_RETRY_WAIT * 2 ** attempt, MAX_RETRY_WAIT)
+
+
+def _post(url: str, **kwargs: Any) -> requests.Response:
+    """``requests.post`` tried again (``HGRAG_LLM_RETRIES``) on an overloaded provider or a network error. Only the
+    request is retried, before any streamed text: an answer is never received twice. The last error is the caller's."""
+    for attempt in range(config.LLM_RETRIES + 1):
+        resp = None
+        try:
+            resp = requests.post(url, **kwargs)
+        except (requests.ConnectionError, requests.Timeout):
+            if attempt == config.LLM_RETRIES:
+                raise
+        else:
+            if resp.status_code not in RETRY_STATUSES or attempt == config.LLM_RETRIES:
+                return resp
+            resp.close()
+        time.sleep(_retry_wait(resp, attempt))
+    raise AssertionError("unreachable")
+
+
 def _raise_for(resp: requests.Response, cfg: LLMConfig) -> None:
     if resp.status_code < 400:
         return
@@ -187,7 +218,7 @@ def _stream_anthropic(cfg: LLMConfig, system: str, user: Any) -> Iterator[dict[s
     if not cfg.api_key:
         raise GenerationError("ANTHROPIC_API_KEY is not set: export it, or paste a key in the Query page.")
     try:
-        resp = requests.post(
+        resp = _post(
             f"{cfg.base_url}/v1/messages", stream=True, timeout=cfg.timeout,
             headers={"x-api-key": cfg.api_key, "anthropic-version": ANTHROPIC_VERSION, "content-type": "application/json",
                      **({"anthropic-beta": FALLBACK_BETA} if cfg.fallbacks else {})},
@@ -222,7 +253,7 @@ def _stream_anthropic(cfg: LLMConfig, system: str, user: Any) -> Iterator[dict[s
 def _stream_openai(cfg: LLMConfig, system: str, user: Any) -> Iterator[dict[str, Any]]:
     headers = {"content-type": "application/json", **({"authorization": f"Bearer {cfg.api_key}"} if cfg.api_key else {})}
     try:
-        resp = requests.post(
+        resp = _post(
             f"{cfg.base_url}/chat/completions", stream=True, timeout=cfg.timeout, headers=headers,
             json={"model": cfg.model, "max_tokens": cfg.max_tokens, "stream": True,
                   "stream_options": {"include_usage": True},

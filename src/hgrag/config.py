@@ -134,6 +134,11 @@ EMBED_MODEL_ID = os.environ.get("HGRAG_EMBED_MODEL", "BAAI/bge-base-en-v1.5")
 # Chunks are cut to at most this many tokens (and never beyond the encoder window): the same chunks whatever the model.
 CHUNK_MAX_TOKENS = int(os.environ.get("HGRAG_CHUNK_MAX_TOKENS", "256"))
 
+# Calls to the models (descriptions, answers, judges): new attempts on HTTP 429/500/502/503/504 or a network error,
+# waiting the Retry-After of the provider, else LLM_RETRY_WAIT seconds doubled at each attempt (at most 60 s).
+LLM_RETRIES = int(os.environ.get("HGRAG_LLM_RETRIES", "3"))
+LLM_RETRY_WAIT = float(os.environ.get("HGRAG_LLM_RETRY_WAIT", "2"))
+
 
 # Qwen3-Embedding: one-sentence task description put before every query (in English, as the model card advises).
 QWEN3_TASK = os.environ.get("HGRAG_QWEN3_TASK",

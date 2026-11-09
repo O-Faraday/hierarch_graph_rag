@@ -651,6 +651,8 @@ contexte (`tracing.submit`) : sans elle, `mlflow.genai.evaluate` perdait la trac
 | `HGRAG_LLM_MODEL` | `claude-haiku-5-5` / `llama3.1` | Modèle de génération |
 | `HGRAG_LLM_BASE_URL` | `https://api.anthropic.com` / `http://localhost:11434/v1` | Point d'accès |
 | `HGRAG_LLM_MAX_TOKENS` | `2000` | Longueur maximale de la réponse (réessai à ×2 dans ragbench si la réponse est vide ou coupée) |
+| `HGRAG_LLM_RETRIES` | `3` | Nouvelles tentatives d'un appel aux modèles (descriptions, réponses, juges) sur HTTP 429/500/502/503/504 ou erreur réseau |
+| `HGRAG_LLM_RETRY_WAIT` | `2` | Attente avant la première nouvelle tentative, en secondes, doublée ensuite (au plus 60 s) ; le `Retry-After` du fournisseur passe avant |
 | `HGRAG_LLM_MAX_CONTEXT_CHARS` | `48000` | Budget de caractères des sources dans le prompt (à 24000, la section de référence était coupée pour 6 questions du ragbench ; à 48000, pour aucune) |
 | `HGRAG_RAGBENCH_DISPUTED` | `data/ragbench_disputed.json` | Questions du ragbench à référence fausse (vérifiée dans le PDF), exclues du bloc `excluding_disputed` |
 | `MLFLOW_TRACKING_URI` | SQLite `data/mlflow/mlflow.db` | Backend MLflow |
