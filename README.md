@@ -198,6 +198,21 @@ Une section récupérée est « sur la référence » si un de ses chunks recouv
 la réponse générée, le commentaire du juge, un extrait de la section de référence, les 3 premières sections récupérées et le chemin du PDF
 (`data/ragbench/pdfs/<id arXiv>.pdf`). Pour un run existant : `uv run hgrag ragbench-report data/ragbench/runs/<run>`.
 
+**QASPER** (`--dataset qasper`, [AllenAI](https://allenai.org/data/qasper), annotations CC BY 4.0) : questions posées par
+des lecteurs qui n'avaient lu que le titre et le résumé d'un article de NLP, réponses et paragraphes de preuve marqués par
+d'autres chercheurs. Les articles sont téléchargés depuis arXiv et passent par notre parsing ; la « section de référence »
+d'une question est la réunion des paragraphes de preuve de ses annotateurs, comparée par 5-grammes comme ci-dessus. Les
+questions sans réponse dans l'article sont hors des métriques de recherche et jugées sur l'abstention (`unanswerable`).
+`answer_f1` est le F1 officiel par mots (meilleur annotateur) : il favorise les réponses courtes, donc reste bas pour nos
+réponses rédigées et ne se compare qu'entre nos runs. Split `dev` par défaut (281 articles, pour régler le pipeline),
+`--split test` (416) pour la mesure finale. Les négatifs sont des articles hors échantillon (leurs questions ne sont pas
+posées). Les PDF arXiv gardent leur propre licence : validation interne, jamais livrés.
+
+```bash
+uv run hgrag ragbench --dataset qasper --docs 20 -k 10 --generate                  # 20 articles du split dev
+uv run hgrag ragbench --dataset qasper --docs 20 --negatives 20 -k 10 --generate   # + 20 articles distracteurs
+```
+
 Références litigieuses : `data/ragbench_disputed.json` liste les questions dont la réponse de référence a été vérifiée fausse
 dans le PDF (`{id: raison}`). Elles restent dans les métriques brutes ; `summary.json` donne en plus le bloc
 `excluding_disputed` (mêmes métriques sans elles) et `questions.md` les marque. `ragbench-report` recalcule aussi ce bloc
@@ -689,7 +704,7 @@ contexte (`tracing.submit`) : sans elle, `mlflow.genai.evaluate` perdait la trac
 | `HGRAG_LLM_SEND_IMAGES` / `HGRAG_LLM_MAX_IMAGES` | `1` (Claude) / `6` | Figures envoyées comme images au LLM de réponse |
 | `HF_TOKEN` | — | Jeton HF pour `hgrag vlm-bench` (router d'inférence) |
 | `HGRAG_JUDGE_MODEL` | `claude-haiku-5-5` | Modèle du juge de `hgrag eval` |
-| `HGRAG_JUDGE_WITH_SOURCE` | `1` | `hgrag eval` : le juge lit aussi le texte de la section de référence (relu dans l'arbre, avec les descriptions), puis les sections données au modèle de réponse ; un détail exact absent de la courte référence ne coûte plus de point, un détail que la section n'appuie pas reste plafonné à 4 |
+| `HGRAG_JUDGE_WITH_SOURCE` | `1` | `hgrag eval` et `hgrag ragbench` (les notes d'Open RAG Bench ne se comparent donc plus aux runs d'avant ; `0` pour l'ancien juge) : le juge lit aussi le texte de la section de référence (relu dans l'arbre, avec les descriptions), puis les sections données au modèle de réponse ; un détail exact absent de la courte référence ne coûte plus de point, un détail que la section n'appuie pas reste plafonné à 4 |
 | `HGRAG_REFINE_MODEL` | `claude-haiku-5-5` | Modèle des juges de contexte et de génération (`hgrag ragbench-refine`) |
 | `HGRAG_REFINE_THRESHOLD` | `4` | Questions notées strictement en dessous jugées à nouveau |
 | `HGRAG_REFINE_CONTEXT_OK` | `4` | `context_score` minimal pour lancer le juge de génération |

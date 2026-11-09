@@ -280,8 +280,9 @@ CHUNK_LABELS = tuple(
 # Evaluation: frozen Docling outputs of the control PDFs, and the LLM judge.
 EVAL_DIR = Path(os.environ.get("HGRAG_EVAL_DIR", PROJECT_ROOT / "data" / "eval"))
 JUDGE_MODEL = os.environ.get("HGRAG_JUDGE_MODEL", "claude-haiku-5-5")
-# ``hgrag eval``: the judge also reads the text of the reference section (from the tree), then the sections given to the
-# answer model, so that a true detail beyond the short ground truth no longer costs a point; an unsupported one still does.
+# ``hgrag eval`` and ``hgrag ragbench``: the judge also reads the reference section (from the tree, or the gold text of
+# the benchmark), then the sections given to the answer model, so that a true detail beyond the short ground truth no
+# longer costs a point; an unsupported one still does.
 JUDGE_WITH_SOURCE = os.environ.get("HGRAG_JUDGE_WITH_SOURCE", "1").lower() in ("1", "true", "yes")
 # Second opinion on the low judge scores of a ragbench run (hgrag.refine): context judge on the whole PDF, then
 # generation judge. Questions scored strictly below REFINE_THRESHOLD are judged again; the generation judge runs only

@@ -1,5 +1,5 @@
-"""Validate the pipeline on Open RAG Bench (Vectara): arXiv PDFs with tables and figures, questions whose gold
-evidence is a section of the paper. A sample of N papers is downloaded, parsed, described (optional), indexed
+"""Validate the pipeline on Open RAG Bench (Vectara) or QASPER (``qasper.py``): arXiv PDFs with tables and figures,
+questions whose gold evidence is a section of the paper (QASPER: the evidence paragraphs of the annotators). A sample of N papers is downloaded, parsed, described (optional), indexed
 in a private store, and every question of these papers is run through the retrieval.
 
     uv run hgrag ragbench --docs 10            # 10 papers + their questions (about 30 queries)
@@ -41,6 +41,8 @@ NGRAM = 5
 CHUNK_ON_GOLD = 0.5
 CONTEXT_OK = 0.5
 GOLD_EXCERPT = 1500  # chars of the reference section kept in results.jsonl for diagnosis
+DATASETS = ("openragbench", "qasper")
+DATASET_TITLES = {"openragbench": "Open RAG Bench", "qasper": "QASPER"}
 
 
 class RagBenchError(RuntimeError):
@@ -79,8 +81,11 @@ def safe_name(paper_id: str) -> str:
 
 # ---------------------------------------------------------------------------------------- sampling
 def pick_sample(queries: dict[str, Any], qrels: dict[str, Any], pdf_urls: dict[str, str], n_docs: int, *, seed: int = 0,
-                negatives: int = 0, sources: list[str] | None = None, max_queries: int | None = None) -> dict[str, Any]:
-    """``n_docs`` papers that have questions (optionally only of the given sources) + ``negatives`` papers without any."""
+                negatives: int = 0, sources: list[str] | None = None, max_queries: int | None = None,
+                negatives_have_questions: bool = False) -> dict[str, Any]:
+    """``n_docs`` papers that have questions (optionally only of the given sources) + ``negatives`` papers without any
+    (``negatives_have_questions``: every paper of the dataset has questions, the negatives are those outside the sample,
+    their questions not asked)."""
     wanted = set(sources) if sources else None
     by_doc: dict[str, list[str]] = defaultdict(list)
     for qid, rel in qrels.items():
@@ -91,7 +96,7 @@ def pick_sample(queries: dict[str, Any], qrels: dict[str, Any], pdf_urls: dict[s
         raise RagBenchError("no paper matches (check --sources)")
     rng = random.Random(seed)
     golden = sorted(rng.sample(pool, min(n_docs, len(pool))))
-    all_golden = {rel["doc_id"] for rel in qrels.values()}
+    all_golden = set(golden) if negatives_have_questions else {rel["doc_id"] for rel in qrels.values()}
     neg_pool = sorted(d for d in pdf_urls if d not in all_golden)
     negs = sorted(rng.sample(neg_pool, min(negatives, len(neg_pool))))
     qids = [q for d in golden for q in sorted(by_doc[d])]
@@ -316,6 +321,7 @@ def _evaluate_query(qid: str, q: dict[str, Any], answer: str, gold: str, paper_i
     first_recall = retrieved[0]["recall_so_far"] if retrieved else None
     res: dict[str, Any] = {
         "id": qid, "paper": paper_id, "source": q["source"], "type": q["type"], "question": q["query"],
+        **({"unanswerable": True} if q.get("unanswerable") else {}),
         "expected_answer": answer, "gold_words": len(words(gold)), "gold_text": gold[:GOLD_EXCERPT], "doc_rank": doc_rank, "section_rank": sec_rank,
         "context_recall": retrieved[-1]["recall_so_far"] if retrieved else None, "context_recall_at_1": first_recall,
         "retrieved": retrieved,
@@ -343,8 +349,15 @@ def _evaluate_query(qid: str, q: dict[str, Any], answer: str, gold: str, paper_i
             res["assessments"]["retrieval"] += info.get("context_checks") or []
             res.update(usage=info.get("usage"), n_images=info.get("n_images"),
                        truncated=(info.get("usage") or {}).get("stop_reason") == "max_tokens")
+            if q.get("references") and not q.get("unanswerable"):  # QASPER: the official token F1, best annotator
+                from .qasper import answer_f1
+
+                res["answer_f1"] = round(answer_f1(res["answer"], [r for r in q["references"] if r != "Unanswerable"]), 3)
             if judge_cfg is not None:
-                j = judge_answer(judge_cfg, q["query"], answer, res["answer"])
+                from .evaluation import judge_source
+
+                source = judge_source(gold or None, sections) if config.JUDGE_WITH_SOURCE else None
+                j = judge_answer(judge_cfg, q["query"], answer, res["answer"], source=source)
                 res.update(score=j["score"], rationale=j["rationale"])
         except (GenerationError, JudgeError) as exc:
             res["error"] = str(exc)
@@ -416,11 +429,24 @@ def _summarize(results: list[dict[str, Any]], k_sections: int) -> dict[str, Any]
                        pct_refined_4_plus=round(sum(s >= 4 for s in refined) / len(refined), 3))
         return out
 
-    out = block(results)
+    # questions without an answer in the paper (QASPER) have no evidence: out of the search metrics, judged on abstention
+    answerable = [r for r in results if not r.get("unanswerable")]
+    unanswerable = [r for r in results if r.get("unanswerable")]
+    out = block(answerable)
     out["k_sections"] = k_sections
     out["n_errors"] = sum(1 for r in results if r.get("error"))
-    out["by_source"] = {s: block([r for r in results if r["source"] == s]) for s in SOURCES if any(r["source"] == s for r in results)}
-    out["by_type"] = {t: block([r for r in results if r["type"] == t]) for t in sorted({r["type"] for r in results})}
+    if unanswerable:
+        scored = [r["score"] for r in unanswerable if r.get("score") is not None]
+        out["unanswerable"] = {"n": len(unanswerable), **({"mean_score": round(statistics.fmean(scored), 2),
+                                                          "pct_abstained": round(sum(s >= 4 for s in scored) / len(scored), 3)}
+                                                         if scored else {})}
+    f1 = [r["answer_f1"] for r in answerable if r.get("answer_f1") is not None]
+    if f1:
+        out["answer_f1"] = round(statistics.fmean(f1), 3)
+    present = [s for s in SOURCES if any(r["source"] == s for r in answerable)]
+    present += sorted({r["source"] for r in answerable} - set(present))
+    out["by_source"] = {s: block([r for r in answerable if r["source"] == s]) for s in present}
+    out["by_type"] = {t: block([r for r in answerable if r["type"] == t]) for t in sorted({r["type"] for r in answerable})}
     causes = Counter(r["refine_cause"] for r in results if r.get("refine_cause"))
     if causes:
         out["refine_causes"] = dict(causes.most_common())
@@ -433,7 +459,11 @@ def format_summary(s: dict[str, Any]) -> str:
              f"section hit@1 {s['section_hit_at_1']} · hit@{k} {s[f'section_hit_at_{k}']} · MRR {s['mrr']} · "
              f"context recall {s['context_recall']} ({s['pct_context_recall_50']} ≥ 50 %)"]
     if "mean_score" in s:
-        lines.append(f"answers: mean score {s['mean_score']}/5, {s['pct_score_4_plus']} ≥ 4")
+        lines.append(f"answers: mean score {s['mean_score']}/5, {s['pct_score_4_plus']} ≥ 4"
+                     + (f" · answer F1 {s['answer_f1']} (official token F1, low for long answers)" if "answer_f1" in s else ""))
+    if (u := s.get("unanswerable")):
+        lines.append(f"{u['n']} questions without an answer in the paper (out of the search metrics)"
+                     + (f": abstention {u['pct_abstained']} (judge ≥ 4), mean score {u['mean_score']}/5" if "mean_score" in u else ""))
     if "mean_refined_score" in s:
         lines.append(f"refined (second opinion on the low scores): mean {s['mean_refined_score']}/5, {s['pct_refined_4_plus']} ≥ 4 · "
                      "causes " + ", ".join(f"{c} {n}" for c, n in s.get("refine_causes", {}).items()))
@@ -488,7 +518,7 @@ def qa_report(results: list[dict[str, Any]], pdf_dir: Path, *, top: int = 3, dis
         if r.get("error"):
             lines += [f"**Error:** {r['error']}", ""]
         if r.get("gold_text"):
-            lines += ["<details><summary>Reference section (Vectara parse, excerpt)</summary>", "",
+            lines += ["<details><summary>Reference (the dataset's own text: gold section or evidence, excerpt)</summary>", "",
                       "> " + r["gold_text"].replace("\n", "\n> "), "", "</details>", ""]
         for h in (r.get("retrieved") or [])[:top]:
             lines += [f"- #{h['rank']} {_path(h['section_path'])} (score {h['score']}, same paper: {h['doc']}, "
@@ -513,7 +543,8 @@ def write_qa_report(run_dir: str | Path, pdf_dir: str | Path | None = None) -> P
         summary = {**summarize(results, old.get("k_sections", 10), disputed),
                    **{k: old[k] for k in ("config", "failed", "refine") if k in old}}
         sf.write_text(json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8")
-        (run_dir / "report.md").write_text("# Open RAG Bench\n\n```\n" + format_summary(summary) + "\n```\n", encoding="utf-8")
+        title = DATASET_TITLES.get((summary.get("config") or {}).get("dataset", "openragbench"), "Open RAG Bench")
+        (run_dir / "report.md").write_text(f"# {title}\n\n```\n" + format_summary(summary) + "\n```\n", encoding="utf-8")
     return out
 
 
@@ -524,18 +555,28 @@ def run(n_docs: int = 10, *, seed: int = 0, negatives: int = 0, sources: list[st
         embedder: Any = None, parse: Callable[..., Any] | None = None, pause: float = 3.0, section_base: int | None = None,
         rerank: bool | None = None, reranker: Any = None, candidates: int | None = None, gen_model: str | None = None,
         reference_run: str | Path | None = None, track: bool = True, questions: list[str] | None = None,
-        assess_judges: bool = False, on_progress: Callable[[str], None] | None = None) -> dict[str, Any]:
-    """``gen_model``: generation model (default HGRAG_LLM_MODEL), the judge stays HGRAG_JUDGE_MODEL / ``judge_model``.
+        assess_judges: bool = False, on_progress: Callable[[str], None] | None = None, dataset: str = "openragbench",
+        split: str = "dev") -> dict[str, Any]:
+    """``dataset``: ``openragbench`` (Vectara) or ``qasper`` (``split`` dev or test, see ``qasper.py``).
+    ``gen_model``: generation model (default HGRAG_LLM_MODEL), the judge stays HGRAG_JUDGE_MODEL / ``judge_model``.
     ``reference_run``: a previous run dir of the same sample; every question records ``context_same`` (same retrieved
     sections, in the same order), so a change of model can be compared on an unchanged context."""
     workdir = Path(workdir or RAGBENCH_DIR)
     reference = _retrieved_paths(Path(reference_run)) if reference_run else None
+    if dataset not in DATASETS:
+        raise RagBenchError(f"unknown dataset {dataset!r} (choose from {', '.join(DATASETS)})")
+    if source is None and dataset == "qasper":
+        from .qasper import QasperSource
+
+        source = QasperSource(workdir / "qasper", split)
     src = source or HFSource(workdir / "meta")
     emit = on_progress or (lambda _m: None)
     queries, qrels, answers, pdf_urls = (src.json(n) for n in ("queries.json", "qrels.json", "answers.json", "pdf_urls.json"))
     sample = pick_sample(queries, qrels, pdf_urls, n_docs, seed=seed, negatives=negatives, sources=sources,
-                         max_queries=max_queries)
+                         max_queries=max_queries, negatives_have_questions=getattr(src, "negatives_have_questions", False))
     key = sample_key(sample, n_docs, sources)
+    if dataset != "openragbench":  # its own store and collection: the same sample key must not mix two datasets
+        key = f"{dataset}-{split}_{key}"
     store_dir = workdir / key
     emit(f"sample {key}: {len(sample['golden'])} papers, {len(sample['negatives'])} negatives, {len(sample['query_ids'])} questions")
     pdfs, failed_pdf = fetch_pdfs(sample["golden"] + sample["negatives"], pdf_urls, workdir / "pdfs", pause=pause, on_progress=emit)
@@ -550,6 +591,8 @@ def run(n_docs: int = 10, *, seed: int = 0, negatives: int = 0, sources: list[st
             corpus[pid] = src.json(f"corpus/{pid}.json")
     qids = [q for q in sample["query_ids"] if qrels[q]["doc_id"] in corpus
             and (not questions or any(q.startswith(p) for p in questions))]  # ids or id prefixes (the 8 shown in the app)
+    if dataset == "qasper":
+        section_base = 0  # one evidence block per question, numbered from 0 by qasper.build_files
     base = section_base if section_base is not None else detect_base(
         qrels, {p: len(c.get("sections") or []) for p, c in corpus.items()}, qids)
     stem_to_paper = {safe_name(pid): pid for pid in pdfs}
@@ -601,7 +644,7 @@ def run(n_docs: int = 10, *, seed: int = 0, negatives: int = 0, sources: list[st
         client.close()
     disputed = load_disputed()
     summary = summarize(results, k_sections=k, disputed=disputed)
-    summary["config"] = {"docs": n_docs, "seed": seed, "negatives": negatives, "sources": sources, "k_chunks": k, "section_base": base,
+    summary["config"] = {"dataset": dataset, **({"split": split} if dataset == "qasper" else {}), "docs": n_docs, "seed": seed, "negatives": negatives, "sources": sources, "k_chunks": k, "section_base": base,
                          "described": describe, "generate": generate, "embed_model": config.EMBED_MODEL_ID,
                          "keyword_weight": config.KEYWORD_WEIGHT if store["hybrid"] else 0.0,
                          "rerank": use_rerank, "rerank_model": config.RERANK_MODEL if use_rerank else None,
@@ -617,7 +660,8 @@ def run(n_docs: int = 10, *, seed: int = 0, negatives: int = 0, sources: list[st
     (dest / "results.jsonl").write_text("\n".join(json.dumps(r, ensure_ascii=False) for r in results) + "\n", encoding="utf-8")
     (dest / "questions.md").write_text(qa_report(results, workdir / "pdfs", disputed=disputed), encoding="utf-8")
     (dest / "summary.json").write_text(json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8")
-    (dest / "report.md").write_text("# Open RAG Bench\n\n```\n" + format_summary(summary) + "\n```\n", encoding="utf-8")
+    (dest / "report.md").write_text(f"# {DATASET_TITLES[dataset]}\n\n```\n" + format_summary(summary) + "\n```\n",
+                                    encoding="utf-8")
     if run_key:
         flat = {m: v for m, v in summary.items() if isinstance(v, (int, float)) and v is not None}
         with tracking.track_step(tracking.RAGBENCH, "summary", run_key, **{k_: str(v) for k_, v in summary["config"].items()}) as tr:
