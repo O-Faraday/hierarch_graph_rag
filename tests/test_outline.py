@@ -101,6 +101,24 @@ def test_chunks_carry_the_headings_found_in_the_bookmarks():
     assert not ttcm["text"].startswith("2.1.")
 
 
+def test_run_in_headings_read_as_a_numbered_list_leave_their_group():
+    """Docling read "1. Introduction. Text..." as a numbered list: the whole list was one chunk, dropped."""
+    d = DoclingDocument(name="x")
+    d.add_page(page_no=1, size=Size(width=600, height=800))
+    d.add_heading(text="An article", level=1, prov=_prov())
+    group = d.add_list_group()
+    d.add_heading(text=f"Introduction. The basin supplies water {FILLER}", level=1, parent=group, prov=_prov())
+    d.add_heading(text=f"Results. The mean recharge was 66 millimetres {FILLER}", level=1, parent=group, prov=_prov())
+    marks = [{"title": "Introduction", "level": 1, "page_no": 1}, {"title": "Results", "level": 1, "page_no": 1}]
+    split, confirmed = outline.with_outline_headings(d, marks)
+    assert all(split.texts[i].parent.cref == "#/body" for i in range(1, 3))
+    root = build_hierarchy(split, [], doc_title="x", outline_headings=confirmed)
+    chunks = chunk_paragraphs(split, HybridChunker(tokenizer=WhitespaceTokenizer(), merge_peers=False), root, "d1")
+    by_section = {c["section_title"]: c["text"] for c in chunks}
+    assert by_section["Introduction"].startswith("The basin supplies water")
+    assert by_section["Results"].startswith("The mean recharge was 66 millimetres")
+
+
 def test_without_bookmarks_or_when_off_the_document_is_unchanged(monkeypatch):
     doc = _run_in_doc()
     assert outline.with_outline_headings(doc, []) == (doc, {})

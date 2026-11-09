@@ -15,9 +15,10 @@ import json
 import logging
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 
-from docling_core.types.doc import ContentLayer, DocItemLabel, DoclingDocument, SectionHeaderItem, TextItem
+from docling_core.types.doc import (ContentLayer, DocItemLabel, DoclingDocument, GroupItem, RefItem, SectionHeaderItem,
+                                    TextItem)
 
 from . import config
 
@@ -174,7 +175,30 @@ def with_outline_headings(doc: DoclingDocument, outline: list[dict[str, Any]]) -
                 else:
                     item.content_layer = ContentLayer.FURNITURE  # the heading alone: replaced by the new heading
             break
+    lifted = _lift_out_of_groups(doc, confirmed)
     if confirmed:
         logger.info("%d heading(s) confirmed by the PDF bookmarks, %d split from their paragraph; %d bookmark(s) "
-                    "not found", len(confirmed), inserted, len(pending))
+                    "not found%s", len(confirmed), inserted, len(pending),
+                    f"; {lifted} group(s) dissolved" if lifted else "")
     return doc, confirmed
+
+
+def _lift_out_of_groups(doc: DoclingDocument, refs: Iterable[str]) -> int:
+    """Dissolve the groups that hold a confirmed heading: Docling reads "1. Introduction. Text..." as a numbered list,
+    and the chunker then serialises the whole list, headings included, as one chunk (dropped for its labels). The
+    items of such a group move up to its parent, at its place. Returns the number of groups dissolved."""
+    dissolved = 0
+    for ref in refs:
+        item = RefItem(cref=ref).resolve(doc)
+        while item.parent is not None and item.parent.cref != doc.body.self_ref:
+            group = item.parent.resolve(doc)
+            if not isinstance(group, GroupItem) or group.parent is None:
+                break
+            holder = group.parent.resolve(doc)
+            at = next(i for i, child in enumerate(holder.children) if child.cref == group.self_ref)
+            for child in group.children:
+                child.resolve(doc).parent = holder.get_ref()
+            holder.children[at:at + 1] = list(group.children)
+            group.children = []
+            dissolved += 1
+    return dissolved
