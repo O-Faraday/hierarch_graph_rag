@@ -687,6 +687,7 @@ contexte (`tracing.submit`) : sans elle, `mlflow.genai.evaluate` perdait la trac
 | `HGRAG_LLM_SEND_IMAGES` / `HGRAG_LLM_MAX_IMAGES` | `1` (Claude) / `6` | Figures envoyées comme images au LLM de réponse |
 | `HF_TOKEN` | — | Jeton HF pour `hgrag vlm-bench` (router d'inférence) |
 | `HGRAG_JUDGE_MODEL` | `claude-haiku-5-5` | Modèle du juge de `hgrag eval` |
+| `HGRAG_JUDGE_WITH_SOURCE` | `1` | `hgrag eval` : le juge lit aussi le texte de la section de référence (relu dans l'arbre, avec les descriptions) ; un détail exact absent de la courte référence ne coûte plus de point, un détail que la section n'appuie pas reste plafonné à 4 |
 | `HGRAG_REFINE_MODEL` | `claude-haiku-5-5` | Modèle des juges de contexte et de génération (`hgrag ragbench-refine`) |
 | `HGRAG_REFINE_THRESHOLD` | `4` | Questions notées strictement en dessous jugées à nouveau |
 | `HGRAG_REFINE_CONTEXT_OK` | `4` | `context_score` minimal pour lancer le juge de génération |

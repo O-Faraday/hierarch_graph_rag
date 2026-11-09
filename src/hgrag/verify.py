@@ -17,8 +17,9 @@ from .ids import compute_doc_id
 
 
 def _norm(title: str) -> str:
-    """Lowercase, without the leading section number: Docling may or may not keep it."""
-    return re.sub(r"^\s*\d+(\.\d+)*\.?\s*", "", title).strip().lower()
+    """Lowercase, without the leading section number (Docling may or may not keep it) nor the final point of a heading
+    run into its paragraph ("Posterior inference.")."""
+    return re.sub(r"^\s*\d+(\.\d+)*\.?\s*", "", title).strip().rstrip(".:").strip().lower()
 
 
 def _check(pdf: str, name: str, ok: bool, expected: Any, actual: Any) -> dict[str, Any]:

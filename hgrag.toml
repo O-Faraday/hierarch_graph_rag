@@ -61,6 +61,8 @@ HGRAG_EMBED_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 [judges]
 # Evaluation and ragbench.
 # HGRAG_JUDGE_MODEL = "claude-haiku-5-5"
+# hgrag eval: the judge also reads the text of the reference section.
+# HGRAG_JUDGE_WITH_SOURCE = true
 # HGRAG_REFINE_MODEL = "claude-haiku-5-5"
 
 [assessments]

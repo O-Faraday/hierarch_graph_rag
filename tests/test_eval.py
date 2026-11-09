@@ -206,3 +206,28 @@ def test_clean_dir_and_copy_tree_handle_read_only_files(tmp_path):
     evaluation._clean_dir(dst)
     assert not dst.exists()
     os.chmod(f, stat.S_IWRITE | stat.S_IREAD)
+
+
+def test_judge_reads_the_reference_section_when_given(monkeypatch):
+    calls = _fake_llm(monkeypatch, ['{"rationale": "supported", "score": 5}'])
+    cfg = evaluation.judge_config(api_key="k")
+    evaluation.judge_answer(cfg, "q", "gt", "a", source="The sensor batteries last for 28 days.")
+    payload = calls["payloads"][0]
+    assert "SOURCE:\nThe sensor batteries last for 28 days." in payload["messages"][0]["content"]
+    assert "SOURCE supports is correct" in payload["system"]
+    calls = _fake_llm(monkeypatch, ['{"rationale": "plain", "score": 4}'])
+    evaluation.judge_answer(cfg, "q", "gt", "a")  # no source: the prompt of before
+    assert "SOURCE" not in calls["payloads"][0]["system"] and "SOURCE" not in calls["payloads"][0]["messages"][0]["content"]
+
+
+def test_reference_section_text_comes_from_the_tree(store):
+    text = evaluation.section_source(store["output_dir"], "01_aurora_bank_annual_report.pdf", "2.1 Revenue")
+    assert text.startswith("2.1 Revenue") and "1,380 million euros" in text
+    assert evaluation.section_source(store["output_dir"], "01_aurora_bank_annual_report.pdf", "9 Nowhere") is None
+    assert evaluation.section_source(store["output_dir"], None, "2.1 Revenue") is None
+
+
+def test_section_names_ignore_the_final_point_of_run_in_headings():
+    from hgrag.verify import _norm
+
+    assert _norm("4. Posterior inference.") == _norm("4 Posterior inference") == "posterior inference"

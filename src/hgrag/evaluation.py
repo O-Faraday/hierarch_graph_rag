@@ -50,6 +50,16 @@ Reply with ONLY a JSON object, no other text:
 {"rationale": "<two or three sentences explaining the comparison>", "score": <integer 1-5>}"""
 
 
+# Added when the judge also gets the text of the reference section: without it, every true detail that is not in the
+# short ground truth looked "unverifiable" and cost a point (9 of 20 imperfect scores of the first pdf_eval run).
+JUDGE_SOURCE_RULE = """
+You also receive SOURCE, the text of the document section that holds the answer (it may be truncated).
+- An extra detail of the candidate that SOURCE supports is correct: it costs nothing.
+- An extra detail that neither SOURCE nor the ground truth supports is unverified: at most 4.
+- SOURCE never replaces the ground truth: the facts of the ground truth must still be in the candidate."""
+SOURCE_MAX_CHARS = 12000
+
+
 class JudgeError(RuntimeError):
     pass
 
@@ -183,12 +193,18 @@ def _parse_judgement(text: str) -> dict[str, Any]:
     return {"score": score, "rationale": rationale}
 
 
-def judge_answer(cfg: LLMConfig, question: str, ground_truth: str, answer: str) -> dict[str, Any]:
-    """Score 1-5 and rationale of ``answer`` against ``ground_truth`` (one retry if the reply is not valid JSON)."""
+def judge_answer(cfg: LLMConfig, question: str, ground_truth: str, answer: str,
+                 source: str | None = None) -> dict[str, Any]:
+    """Score 1-5 and rationale of ``answer`` against ``ground_truth`` (one retry if the reply is not valid JSON).
+    ``source``: the text of the reference section, which lets the judge check the details beyond the ground truth."""
     user = (f"QUESTION:\n{question}\n\nGROUND TRUTH:\n{ground_truth}\n\nCANDIDATE ANSWER:\n{answer or '(empty)'}")
+    system = JUDGE_SYSTEM
+    if source:
+        system = JUDGE_SYSTEM.replace("\n\nReply with ONLY", JUDGE_SOURCE_RULE + "\n\nReply with ONLY", 1)
+        user = f"SOURCE:\n{source[:SOURCE_MAX_CHARS]}\n\n{user}"
     last: Exception | None = None
     for attempt in range(2):
-        text, usage = generation.complete(cfg, JUDGE_SYSTEM, user + ("\n\nReply with the JSON object only."
+        text, usage = generation.complete(cfg, system, user + ("\n\nReply with the JSON object only."
                                                                        if attempt else ""), max_tokens=600)
         try:
             return {**_parse_judgement(text), "judge_usage": usage}
@@ -204,6 +220,35 @@ def judge_config(model: str | None = None, api_key: str | None = None) -> LLMCon
 
 
 # ------------------------------------------------------------------------------------------ run
+def _node_text(node: dict[str, Any]) -> list[str]:
+    """Text of a section of ``hierarchy.json`` and of its sub-sections, with the generated descriptions."""
+    lines = [node.get("title") or ""]
+    for el in node.get("elements", []):
+        extra = el.get("extra") or {}
+        lines += [x for x in (extra.get("caption"), extra.get("description"), el.get("text")) if x]
+    for child in node.get("children", []):
+        lines += _node_text(child)
+    return lines
+
+
+def section_source(output_dir: str | Path, pdf: str | None, section: str | None) -> str | None:
+    """The text of the reference section of a question, read from the tree of its document, for the judge."""
+    if not pdf or not section:
+        return None
+    for manifest in Path(output_dir).glob("*/manifest.json"):
+        meta = json.loads(manifest.read_text(encoding="utf-8"))
+        tree = manifest.parent / "hierarchy.json"
+        if pdf_name(meta.get("source_pdf") or "") != pdf or not tree.exists():
+            continue
+        stack = [json.loads(tree.read_text(encoding="utf-8"))]
+        while stack:
+            node = stack.pop()
+            if _norm(node.get("title") or "") == _norm(section):
+                return "\n".join(_node_text(node))[:SOURCE_MAX_CHARS]
+            stack.extend(node.get("children", []))
+    return None
+
+
 def section_rank(sections: list[dict[str, Any]], pdf: str | None, section: str | None) -> int | None:
     """1-based rank of the expected section among the retrieved ones (grouped by section), else None."""
     if not pdf or not section:
@@ -237,7 +282,9 @@ def evaluate_row(row: dict[str, Any], *, client: Any, embedder: Any, output_dir:
             res["error"] = f"generation: {exc}"
     if judge_cfg is not None and res.get("answer") is not None:
         try:
-            j = judge_answer(judge_cfg, row["question"], row["expected_answer"], res["answer"])
+            source = section_source(output_dir, row["pdf"], row["section"]) if config.JUDGE_WITH_SOURCE else None
+            j = judge_answer(judge_cfg, row["question"], row["expected_answer"], res["answer"], source=source)
+            res["judge_saw_source"] = source is not None
             res.update(score=j["score"], rationale=j["rationale"])
         except (GenerationError, JudgeError) as exc:
             res["error"] = f"judge: {exc}"
