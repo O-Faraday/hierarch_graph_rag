@@ -5,11 +5,20 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import sys
 import time
 from pathlib import Path
 
 from . import config
 from . import tracking
+
+
+def _tolerant_console() -> None:
+    """Never fail on a character the console cannot encode: on Windows, output redirected to a file is cp1252, and a
+    judge note or a figure description with a Greek letter used to stop ``hgrag eval`` mid-run."""
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(errors="backslashreplace")
 
 
 def _eval(args) -> int:
@@ -89,6 +98,7 @@ def _vlm_bench(args) -> int:
 
 
 def main() -> None:
+    _tolerant_console()
     parser = argparse.ArgumentParser(prog="hgrag")
     sub = parser.add_subparsers(dest="cmd", required=True)
     run = sub.add_parser("run", help="parse -> hierarchy -> index")
