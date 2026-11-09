@@ -56,6 +56,7 @@ def config_snapshot(kind: str) -> dict[str, str]:
             "min_prose_words": config.MIN_PROSE_WORDS, "heading_context": config.HEADING_CONTEXT,
             "excluded_sections": config.EXCLUDED_SECTIONS, "fix_heading_levels": config.FIX_HEADING_LEVELS,
             "strict_headings": config.STRICT_HEADINGS, "max_heading_words": config.MAX_HEADING_WORDS,
+            "outline_headings": config.OUTLINE_HEADINGS,
         }
     else:
         raise ValueError(f"unknown application {kind!r} (choose from {KINDS})")

@@ -403,9 +403,13 @@ def build_hierarchy(
     figures: list[dict[str, Any]] | None = None,
     doc_title: str | None = None,
     table_descriptions: dict[str, str] | None = None,
+    outline_headings: dict[str, int] | None = None,
 ) -> SectionNode:
     """Build the heading tree. ``figures`` are the records produced by ``export_figures``;
-    ``table_descriptions`` maps a table ref to its generated description (optional)."""
+    ``table_descriptions`` maps a table ref to its generated description (optional); ``outline_headings`` maps the
+    headings confirmed by the PDF bookmarks to their level (``outline.with_outline_headings``): they are always
+    sections, at that level."""
+    outline_headings = outline_headings or {}
     figures_by_ref = {f["self_ref"]: f for f in (figures or [])}
     attached = _referenced_crefs(doc)
 
@@ -418,6 +422,8 @@ def build_hierarchy(
                 if isinstance(it, SectionHeaderItem) and it.self_ref not in long]
     demoted = section_headings(headings, *_line_heights(doc)) if config.STRICT_HEADINGS else {}
     demoted.update(dict.fromkeys(long, "longer than a heading"))
+    for ref in outline_headings:  # a bookmark names this heading: it opens a section, numbered or not
+        demoted.pop(ref, None)
     if demoted:
         logger.info("%d of %d headings turned into paragraphs: %s", len(demoted), len(headings),
                     dict(Counter(demoted.values())))
@@ -430,6 +436,7 @@ def build_hierarchy(
             logger.info("heading levels corrected for %d of %d headings (Docling level -> new): %s", len(changed),
                         len(levels), dict(list(changed.items())[:8]))
         levels = fixed
+    levels.update({ref: lvl for ref, lvl in outline_headings.items() if ref in levels})
 
     for item, _depth in doc.iterate_items():
         if isinstance(item, SectionHeaderItem) and item.self_ref in demoted:

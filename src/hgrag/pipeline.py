@@ -30,9 +30,16 @@ def list_pdfs(pdf_dir: str | Path = config.PDF_DIR) -> list[str]:
 
 
 def _load(doc_dir: Path) -> tuple[DoclingDocument, list[dict[str, Any]], dict[str, Any]]:
+    """The parsed document as the hierarchy and the chunker read it: headings run into their paragraph are split
+    from it with the PDF bookmarks (``outline.py``); ``manifest["outline_headings"]`` lists the headings they confirm."""
+    from .outline import MANIFEST_KEY, load_outline, with_outline_headings
+
+    doc_dir = Path(doc_dir)
     doc = DoclingDocument.load_from_json(doc_dir / "document.json")
     figures = json.loads((doc_dir / "figures.json").read_text(encoding="utf-8"))
     manifest = json.loads((doc_dir / "manifest.json").read_text(encoding="utf-8"))
+    if config.OUTLINE_HEADINGS:
+        doc, manifest[MANIFEST_KEY] = with_outline_headings(doc, load_outline(doc_dir, manifest.get("source_pdf")))
     return doc, figures, manifest
 
 
@@ -113,7 +120,8 @@ def _build_and_save_hierarchy(doc_dir: Path) -> dict[str, Any]:
     from .describe import load_table_descriptions
 
     root = build_hierarchy(doc, figures, doc_title=pdf_stem(manifest["source_pdf"]),
-                           table_descriptions=load_table_descriptions(doc_dir))
+                           table_descriptions=load_table_descriptions(doc_dir),
+                           outline_headings=manifest.get("outline_headings"))
     (doc_dir / "hierarchy.json").write_text(
         json.dumps(root.to_dict(), indent=2, ensure_ascii=False), encoding="utf-8"
     )
@@ -196,7 +204,8 @@ def _index_documents(doc_dirs, qdrant_path, collection, model_id, trace=None, do
                 dspan = (trace or tracing.Span()).child("index_document", inputs={"doc_dir": doc_dir.name})
             doc, figures, manifest = _load(doc_dir)
             tdesc = load_table_descriptions(doc_dir)
-            root = build_hierarchy(doc, figures, doc_title=pdf_stem(manifest["source_pdf"]), table_descriptions=tdesc)
+            root = build_hierarchy(doc, figures, doc_title=pdf_stem(manifest["source_pdf"]), table_descriptions=tdesc,
+                                   outline_headings=manifest.get("outline_headings"))
             t = time.perf_counter()
             cstats: dict[str, Any] = {}
             with dspan.child("chunk", inputs={"doc_id": manifest["doc_id"], "labels": list(config.CHUNK_LABELS)}) as sp:

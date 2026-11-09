@@ -673,6 +673,7 @@ contexte (`tracing.submit`) : sans elle, `mlflow.genai.evaluate` perdait la trac
 | `HGRAG_FIX_HEADING_LEVELS` | `1` | Niveaux des titres corrigés par la numérotation (romaine, `1.2.3`, annexes `A` / `A.1`, `EC.1.2`) et les sections de fin |
 | `HGRAG_STRICT_HEADINGS` | `1` | Seuls les titres qui délimitent une section possible (titre, noms standard, numéro suivant de la numérotation ; taille des titres standard sans numérotation) ouvrent une section ; les autres deviennent des paragraphes |
 | `HGRAG_MAX_HEADING_WORDS` | `25` | Un titre Docling plus long est un paragraphe, dans l'arbre et dans les chunks : sinon il serait répété devant tous les chunks suivants et ne laisserait presque plus de place à leur texte ; `0` = pas de limite |
+| `HGRAG_OUTLINE_HEADINGS` | `1` | Signets du PDF (`outline.json`, lus par pypdfium2) : un paragraphe qui commence par le titre d'un signet de sa page (« 2.2. Titre. Texte… », titre en ligne que Docling étiquette `text`) est coupé en ce titre, au niveau du signet, et en paragraphe ; les titres trouvés dans les signets ouvrent toujours une section. Docling n'a pas d'option pour ce cas : son étape `HeadingHierarchyOptions` ne fait que fixer des niveaux |
 | `HGRAG_EXCLUDED_SECTIONS` | `references\|bibliography\|acknowledg…` | Expression régulière des sections non indexées (bibliographie, remerciements) ; vide = tout indexer |
 | `HGRAG_TABLE_MODE` | `accurate` | Modèle de structure des tableaux Docling (`accurate` ou `fast`) |
 | `HGRAG_TABLE_CELL_MATCHING` | `1` | Associe les cellules détectées au texte du PDF |

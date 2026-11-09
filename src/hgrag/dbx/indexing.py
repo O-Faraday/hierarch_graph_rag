@@ -49,7 +49,8 @@ def build_chunks(doc_dir: str | Path, chunker: Any) -> list[dict[str, Any]]:
     doc_dir = Path(doc_dir)
     doc, figures, manifest = _load(doc_dir)
     descriptions = load_table_descriptions(doc_dir)
-    root = build_hierarchy(doc, figures, doc_title=pdf_stem(manifest["source_pdf"]), table_descriptions=descriptions)
+    root = build_hierarchy(doc, figures, doc_title=pdf_stem(manifest["source_pdf"]), table_descriptions=descriptions,
+                           outline_headings=manifest.get("outline_headings"))
     (doc_dir / "hierarchy.json").write_text(json.dumps(root.to_dict(), indent=2, ensure_ascii=False), encoding="utf-8")
     chunks = chunk_paragraphs(doc, chunker, root, manifest["doc_id"], table_descriptions=descriptions,
                               formula_readings=load_formula_readings(doc_dir))

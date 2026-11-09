@@ -213,6 +213,10 @@ STRICT_HEADINGS = os.environ.get("HGRAG_STRICT_HEADINGS", "1").lower() in ("1", 
 # before every following chunk and leave almost no room for their text (0 = no limit). On 2 756 headings of 116 papers,
 # those of 26 words or more are paragraphs, those of 20 or fewer are real titles, none is in between.
 MAX_HEADING_WORDS = int(os.environ.get("HGRAG_MAX_HEADING_WORDS", "25"))
+# PDF bookmarks as headings (``outline.py``): a paragraph that starts with the title of a bookmark of its page is split
+# into that heading and the rest, and the headings found in the bookmarks keep their level whatever the numbering says.
+# For headings run into their paragraph ("2.2. Title. Text..."), which Docling labels as text.
+OUTLINE_HEADINGS = os.environ.get("HGRAG_OUTLINE_HEADINGS", "1").lower() in ("1", "true", "yes")
 # Sections that are not indexed (bibliography, acknowledgements): their entries win searches on author names and topics.
 EXCLUDED_SECTIONS = os.environ.get(
     "HGRAG_EXCLUDED_SECTIONS", r"^\W*(?:[0-9ivx]+[.)]?\s+)?(references|bibliography|acknowledg(?:e)?ments?)\W*$")

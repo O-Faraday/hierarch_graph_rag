@@ -209,6 +209,9 @@ def parse_pdf(
 
     doc.save_as_json(doc_dir / "document.json")
     (doc_dir / "document.md").write_text(doc.export_to_markdown(), encoding="utf-8")  # for analysis
+    from .outline import save_outline
+
+    save_outline(pdf_path, doc_dir)  # the PDF bookmarks, a heading signal for the hierarchy (outline.py)
     with trace.child("export_figures", "PARSER", inputs={"n_pictures": len(doc.pictures)}) as sp:
         figures = export_figures(doc, doc_id, doc_dir)
         sp.set({"figures": figures})

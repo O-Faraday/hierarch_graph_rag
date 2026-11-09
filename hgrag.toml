@@ -53,6 +53,8 @@ HGRAG_EMBED_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 # HGRAG_FIX_HEADING_LEVELS = true
 # HGRAG_STRICT_HEADINGS = true
 # HGRAG_MAX_HEADING_WORDS = 25
+# Headings run into their paragraph ("2.2. Title. Text..."), split with the PDF bookmarks.
+# HGRAG_OUTLINE_HEADINGS = true
 
 [judges]
 # Evaluation and ragbench.
