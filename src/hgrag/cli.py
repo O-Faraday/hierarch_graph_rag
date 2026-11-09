@@ -176,6 +176,8 @@ def main() -> None:
     rb.add_argument("--dataset", choices=("openragbench", "qasper"), default="openragbench",
                     help="openragbench (Vectara, CC BY-NC) or qasper (AllenAI, CC BY 4.0; questions by readers of the abstract)")
     rb.add_argument("--split", choices=("dev", "test"), default="dev", help="QASPER split: dev to tune, test for the final measure")
+    rb.add_argument("--scope", choices=("corpus", "paper"), default="corpus",
+                    help="corpus: search every indexed paper; paper: only the paper of the question (official QASPER setting)")
     rb.add_argument("--docs", type=int, default=10, help="number of papers in the sample (10, 100, ...)")
     rb.add_argument("--seed", type=int, default=0, help="same seed = same sample")
     rb.add_argument("--negatives", type=int, default=0, help="extra papers without any question (distractors)")
@@ -353,7 +355,7 @@ def main() -> None:
                                rerank=args.rerank, candidates=args.candidates, gen_model=args.gen_model,
                                reference_run=args.reference_run, track=not args.no_mlflow, on_progress=lambda m: print(m, flush=True),
                                questions=args.questions.split(",") if args.questions else None,
-                               assess_judges=args.assess_judges, dataset=args.dataset, split=args.split)
+                               assess_judges=args.assess_judges, dataset=args.dataset, split=args.split, scope=args.scope)
         except ragbench.RagBenchError as exc:
             print(f"error: {exc}")
             raise SystemExit(2)

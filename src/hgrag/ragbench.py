@@ -260,7 +260,8 @@ def evaluate_query(qid: str, q: dict[str, Any], answer: str, gold: str, paper_id
                    output_dir: Path, collection: str, k: int, stem_to_paper: dict[str, str],
                    gen_cfg: LLMConfig | None = None, judge_cfg: LLMConfig | None = None,
                    rerank: bool | None = None, reranker: Any = None, candidates: int | None = None,
-                   assess_judges: bool = False, run_key: str | None = None) -> dict[str, Any]:
+                   assess_judges: bool = False, run_key: str | None = None,
+                   doc_ids: list[str] | None = None) -> dict[str, Any]:
     """``assess_judges``: also run the production LLM judges: context (relevance and sufficiency, on the prompt the
     generator receives) and answer (relevance and completeness). The deterministic checks of the search, the prompt
     and the answer always run. None of them uses the reference answer. With a ``run_key``, the question is one
@@ -272,7 +273,7 @@ def evaluate_query(qid: str, q: dict[str, Any], answer: str, gold: str, paper_id
         res = _evaluate_query(qid, q, answer, gold, paper_id, client=client, embedder=embedder, output_dir=output_dir,
                               collection=collection, k=k, stem_to_paper=stem_to_paper, gen_cfg=gen_cfg,
                               judge_cfg=judge_cfg, rerank=rerank, reranker=reranker, candidates=candidates,
-                              assess_judges=assess_judges, trace=trace, t0=t0)
+                              assess_judges=assess_judges, trace=trace, t0=t0, doc_ids=doc_ids)
     except BaseException as exc:
         trace.end(error=exc)
         raise
@@ -286,7 +287,8 @@ def evaluate_query(qid: str, q: dict[str, Any], answer: str, gold: str, paper_id
 def _evaluate_query(qid: str, q: dict[str, Any], answer: str, gold: str, paper_id: str, *, client: Any, embedder: Any,
                     output_dir: Path, collection: str, k: int, stem_to_paper: dict[str, str], gen_cfg: LLMConfig | None,
                     judge_cfg: LLMConfig | None, rerank: bool | None, reranker: Any, candidates: int | None,
-                    assess_judges: bool, trace: tracing.Span, t0: float) -> dict[str, Any]:
+                    assess_judges: bool, trace: tracing.Span, t0: float,
+                    doc_ids: list[str] | None = None) -> dict[str, Any]:
     from .assessments import retrieval as retrieval_checks
     from .retrieval import reconstruct_hit, search_hits
 
@@ -294,7 +296,7 @@ def _evaluate_query(qid: str, q: dict[str, Any], answer: str, gold: str, paper_i
     gold_title = _norm_title(gold.lstrip().split("\n", 1)[0].lstrip("#")) if gold.lstrip().startswith("#") else ""
     diagnostics: dict[str, Any] = {}
     hits = search_hits(q["query"], k, embedder=embedder, client=client, collection=collection, rerank=rerank,
-                       reranker=reranker, candidates=candidates, diagnostics=diagnostics, trace=trace)
+                       reranker=reranker, candidates=candidates, diagnostics=diagnostics, trace=trace, doc_ids=doc_ids)
     doc_rank = sec_rank = None
     retrieved = []
     covered: set = set()
@@ -556,13 +558,17 @@ def run(n_docs: int = 10, *, seed: int = 0, negatives: int = 0, sources: list[st
         rerank: bool | None = None, reranker: Any = None, candidates: int | None = None, gen_model: str | None = None,
         reference_run: str | Path | None = None, track: bool = True, questions: list[str] | None = None,
         assess_judges: bool = False, on_progress: Callable[[str], None] | None = None, dataset: str = "openragbench",
-        split: str = "dev") -> dict[str, Any]:
+        split: str = "dev", scope: str = "corpus") -> dict[str, Any]:
     """``dataset``: ``openragbench`` (Vectara) or ``qasper`` (``split`` dev or test, see ``qasper.py``).
+    ``scope``: ``corpus`` searches every indexed paper; ``paper`` searches only the paper of the question, with the
+    question as written (QASPER: without the title), which is the official QASPER setting.
     ``gen_model``: generation model (default HGRAG_LLM_MODEL), the judge stays HGRAG_JUDGE_MODEL / ``judge_model``.
     ``reference_run``: a previous run dir of the same sample; every question records ``context_same`` (same retrieved
     sections, in the same order), so a change of model can be compared on an unchanged context."""
     workdir = Path(workdir or RAGBENCH_DIR)
     reference = _retrieved_paths(Path(reference_run)) if reference_run else None
+    if scope not in ("corpus", "paper"):
+        raise RagBenchError(f"unknown scope {scope!r} (corpus or paper)")
     if dataset not in DATASETS:
         raise RagBenchError(f"unknown dataset {dataset!r} (choose from {', '.join(DATASETS)})")
     if source is None and dataset == "qasper":
@@ -632,10 +638,15 @@ def run(n_docs: int = 10, *, seed: int = 0, negatives: int = 0, sources: list[st
                                 "question": queries[qid]["query"], "doc_rank": None, "section_rank": None, "context_recall": None,
                                 "context_recall_at_1": None, "error": str(exc)})
                 continue
-            res = evaluate_query(qid, queries[qid], answers.get(qid, ""), gold, rel["doc_id"], client=client, embedder=embedder,
+            q = queries[qid]
+            doc_ids = None
+            if scope == "paper":  # the paper is given with the question, as in the official QASPER setting
+                doc_ids = [Path(store["dirs"][rel["doc_id"]]).name]
+                q = {**q, "query": q.get("question_original") or q["query"]}
+            res = evaluate_query(qid, q, answers.get(qid, ""), gold, rel["doc_id"], client=client, embedder=embedder,
                                  output_dir=store["output_dir"], collection=store["collection"], k=k, stem_to_paper=stem_to_paper,
                                  gen_cfg=gen_cfg, judge_cfg=judge_cfg, rerank=use_rerank, reranker=reranker, candidates=candidates,
-                                 assess_judges=assess_judges, run_key=run_key)
+                                 assess_judges=assess_judges, run_key=run_key, doc_ids=doc_ids)
             if reference is not None:
                 res["context_same"] = reference.get(qid) == _paths(res)
             results.append(res)
@@ -644,7 +655,7 @@ def run(n_docs: int = 10, *, seed: int = 0, negatives: int = 0, sources: list[st
         client.close()
     disputed = load_disputed()
     summary = summarize(results, k_sections=k, disputed=disputed)
-    summary["config"] = {"dataset": dataset, **({"split": split} if dataset == "qasper" else {}), "docs": n_docs, "seed": seed, "negatives": negatives, "sources": sources, "k_chunks": k, "section_base": base,
+    summary["config"] = {"dataset": dataset, "scope": scope, **({"split": split} if dataset == "qasper" else {}), "docs": n_docs, "seed": seed, "negatives": negatives, "sources": sources, "k_chunks": k, "section_base": base,
                          "described": describe, "generate": generate, "embed_model": config.EMBED_MODEL_ID,
                          "keyword_weight": config.KEYWORD_WEIGHT if store["hybrid"] else 0.0,
                          "rerank": use_rerank, "rerank_model": config.RERANK_MODEL if use_rerank else None,

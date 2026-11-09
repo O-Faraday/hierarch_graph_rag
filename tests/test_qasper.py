@@ -120,3 +120,19 @@ def test_run_on_qasper_questions(bench, monkeypatch):  # noqa: F811
 def test_unknown_dataset_is_refused(tmp_path):
     with pytest.raises(ragbench.RagBenchError, match="unknown dataset"):
         ragbench.run(1, workdir=tmp_path, dataset="squad", track=False)
+
+
+def test_paper_scope_searches_only_the_paper_of_the_question(bench, monkeypatch):  # noqa: F811
+    work, orb, parse = bench
+    evidence = {pid: [s["text"] for s in orb.files[f"corpus/{pid}.json"]["sections"] if s["text"] != "x"]
+                for pid in ("2401.0001", "2401.0002", "2401.0003")}
+    src = _FakeQasper(qasper.build_files(_papers(evidence)))  # titles kept: the paper scope asks the question as written
+    monkeypatch.setattr(ragbench, "fetch_pdfs", lambda ids, urls, d, **kw: ({p: d / f"{p}.pdf" for p in ids}, {}))
+    res = ragbench.run(3, k=5, workdir=work, source=src, embedder=BagOfWordsEmbedder(), parse=parse, track=False,
+                       dataset="qasper", scope="paper")
+    assert res["summary"]["config"]["scope"] == "paper" and res["summary"]["doc_hit_at_1"] == 1.0
+    for r in res["results"]:
+        assert {h["paper"] for h in r["retrieved"]} == {r["paper"]}, r["id"]
+        assert not r["question"].startswith("In the paper")
+    with pytest.raises(ragbench.RagBenchError, match="unknown scope"):
+        ragbench.run(3, workdir=work, source=src, track=False, dataset="qasper", scope="everything")

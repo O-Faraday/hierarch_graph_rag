@@ -96,6 +96,7 @@ def search_steps(
     keyword_weight: float | None = None,
     diagnostics: dict[str, Any] | None = None,
     trace: tracing.Span | None = None,
+    doc_ids: list[str] | None = None,
 ) -> Iterator[dict[str, Any]]:
     """Search as a generator of step events ``{"step", "seconds", "data"}``.
 
@@ -109,6 +110,7 @@ def search_steps(
     filled with what the production checks need (``assessments.retrieval``): ``top_score`` (best reranker score, or
     best dense similarity without reranking) and, on a hybrid collection, how many candidates both searches found.
     ``trace``: the span of a larger operation (a question); without it the search is a trace of its own.
+    ``doc_ids``: search only these documents (a question asked about one paper, "ask this document").
     """
     diag = diagnostics if diagnostics is not None else {}
     if not query.strip():
@@ -118,13 +120,13 @@ def search_steps(
     weight = config.KEYWORD_WEIGHT if keyword_weight is None else keyword_weight
     span = tracing.child_or_root(trace, "search", tracking.RETRIEVAL, run_key, span_type="RETRIEVER", inputs={
         "query": query, "k": k, "candidates": n_fetch, "rerank": use_rerank, "keyword_weight": weight,
-        "collection": collection, "embedding_model": model_id})
+        "collection": collection, "embedding_model": model_id, **({"doc_ids": list(doc_ids)} if doc_ids else {})})
     sections: list[dict[str, Any]] = []
     try:
         for event in _search_events(query, k, embedder=embedder, client=client, collection=collection,
                                     qdrant_path=qdrant_path, model_id=model_id, min_score=min_score, run_key=run_key,
                                     use_rerank=use_rerank, reranker=reranker, n_fetch=n_fetch, weight=weight,
-                                    diag=diag, span=span):
+                                    diag=diag, span=span, doc_ids=doc_ids):
             if event["step"] == "group":
                 sections = event["data"]
             yield event
@@ -148,9 +150,19 @@ def _chunk(p: Any, **scores: Any) -> dict[str, Any]:
             **{k: pl.get(k) for k in ("section_path", "page_no", "kinds", "text")}}
 
 
+def _doc_filter(doc_ids: list[str] | None) -> Any:
+    """The Qdrant filter that keeps the chunks of these documents only (None: the whole collection)."""
+    if not doc_ids:
+        return None
+    from qdrant_client.models import FieldCondition, Filter, MatchAny
+
+    return Filter(must=[FieldCondition(key="doc_id", match=MatchAny(any=list(doc_ids)))])
+
+
 def _search_events(query: str, k: int, *, embedder: Any, client: Any, collection: str, qdrant_path: str | Path,
                    model_id: str, min_score: float | None, run_key: str | None, use_rerank: bool, reranker: Any,
-                   n_fetch: int, weight: float, diag: dict[str, Any], span: tracing.Span) -> Iterator[dict[str, Any]]:
+                   n_fetch: int, weight: float, diag: dict[str, Any], span: tracing.Span,
+                   doc_ids: list[str] | None = None) -> Iterator[dict[str, Any]]:
     with track_step(tracking.RETRIEVAL, "search", run_key, query=query, k=k, collection=collection,
                     model_id=model_id, rerank=use_rerank, **({"candidates": n_fetch} if use_rerank else {})) as tr:
         owns_client = client is None
@@ -176,17 +188,18 @@ def _search_events(query: str, k: int, *, embedder: Any, client: Any, collection
                    "data": {"query": query, "model": model_id, "dim": len(vector), "vector": vector}}
 
             t0 = time.perf_counter()
+            scope = _doc_filter(doc_ids)
             with span.child("dense_search", "RETRIEVER", inputs={"limit": n_fetch, "min_score": min_score}) as sp:
                 points = client.query_points(
                     collection_name=collection, query=vector, limit=n_fetch,
-                    with_payload=True, score_threshold=min_score,
+                    with_payload=True, score_threshold=min_score, query_filter=scope,
                 ).points
                 sp.set({"chunks": [_chunk(p) for p in points]})
             sparse = keywords.query_vector(query) if weight > 0 and keywords.has_keywords(client, collection) else None
             if sparse is not None:
                 with span.child("keyword_search", "RETRIEVER", inputs={"limit": n_fetch, "n_terms": len(sparse.indices)}) as sp:
                     kw_points = client.query_points(collection_name=collection, query=sparse, using=keywords.SPARSE_NAME,
-                                                    limit=n_fetch, with_payload=True).points
+                                                    limit=n_fetch, with_payload=True, query_filter=scope).points
                     sp.set({"chunks": [_chunk(p) for p in kw_points]})
                 with span.child("fusion", "RETRIEVER", inputs={"keyword_weight": weight, "limit": n_fetch}) as sp:
                     points = fuse(points, kw_points, weight, n_fetch)

@@ -206,9 +206,13 @@ questions sans réponse dans l'article sont hors des métriques de recherche et 
 `answer_f1` est le F1 officiel par mots (meilleur annotateur) : il favorise les réponses courtes, donc reste bas pour nos
 réponses rédigées et ne se compare qu'entre nos runs. Split `dev` par défaut (281 articles, pour régler le pipeline),
 `--split test` (416) pour la mesure finale. Les négatifs sont des articles hors échantillon (leurs questions ne sont pas
-posées). Les PDF arXiv gardent leur propre licence : validation interne, jamais livrés.
+posées). Les PDF arXiv gardent leur propre licence : validation interne, jamais livrés. Une question QASPER porte sur un article
+donné (« Do they release code? ») : `--scope paper` ne cherche que dans cet article, avec la question telle qu'écrite (le
+protocole officiel, où l'article est fourni avec la question) ; en mode `corpus` (défaut), le titre de l'article est mis
+devant la question pour la cibler, ce qui fait remonter le résumé en tête et fausse le rang des sections.
 
 ```bash
+uv run hgrag ragbench --dataset qasper --docs 20 -k 10 --generate --scope paper  # protocole officiel : chaque question dans son article
 uv run hgrag ragbench --dataset qasper --docs 20 -k 10 --generate                  # 20 articles du split dev
 uv run hgrag ragbench --dataset qasper --docs 20 --negatives 20 -k 10 --generate   # + 20 articles distracteurs
 ```

@@ -111,3 +111,17 @@ def test_table_caption_is_shown_before_the_rows():
     out = _render_element(el)
     assert out.startswith("[Table] Table 2. Results\n\n| a | b |") and "description" not in out
     assert _render_element({**el, "extra": {}}) == el["text"]
+
+
+def test_search_can_be_limited_to_some_documents(store, tmp_path):
+    client, _ = store
+    other = [{"chunk_index": 0, "doc_id": "doc2", "text": "Average settlement delay of another company.",
+              "embed_text": "Average settlement delay of another company.", "kinds": ["text"], "headings": [],
+              "element_refs": ["#/texts/1"], "page_no": 1, "section_ref": "#/texts/0", "section_title": "Other",
+              "section_path": "other > Other"}]
+    index_chunks(client, other, BagOfWordsEmbedder(), doc_id="doc2", source_pdf="other.pdf", collection="c")
+    both = search_hits("average settlement delay", 5, embedder=BagOfWordsEmbedder(), client=client, collection="c")
+    assert {h["doc_id"] for h in both} == {DOC_ID, "doc2"}
+    only = search_hits("average settlement delay", 5, embedder=BagOfWordsEmbedder(), client=client, collection="c",
+                       doc_ids=["doc2"])
+    assert {h["doc_id"] for h in only} == {"doc2"}
