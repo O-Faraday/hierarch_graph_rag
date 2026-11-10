@@ -211,3 +211,14 @@ def test_the_answer_comes_first_and_the_caveats_last():
     system = generation.build_messages("q", SECTIONS)["system"]
     assert "Your first sentence is the answer itself" in system
     assert "Never open with what the sources lack" in system and "one short sentence at the end" in system
+
+
+def test_generation_settings_do_not_leak_to_another_provider(monkeypatch):
+    # gpt-4o-mini generator, Claude judge: the judge got the OpenAI URL and every call failed with HTTP 404
+    monkeypatch.setenv("HGRAG_LLM_PROVIDER", "openai")
+    monkeypatch.setenv("HGRAG_LLM_MODEL", "gpt-4o-mini")
+    monkeypatch.setenv("HGRAG_LLM_BASE_URL", "https://api.openai.com/v1")
+    gen = generation.LLMConfig()
+    assert (gen.provider, gen.model, gen.base_url) == ("openai", "gpt-4o-mini", "https://api.openai.com/v1")
+    judge = generation.LLMConfig(provider="anthropic")
+    assert (judge.model, judge.base_url) == ("claude-haiku-5-5", "https://api.anthropic.com")

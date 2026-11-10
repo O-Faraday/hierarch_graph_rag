@@ -83,8 +83,12 @@ class LLMConfig:
     def __post_init__(self) -> None:
         if self.provider not in PROVIDERS:
             raise GenerationError(f"unknown provider {self.provider!r} (choose from {PROVIDERS})")
-        self.model = self.model or os.environ.get("HGRAG_LLM_MODEL") or DEFAULT_MODELS[self.provider]
-        self.base_url = (self.base_url or os.environ.get("HGRAG_LLM_BASE_URL") or DEFAULT_URLS[self.provider]).rstrip("/")
+        # HGRAG_LLM_MODEL and HGRAG_LLM_BASE_URL belong to the generation provider (HGRAG_LLM_PROVIDER): a Claude judge
+        # must not take the OpenAI URL of a gpt-4o-mini generator (every judge call got HTTP 404)
+        own = os.environ.get("HGRAG_LLM_PROVIDER", self.provider) == self.provider
+        env = (lambda name: os.environ.get(name) if own else None)  # noqa: E731
+        self.model = self.model or env("HGRAG_LLM_MODEL") or DEFAULT_MODELS[self.provider]
+        self.base_url = (self.base_url or env("HGRAG_LLM_BASE_URL") or DEFAULT_URLS[self.provider]).rstrip("/")
         if self.send_images is None:
             default = "1" if self.provider == "anthropic" else "0"
             self.send_images = os.environ.get("HGRAG_LLM_SEND_IMAGES", default).lower() in ("1", "true", "yes")
