@@ -204,3 +204,10 @@ def test_default_budget_keeps_a_typical_ten_section_context(monkeypatch):
     m = generation.build_messages("q", sections)
     assert len(m["sources"]) == 9 and len(m["dropped"]) == 1  # 9 x ~5k fit, the 10th does not
     assert len(generation.build_messages("q", sections[:8])["dropped"]) == 0
+
+
+def test_the_answer_comes_first_and_the_caveats_last():
+    # 14 of 51 QASPER answers opened with "The sources don't..." before giving the answer
+    system = generation.build_messages("q", SECTIONS)["system"]
+    assert "Your first sentence is the answer itself" in system
+    assert "Never open with what the sources lack" in system and "one short sentence at the end" in system
