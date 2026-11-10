@@ -287,6 +287,9 @@ JUDGE_WITH_SOURCE = os.environ.get("HGRAG_JUDGE_WITH_SOURCE", "1").lower() in ("
 # ``hgrag ragbench --dataset qasper --generate``: one more call per question turns the full answer into the QASPER
 # short answer (span, Yes/No, Unanswerable), on which the official answer F1 is computed (comparable with papers).
 QASPER_SHORT_ANSWER = os.environ.get("HGRAG_QASPER_SHORT_ANSWER", "1").lower() in ("1", "true", "yes")
+# QASPER: the generator answers directly in the format of the annotators (Yes/No, a span copied from the paper, one
+# short sentence or Unanswerable; ``qasper.QASPER_SYSTEM``) instead of a long answer shortened by a second call.
+QASPER_DIRECT_ANSWER = os.environ.get("HGRAG_QASPER_DIRECT_ANSWER", "1").lower() in ("1", "true", "yes")
 # Second opinion on the low judge scores of a ragbench run (hgrag.refine): context judge on the whole PDF, then
 # generation judge. Questions scored strictly below REFINE_THRESHOLD are judged again; the generation judge runs only
 # when the context scores at least REFINE_CONTEXT_OK.

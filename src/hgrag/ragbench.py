@@ -335,23 +335,33 @@ def _evaluate_query(qid: str, q: dict[str, Any], answer: str, gold: str, paper_i
         trace.assess(context)
         res["assessments"]["retrieval"] += [a.to_dict() for a in context]
     if gen_cfg is not None:
+        # QASPER: the generator answers directly in the format of the annotators (qasper.QASPER_SYSTEM)
+        direct = bool(q.get("references")) and config.QASPER_DIRECT_ANSWER
+        system = None
+        if direct:
+            from .qasper import QASPER_SYSTEM as system
         try:
             info: dict[str, Any] = {}
             res["answer"] = "".join(generation.answer_stream(q["query"], sections, gen_cfg, info=info, trace=trace,
-                                                             judges=assess_judges)).strip()
+                                                             judges=assess_judges, system=system)).strip()
             if not res["answer"] or (info.get("usage") or {}).get("stop_reason") == "max_tokens":
                 # empty or cut answer: the model spent its budget before/while answering; retry once with twice the budget
                 bigger = dataclasses.replace(gen_cfg, max_tokens=gen_cfg.max_tokens * 2)
                 info = {}
                 res["answer"] = "".join(generation.answer_stream(q["query"], sections, bigger, info=info, trace=trace,
-                                                                 judges=assess_judges)).strip()
+                                                                 judges=assess_judges, system=system)).strip()
                 res["retried"] = True
             res["assessments"]["prompt"] = info.get("prompt_checks") or []
             res["assessments"]["answer"] = info.get("answer_checks") or []
             res["assessments"]["retrieval"] += info.get("context_checks") or []
             res.update(usage=info.get("usage"), n_images=info.get("n_images"),
                        truncated=(info.get("usage") or {}).get("stop_reason") == "max_tokens")
-            if q.get("references"):  # QASPER: the official token F1 (best annotator), on a short answer
+            if direct:  # the answer is already short: cleaned of citations, it is scored as it is
+                from .qasper import answer_f1, clean_answer
+
+                res["short_answer"] = clean_answer(res["answer"])
+                res["answer_f1"] = round(answer_f1(res["short_answer"], q["references"]), 3)
+            elif q.get("references"):  # QASPER with the general prompt: official token F1 on a derived short answer
                 from .qasper import answer_f1, short_answer
 
                 if not q.get("unanswerable"):  # the full answer, for comparison
@@ -615,12 +625,17 @@ def run(n_docs: int = 10, *, seed: int = 0, negatives: int = 0, sources: list[st
     stem_to_paper = {safe_name(pid): pid for pid in pdfs}
     gen_cfg = judge_cfg = None
     if generate:
-        gen_cfg = LLMConfig(provider="anthropic", model=gen_model or "")
+        gen_cfg = LLMConfig(model=gen_model or "")  # HGRAG_LLM_PROVIDER / MODEL / BASE_URL, e.g. gpt-4o-mini
         from .evaluation import judge_config
 
         judge_cfg = judge_config(judge_model)
-        if not gen_cfg.api_key:
-            raise RagBenchError("ANTHROPIC_API_KEY is not set (needed by --generate).")
+        # a local OpenAI-compatible server needs no key; the OpenAI API and Claude do
+        needs_key = gen_cfg.provider == "anthropic" or "api.openai.com" in gen_cfg.base_url
+        if needs_key and not gen_cfg.api_key:
+            name = "ANTHROPIC_API_KEY" if gen_cfg.provider == "anthropic" else "OPENAI_API_KEY"
+            raise RagBenchError(f"{name} is not set (needed by --generate with {gen_cfg.model}).")
+        if not judge_cfg.api_key:
+            raise RagBenchError("ANTHROPIC_API_KEY is not set (needed by the judge of --generate).")
     if embedder is None:
         from .indexing import load_embedder
 
@@ -671,7 +686,9 @@ def run(n_docs: int = 10, *, seed: int = 0, negatives: int = 0, sources: list[st
                          "keyword_weight": config.KEYWORD_WEIGHT if store["hybrid"] else 0.0,
                          "rerank": use_rerank, "rerank_model": config.RERANK_MODEL if use_rerank else None,
                          "rerank_candidates": (candidates or config.RERANK_CANDIDATES) if use_rerank else None,
-                         "gen_model": gen_cfg.model if gen_cfg else None, "judge_model": judge_cfg.model if judge_cfg else None,
+                         "gen_model": gen_cfg.model if gen_cfg else None,
+                         "gen_provider": gen_cfg.provider if gen_cfg else None,
+                         "qasper_direct_answer": config.QASPER_DIRECT_ANSWER if dataset == "qasper" else None, "judge_model": judge_cfg.model if judge_cfg else None,
                          "reference_run": str(reference_run) if reference_run else None, "questions": questions,
                          "context_changed": sum(not r.get("context_same", True) for r in results) if reference is not None else None,
                          "chunk_labels": list(config.CHUNK_LABELS), "n_pdf_failed": len(failed_pdf), "n_describe_failed": len(store["stats"].get("describe_failed", {})), "n_parse_failed": len(store["stats"]["failed"]),

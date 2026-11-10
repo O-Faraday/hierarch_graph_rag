@@ -68,6 +68,8 @@ HGRAG_EMBED_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 # HGRAG_JUDGE_WITH_SOURCE = true
 # QASPER ragbench: a short answer (span, Yes/No, Unanswerable) for the official answer F1.
 # HGRAG_QASPER_SHORT_ANSWER = true
+# QASPER: the generator answers directly in the annotators' format (no second call).
+# HGRAG_QASPER_DIRECT_ANSWER = true
 # HGRAG_REFINE_MODEL = "claude-haiku-5-5"
 
 [assessments]

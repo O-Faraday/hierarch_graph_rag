@@ -205,3 +205,40 @@ def short_answer(cfg: Any, question: str, answer: str, sections: list[dict[str, 
         if text:
             break
     return text
+
+
+# ------------------------------------------------------------------- answer in the QASPER format
+# The generator answers directly in the format of the annotators, as the published systems do (no second call to
+# shorten a long answer). The four kinds follow the annotation guidelines of the dataset: yes/no, extractive span,
+# free-form, unanswerable. The rules answer the error families of the 2026-11-10 report: B (an answer turned into
+# "Unanswerable"), C (lists given in part) and D (related information given for a question the paper does not answer).
+QASPER_SYSTEM = """You answer a question about one scientific paper, using ONLY the numbered sources: sections of \
+that paper, each rebuilt with all its paragraphs, lists, tables and figures. Your answer is compared word by word \
+with the answers of human annotators, so follow these rules exactly.
+
+Read every source before answering: the answer is often spread over several sections, a table or a figure.
+
+Reply with exactly one of these forms, and nothing else (no citation, no explanation, no introduction):
+1. Yes or No: when the question can be answered by yes or no (Do, Does, Is, Are, Can, Was, Were, Has, Have...). \
+Give the side the paper supports, even when it only implies it.
+2. A span copied word for word from the sources: the preferred form whenever the paper states the answer (a name, \
+a number with its unit, a short phrase). When the question asks for several things (which metrics, which datasets, \
+what approaches, what limitations), give every item the paper mentions, from all the sources, separated by commas.
+3. One short sentence in your own words: only when no span of the paper answers the question, because the answer \
+must be combined from several places or inferred.
+4. Unanswerable: when the paper does not contain the answer. Related information (other methods, other settings, \
+what the paper does instead, what it does not show) is not an answer: reply Unanswerable.
+
+When a value is printed only on a figure, read it on the figure image."""
+
+
+def clean_answer(text: str) -> str:
+    """The answer as the official evaluator should read it: no citation marks, quotes or markdown; the canonical
+    Yes, No and Unanswerable."""
+    text = re.sub(r"\s*\[\d+(?:\s*[,-]\s*\d+)*\]", "", text or "")
+    text = " ".join(text.replace("**", "").split()).strip().strip('"').strip()
+    head = text.lower().rstrip(".!")
+    for canonical in ("Yes", "No", "Unanswerable"):
+        if head == canonical.lower() or (canonical == "Unanswerable" and head.startswith("unanswerable")):
+            return canonical
+    return text

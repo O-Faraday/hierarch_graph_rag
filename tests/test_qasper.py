@@ -8,7 +8,7 @@ import tarfile
 
 import pytest
 
-from hgrag import qasper, ragbench
+from hgrag import config, qasper, ragbench
 from test_eval import _fake_llm, offline  # noqa: F401
 from test_ragbench import bench  # noqa: F401
 from test_retrieval import BagOfWordsEmbedder
@@ -103,6 +103,7 @@ def test_run_on_qasper_questions(bench, monkeypatch):  # noqa: F811
     papers = {pid: {**p, "title": None} for pid, p in _papers(evidence).items()}  # titles would sway the toy embedder
     src = _FakeQasper(qasper.build_files(papers))
     monkeypatch.setattr(ragbench, "fetch_pdfs", lambda ids, urls, d, **kw: ({p: d / f"{p}.pdf" for p in ids}, {}))
+    monkeypatch.setattr(config, "QASPER_DIRECT_ANSWER", False)  # the long answer, then the converter
     monkeypatch.setenv("ANTHROPIC_API_KEY", "k")
     _fake_llm(monkeypatch)
     res = ragbench.run(3, k=5, workdir=work, source=src, embedder=BagOfWordsEmbedder(), parse=parse, track=False,
@@ -168,3 +169,35 @@ def test_short_answer_keeps_partial_and_hedged_answers():
     # 13 answers judged right were turned into "Unanswerable" because they started with a caveat
     assert "Unanswerable only when the ANSWER gives nothing" in qasper.SHORT_SYSTEM
     assert "even when it is hedged" in qasper.SHORT_SYSTEM
+
+
+def test_clean_answer_gives_what_the_official_evaluator_expects():
+    assert qasper.clean_answer("Yes. [1]") == "Yes"
+    assert qasper.clean_answer("**No**") == "No"
+    assert qasper.clean_answer("Unanswerable: the paper does not say.") == "Unanswerable"
+    assert qasper.clean_answer('"BLEU, NIST, METEOR" [2][3]') == "BLEU, NIST, METEOR"
+    assert qasper.clean_answer("k-means [1, 4] on word embeddings") == "k-means on word embeddings"
+
+
+def test_qasper_prompt_follows_the_annotation_format():
+    p = qasper.QASPER_SYSTEM
+    assert "Yes or No" in p and "copied word for word" in p and "every item" in p and "Unanswerable" in p
+    assert "Related information" in p  # family D: related information is not an answer
+
+
+def test_direct_answers_are_scored_as_they_are(bench, monkeypatch):  # noqa: F811
+    work, orb, parse = bench
+    evidence = {pid: [s["text"] for s in orb.files[f"corpus/{pid}.json"]["sections"] if s["text"] != "x"]
+                for pid in ("2401.0001", "2401.0002", "2401.0003")}
+    src = _FakeQasper(qasper.build_files(_papers(evidence)))
+    monkeypatch.setattr(ragbench, "fetch_pdfs", lambda ids, urls, d, **kw: ({p: d / f"{p}.pdf" for p in ids}, {}))
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "k")
+    calls = _fake_llm(monkeypatch)
+    res = ragbench.run(3, k=5, workdir=work, source=src, embedder=BagOfWordsEmbedder(), parse=parse, track=False,
+                       dataset="qasper", generate=True, scope="paper")
+    systems = [p["system"] for p in calls["payloads"] if not p["system"].startswith("You are a strict")]
+    assert systems and all(s == qasper.QASPER_SYSTEM for s in systems)  # one call per question, no converter
+    assert calls["answer"] == len(res["results"])
+    for r in res["results"]:
+        assert r["short_answer"] == qasper.clean_answer(r["answer"]) and "answer_f1_long" not in r
+    assert res["summary"]["config"]["qasper_direct_answer"] is True

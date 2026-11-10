@@ -268,6 +268,7 @@ devant la question pour la cibler, ce qui fait remonter le résumé en tête et 
 
 ```bash
 uv run hgrag ragbench --dataset qasper --docs 20 -k 10 --generate --scope paper  # protocole officiel : chaque question dans son article
+HGRAG_LLM_PROVIDER=openai HGRAG_LLM_MODEL=gpt-4o-mini HGRAG_LLM_BASE_URL=https://api.openai.com/v1 HGRAG_LLM_SEND_IMAGES=1 \n  uv run hgrag ragbench --dataset qasper --docs 20 -k 10 --generate --scope paper  # générateur GPT-4o-mini (OPENAI_API_KEY), juge Claude
 uv run hgrag ragbench --dataset qasper --docs 20 -k 10 --generate                  # 20 articles du split dev
 uv run hgrag ragbench --dataset qasper --docs 20 --negatives 20 -k 10 --generate   # + 20 articles distracteurs
 ```
@@ -792,6 +793,7 @@ contexte (`tracing.submit`) : sans elle, `mlflow.genai.evaluate` perdait la trac
 | `HGRAG_JUDGE_MODEL` | `claude-haiku-5-5` | Modèle du juge de `hgrag eval` |
 | `HGRAG_JUDGE_WITH_SOURCE` | `1` | `hgrag eval` et `hgrag ragbench` (les notes d'Open RAG Bench ne se comparent donc plus aux runs d'avant ; `0` pour l'ancien juge) : le juge lit aussi le texte de la section de référence (relu dans l'arbre, avec les descriptions), puis les sections données au modèle de réponse ; un détail exact absent de la courte référence ne coûte plus de point, un détail que la section n'appuie pas reste plafonné à 4 |
 | `HGRAG_QASPER_SHORT_ANSWER` | `1` | Ragbench QASPER avec `--generate` : un appel de plus par question tire de la réponse rédigée une réponse courte au format QASPER (extrait copié des sources, Yes/No, Unanswerable) ; le F1 officiel est calculé sur elle, sur toutes les questions (comme l'évaluateur officiel), ce qui le rend comparable aux articles. Le F1 de la réponse rédigée reste dans `answer_f1_long` |
+| `HGRAG_QASPER_DIRECT_ANSWER` | `1` | Ragbench QASPER : le générateur répond directement au format des annotateurs (`qasper.QASPER_SYSTEM` : Yes/No, extrait copié de l'article, une phrase courte ou Unanswerable ; tous les éléments d'une liste ; Unanswerable plutôt qu'une information voisine), comme les systèmes publiés ; la réponse nettoyée des citations est notée telle quelle. À `0`, réponse rédigée puis réponse courte par un second appel (`HGRAG_QASPER_SHORT_ANSWER`) |
 | `HGRAG_REFINE_MODEL` | `claude-haiku-5-5` | Modèle des juges de contexte et de génération (`hgrag ragbench-refine`) |
 | `HGRAG_REFINE_THRESHOLD` | `4` | Questions notées strictement en dessous jugées à nouveau |
 | `HGRAG_REFINE_CONTEXT_OK` | `4` | `context_score` minimal pour lancer le juge de génération |

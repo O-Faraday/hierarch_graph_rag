@@ -99,8 +99,9 @@ class LLMConfig:
 
 # ---------------------------------------------------------------------------------------- prompt
 def build_messages(query: str, sections: list[dict[str, Any]], max_chars: int = 48000,
-                   max_images: int = 6) -> dict[str, Any]:
+                   max_images: int = 6, system: str | None = None) -> dict[str, Any]:
     """Numbered sources, best score first, within a character budget (lowest scores are dropped first).
+    ``system``: another system prompt than ``SYSTEM_PROMPT`` (a benchmark with its own answer format).
 
     ``images``: the figures (PNG on disk) of the kept sections, labelled with their source number.
     """
@@ -125,7 +126,7 @@ def build_messages(query: str, sections: list[dict[str, Any]], max_chars: int = 
                 images.append({"n": n, "caption": fig.get("caption") or "", "path": str(path)})
     sources_text = "Sources:\n\n" + "\n\n---\n\n".join(blocks)
     question = f"Question: {query}"
-    return {"system": SYSTEM_PROMPT, "user": f"{sources_text}\n\n{question}", "sources_text": sources_text,
+    return {"system": system or SYSTEM_PROMPT, "user": f"{sources_text}\n\n{question}", "sources_text": sources_text,
             "question": question, "sources": used, "dropped": dropped, "images": images, "images_missing": missing}
 
 
@@ -274,7 +275,8 @@ def _stream_openai(cfg: LLMConfig, system: str, user: Any) -> Iterator[dict[str,
             if (text := (choice.get("delta") or {}).get("content")):
                 yield {"text": text}
             stop_reason = choice.get("finish_reason") or stop_reason
-    yield {"usage": {**usage, "stop_reason": stop_reason}}
+    # the OpenAI "length" is the Anthropic "max_tokens": callers retry a cut answer on either
+    yield {"usage": {**usage, "stop_reason": "max_tokens" if stop_reason == "length" else stop_reason}}
 
 
 def stream_completion(cfg: LLMConfig, system: str, user: Any) -> Iterator[dict[str, Any]]:
@@ -302,6 +304,7 @@ def complete(cfg: LLMConfig, system: str, user: Any, *, max_tokens: int | None =
 def answer_stream(
     query: str, sections: list[dict[str, Any]], cfg: LLMConfig | None = None, *, run_key: str | None = None,
     info: dict[str, Any] | None = None, trace: tracing.Span | None = None, judges: bool | None = None,
+    system: str | None = None,
 ) -> Iterator[str]:
     """Stream the answer text. ``info`` (optional dict) is filled with sources, usage and timings.
 
@@ -316,7 +319,7 @@ def answer_stream(
         "question": query, "sections": [s.get("section_path") for s in sections], "model": cfg.model})
     try:
         answer = yield from _answer_events(query, sections, cfg, run_key=run_key, info=info, span=span,
-                                           judges=config.ASSESS_JUDGES if judges is None else judges)
+                                           judges=config.ASSESS_JUDGES if judges is None else judges, system=system)
     except GeneratorExit:  # the app stopped reading
         span.end(closed_early=True)
         raise
@@ -327,7 +330,8 @@ def answer_stream(
 
 
 def _answer_events(query: str, sections: list[dict[str, Any]], cfg: LLMConfig, *, run_key: str | None,
-                   info: dict[str, Any] | None, span: tracing.Span, judges: bool = False) -> Iterator[str]:
+                   info: dict[str, Any] | None, span: tracing.Span, judges: bool = False,
+                   system: str | None = None) -> Iterator[str]:
     from .assessments import answer as answer_checks
     from .assessments import prompt as prompt_checks
     from .assessments import retrieval as retrieval_checks
@@ -335,7 +339,7 @@ def _answer_events(query: str, sections: list[dict[str, Any]], cfg: LLMConfig, *
     with span.child("build_prompt", "CHAIN", inputs={
             "question": query, "sections": [s.get("section_path") for s in sections],
             "max_chars": cfg.max_context_chars, "max_images": cfg.max_images}) as sp:
-        msgs = build_messages(query, sections, cfg.max_context_chars, cfg.max_images)
+        msgs = build_messages(query, sections, cfg.max_context_chars, cfg.max_images, system=system)
         sp.set({"system": msgs["system"], "user": msgs["user"], "dropped": msgs["dropped"],
                 "images": [{"n": i["n"], "caption": i["caption"], "path": i["path"]} for i in msgs["images"]],
                 "images_missing": msgs["images_missing"]})
