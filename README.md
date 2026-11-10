@@ -11,9 +11,63 @@ se brancher sur les mêmes étapes une fois les workflows stabilisés : voir §5
 PDF ─► parse ─► hierarchy ─► index (Qdrant)          pipeline d'indexation
          │          │             ▲
    document.json  hierarchy.json  └── chunks (éléments textuels) + embeddings
+                  structure.json  (le même arbre, lisible : sections, contenus typés, pages)
 
 requête ─► embed ─► Qdrant ─► regroupement par section ─► reconstruction (parallèle)   pipeline de retrieval
 ```
+
+## Pourquoi un arbre plutôt qu'un ensemble de chunks
+
+Un RAG classique découpe le document en morceaux de taille fixe et les range à plat dans une base vectorielle :
+les limites de section disparaissent, un passage est séparé de son titre, de son tableau ou de sa suite, et le
+contexte donné au modèle mélange des fragments de plusieurs endroits. Les méthodes qui tentent ensuite de recréer
+du lien (graphes d'entités comme GraphRAG, regroupements et résumés récursifs comme RAPTOR) « détruisent puis
+reconstruisent » : elles ajoutent du bruit et du coût pour retrouver une organisation que l'auteur avait déjà écrite.
+
+Ce projet **hérite** de cette organisation au lieu de la reconstruire. Docling, les signets du PDF et la numérotation
+donnent l'arbre des titres ; chaque paragraphe, tableau (avec sa description), figure (avec son image et sa
+description) et formule (avec son LaTeX) est rangé dans sa section, avec sa page (`structure.json`). Les chunks ne
+servent que de **points d'entrée** : la recherche trouve les passages proches de la question, puis le modèle reçoit
+les **sections entières** qui les contiennent, dans l'ordre du document, avec leur chemin de titres.
+
+| | Ensemble de chunks | Arbre du document |
+|---|---|---|
+| Contexte donné au modèle | fragments dispersés, coupés de leur titre | sections complètes, dans l'ordre, avec leur chemin (`2 Equipment > 2.1 Barriers`) |
+| Tableaux, figures, formules | un morceau de texte parmi d'autres, ou perdus | rattachés à leur section, avec légende, description et page |
+| Budget de tokens | dépensé sur des passages voisins mais hors sujet | concentré sur les sections qui portent la réponse |
+| Citer et vérifier | un extrait sans contexte | une section et des numéros de page |
+| Coût d'indexation | faible, mais structure perdue | faible aussi : la structure est lue, pas recalculée par un LLM ou un graphe |
+| Ce qu'on peut construire dessus | recherche plate | navigation, sélection de sections, export vers d'autres outils, revue humaine |
+
+**Ce que dit la littérature.** L'article *SF-RAG: Structure-Fidelity Retrieval-Augmented Generation for Academic
+Question Answering* (Yu et al., [arXiv 2602.13647](https://arxiv.org/abs/2602.13647)) défend le même principe,
+« hériter puis naviguer » : garder la hiérarchie native des articles et choisir des chemins de section sous un budget
+de tokens. Chiffres **rapportés par les auteurs** (GPT-4o-mini, parsing MinerU), non reproduits ici :
+
+* QASPER, F1 de réponse : 67,1 % contre 49,5 % pour un RAG à chunks plats et 60,3 % pour le meilleur concurrent
+  (HippoRAG2) ; même tendance sur QASA et M3SciQA (+2 à +3 points) ;
+* le RAG à plat retrouve un peu **plus** de preuves (F1 de preuve 54,3 % contre 51,7 %) mais répond moins bien : son
+  contexte est dispersé (entropie de section 2,27 contre 0,44). C'est la cohérence du contexte, pas son volume, qui
+  fait la qualité de la réponse ;
+* sans la navigation par la structure (ablation « w/o path »), toutes leurs métriques reculent ;
+* indexation en 31 s contre 304 s pour GraphRAG et 413 s pour RAPTOR, sur leur machine (tableau 3).
+
+**Ce que nous avons mesuré** (métriques maison, voir §1.3 sexies) :
+
+* QASPER, 20 articles du split dev, chaque question dans son article (`--scope paper`) : la bonne section est en tête
+  pour 37 % des questions seulement, mais les sections reconstruites contiennent en moyenne 75 % du texte de preuve
+  (91 % des questions au-dessus de 50 %), note du juge 4,2/5. La reconstruction par section rattrape ce que le
+  classement des chunks manque ;
+* la qualité dépend d'abord de l'arbre : sur l'article 2404.02228 (titres en début de paragraphe), l'arbre est passé
+  de 4 sections utiles à 26 grâce aux signets, et les 7 questions de cet article, jusque-là jamais rattachées à leur
+  section, ont été retrouvées ; sur notre jeu `data/pdf_eval`, chaque titre manqué ou tableau mal rangé faisait
+  échouer les questions correspondantes.
+
+**Limites.** L'avantage disparaît quand l'arbre est faux : titres non détectés, tableaux renvoyés en fin d'article
+et rangés dans les références, ordre de lecture erroné. D'où les réparations de la sortie de Docling (signets,
+tableaux coupés, titre en tête de page) et le contrôle `hgrag verify`. Les étapes de SF-RAG qui exploitent l'arbre
+au moment de la recherche (choix des sections d'abord, chemins sous budget, résumé de chaque segment) ne sont pas
+encore dans ce pipeline : `structure.json` en est la base.
 
 ---
 
