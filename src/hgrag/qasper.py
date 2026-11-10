@@ -182,14 +182,25 @@ Reply with the short answer only, no other text:
 number, a short phrase; several items separated by commas);
 - if the ANSWER says the sources do not contain the answer: Unanswerable."""
 SHORT_CONTEXT_CHARS = 12000
+SHORT_BUDGETS = (400, 1600)  # max_tokens of the call, then of the retry when the reply comes back empty
 
 
 def short_answer(cfg: Any, question: str, answer: str, sections: list[dict[str, Any]]) -> str:
     """The short answer in the QASPER format (span, Yes/No or Unanswerable), from the full answer and its sources:
-    the official answer F1 compares words, so a correct answer of several sentences scores low."""
-    from .generation import complete
+    the official answer F1 compares words, so a correct answer of several sentences scores low. Thinking is off for
+    Haiku as for the judges (it counts in max_tokens: half the short answers came back empty at 200 tokens), and an
+    empty reply is asked once more with a larger budget."""
+    import dataclasses
 
+    from .generation import complete, judge_thinking
+
+    cfg = dataclasses.replace(cfg, thinking=judge_thinking(cfg.model) or cfg.thinking)
     sources = "\n\n".join(f"[{s.get('section_path')}]\n{s.get('text') or ''}" for s in sections)[:SHORT_CONTEXT_CHARS]
-    text, _usage = complete(cfg, SHORT_SYSTEM, f"QUESTION:\n{question}\n\nSOURCES:\n{sources}\n\nANSWER:\n{answer}",
-                            max_tokens=200)
-    return " ".join(text.split()).strip().strip('"')
+    user = f"QUESTION:\n{question}\n\nSOURCES:\n{sources}\n\nANSWER:\n{answer}"
+    text = ""
+    for budget in SHORT_BUDGETS:
+        reply, _usage = complete(cfg, SHORT_SYSTEM, user, max_tokens=budget)
+        text = " ".join(reply.split()).strip().strip('"')
+        if text:
+            break
+    return text

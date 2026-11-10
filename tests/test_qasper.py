@@ -144,18 +144,21 @@ def test_short_answer_is_asked_with_the_sources_and_cleaned(monkeypatch):
     from hgrag import generation
     from test_generation import FakeResponse, _anthropic_stream
 
-    seen = {}
+    calls = []
+    replies = ["", '  "Yes"  ']  # Haiku spent its budget thinking: empty, then the retry answers
 
     def post(url, **kw):
-        seen.update(kw["json"])
-        return FakeResponse(_anthropic_stream(['  "Yes"  ']))
+        calls.append(kw["json"])
+        return FakeResponse(_anthropic_stream([replies.pop(0)]))
 
     monkeypatch.setattr(generation.requests, "post", post)
-    cfg = generation.LLMConfig(provider="anthropic", api_key="k")
+    cfg = generation.LLMConfig(provider="anthropic", model="claude-haiku-5-5", api_key="k")
     out = qasper.short_answer(cfg, "Do they release code?", "Yes, the code is on GitHub [1].",
                               [{"section_path": "p > 7 Conclusion", "text": "The code is available."}])
     assert out == "Yes"
-    user = seen["messages"][0]["content"]
+    user = calls[0]["messages"][0]["content"]
     assert "QUESTION:\nDo they release code?" in user and "[p > 7 Conclusion]\nThe code is available." in user
-    assert seen["system"].startswith("You turn the answer") and seen["max_tokens"] == 200
+    assert calls[0]["system"].startswith("You turn the answer")
+    assert [c["max_tokens"] for c in calls] == list(qasper.SHORT_BUDGETS)
+    assert all(c["thinking"] == {"type": "disabled"} for c in calls)  # thinking would eat the budget
     assert qasper.answer_f1(out, ["Yes", "Unanswerable"]) == 1.0
