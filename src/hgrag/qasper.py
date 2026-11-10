@@ -177,10 +177,11 @@ SHORT_SYSTEM = """You turn the answer of a question-answering system into the sh
 comprehension benchmark. You receive the QUESTION, the SOURCES the system read and its full ANSWER.
 
 Reply with the short answer only, no other text:
-- a yes/no question: Yes or No;
+- a yes/no question: Yes or No, the conclusion the ANSWER leans to, even when it is hedged;
 - otherwise the shortest span that answers it, copied word for word from the SOURCES when it is there (a name, a \
 number, a short phrase; several items separated by commas);
-- if the ANSWER says the sources do not contain the answer: Unanswerable."""
+- Unanswerable only when the ANSWER gives nothing that answers the question. An ANSWER that names some items, gives \
+a partial answer or adds that something is not stated explicitly still answers: reply with what it gives."""
 SHORT_CONTEXT_CHARS = 12000
 SHORT_BUDGETS = (400, 1600)  # max_tokens of the call, then of the retry when the reply comes back empty
 

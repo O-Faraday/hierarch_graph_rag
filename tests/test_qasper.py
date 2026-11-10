@@ -162,3 +162,9 @@ def test_short_answer_is_asked_with_the_sources_and_cleaned(monkeypatch):
     assert [c["max_tokens"] for c in calls] == list(qasper.SHORT_BUDGETS)
     assert all(c["thinking"] == {"type": "disabled"} for c in calls)  # thinking would eat the budget
     assert qasper.answer_f1(out, ["Yes", "Unanswerable"]) == 1.0
+
+
+def test_short_answer_keeps_partial_and_hedged_answers():
+    # 13 answers judged right were turned into "Unanswerable" because they started with a caveat
+    assert "Unanswerable only when the ANSWER gives nothing" in qasper.SHORT_SYSTEM
+    assert "even when it is hedged" in qasper.SHORT_SYSTEM
