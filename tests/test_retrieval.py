@@ -125,3 +125,23 @@ def test_search_can_be_limited_to_some_documents(store, tmp_path):
     only = search_hits("average settlement delay", 5, embedder=BagOfWordsEmbedder(), client=client, collection="c",
                        doc_ids=["doc2"])
     assert {h["doc_id"] for h in only} == {"doc2"}
+
+
+def test_first_sections_keeps_the_chunks_of_the_first_n_sections():
+    from types import SimpleNamespace
+
+    from hgrag.retrieval import first_sections
+
+    pts = [SimpleNamespace(id=i, payload={"doc_id": "d", "section_ref": s}, score=1 - i / 10)
+           for i, s in enumerate(["a", "a", "b", "c", "a", "b", "d"])]
+    assert [p.id for p in first_sections(pts, 2)] == [0, 1, 2, 4, 5]
+    assert [p.id for p in first_sections(pts, 10)] == list(range(7))
+
+
+def test_k_sections_counts_sections_not_chunks(store):
+    client, _ = store
+    kw = {"embedder": BagOfWordsEmbedder(), "client": client, "collection": "c", "rerank": False}
+    one = search_hits("settlement delay", 1, k_sections=2, **kw)
+    assert len(one) == 2  # k=1 chunk would give one section
+    every = search_hits("settlement delay", 50, **kw)
+    assert [h["section_ref"] for h in one] == [h["section_ref"] for h in every[:2]]

@@ -185,6 +185,10 @@ RERANK = os.environ.get("HGRAG_RERANK", "1").strip().lower() in ("1", "true", "y
 RERANK_MODEL = os.environ.get("HGRAG_RERANK_MODEL", "cross-encoder/ms-marco-MiniLM-L12-v2")
 RERANK_CANDIDATES = int(os.environ.get("HGRAG_RERANK_CANDIDATES", "30"))
 RERANK_MAX_LENGTH = int(os.environ.get("HGRAG_RERANK_MAX_LENGTH", "512"))
+# How many sections the search returns. 0 = k counts chunks (the k best chunks, grouped: often 5 sections for k=10).
+# N > 0 = the chunks are read best first until N different sections are found (all candidates are reranked), so
+# the model reads N sections whatever the number of chunks per section; k is then unused.
+K_SECTIONS = int(os.environ.get("HGRAG_K_SECTIONS", "0"))
 # Hybrid search: share of the BM25 keyword score in the candidate ranking (min-max normalised scores, the rest is the
 # dense similarity). 0 = dense only. Only for collections indexed with keyword vectors (keywords.has_keywords).
 KEYWORD_WEIGHT = float(os.environ.get("HGRAG_KEYWORD_WEIGHT", "0.3"))

@@ -680,8 +680,8 @@ def run(n_docs: int = 10, *, seed: int = 0, negatives: int = 0, sources: list[st
     finally:
         client.close()
     disputed = load_disputed()
-    summary = summarize(results, k_sections=k, disputed=disputed)
-    summary["config"] = {"dataset": dataset, "scope": scope, **({"split": split} if dataset == "qasper" else {}), "docs": n_docs, "seed": seed, "negatives": negatives, "sources": sources, "k_chunks": k, "section_base": base,
+    summary = summarize(results, k_sections=config.K_SECTIONS or k, disputed=disputed)
+    summary["config"] = {"dataset": dataset, "scope": scope, **({"split": split} if dataset == "qasper" else {}), "docs": n_docs, "seed": seed, "negatives": negatives, "sources": sources, "k_chunks": None if config.K_SECTIONS else k, "k_sections": config.K_SECTIONS or None, "section_base": base,
                          "described": describe, "generate": generate, "embed_model": config.EMBED_MODEL_ID,
                          "keyword_weight": config.KEYWORD_WEIGHT if store["hybrid"] else 0.0,
                          "rerank": use_rerank, "rerank_model": config.RERANK_MODEL if use_rerank else None,

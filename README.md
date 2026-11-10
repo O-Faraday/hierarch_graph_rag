@@ -765,6 +765,7 @@ contexte (`tracing.submit`) : sans elle, `mlflow.genai.evaluate` perdait la trac
 | `HGRAG_RERANK` | `1` | Reclassement par cross-encoder : la recherche vectorielle lit `HGRAG_RERANK_CANDIDATES` chunks, le cross-encoder garde les `k` meilleurs |
 | `HGRAG_RERANK_MODEL` | `cross-encoder/ms-marco-MiniLM-L12-v2` | Cross-encoder (rapide sur CPU). Plus précis mais plus lourd : `BAAI/bge-reranker-base` |
 | `HGRAG_RERANK_CANDIDATES` / `HGRAG_RERANK_MAX_LENGTH` | `30` / `512` | Candidats reclassés / tokens lus par paire |
+| `HGRAG_K_SECTIONS` | `0` | Nombre de **sections** rendues par la recherche. À 0, `k` compte des chunks (k = 10 donne souvent 5 sections). À N > 0, tous les candidats sont reclassés puis lus du meilleur au moins bon jusqu'à N sections différentes ; `k` n'est alors plus utilisé |
 | `HGRAG_MIN_CHUNK_WORDS` | `3` | Taille minimale d'un chunk (`0` = off) |
 | `HGRAG_CHUNK_LABELS` | `text,paragraph,list_item,footnote,formula,code,table,caption` | Éléments Docling qui deviennent des chunks (retirer `table`, `code`… pour restreindre) |
 | `HGRAG_DESCRIBE_PICTURES` | `1` si `HF_TOKEN` est défini | Décrire figures et tableaux après le parsing (API) |

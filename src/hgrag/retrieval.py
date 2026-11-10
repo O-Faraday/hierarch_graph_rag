@@ -47,6 +47,22 @@ def fuse(dense: list[Any], kw: list[Any], weight: float, limit: int) -> list[Any
 
 def _part_scores(p: Any) -> dict[str, float]:
     return {k: getattr(p, k) for k in ("dense_score", "keyword_score") if getattr(p, k, None) is not None}
+def first_sections(points: list[Any], n: int) -> list[Any]:
+    """The chunks of the first ``n`` sections met, best chunk first (``points`` sorted by decreasing score): the chunks
+    read until ``n`` different sections are found, plus the later chunks of those sections."""
+    keep: set[tuple[Any, Any]] = set()
+    out = []
+    for p in points:
+        pl = p.payload or {}
+        key = (pl.get("doc_id"), pl.get("section_ref"))
+        if key not in keep:
+            if len(keep) >= n:
+                continue
+            keep.add(key)
+        out.append(p)
+    return out
+
+
 def _group_points(points: list[Any]) -> list[dict[str, Any]]:
     grouped: dict[tuple[str, str], dict[str, Any]] = {}
     for p in points:  # already sorted by decreasing similarity
@@ -97,6 +113,7 @@ def search_steps(
     diagnostics: dict[str, Any] | None = None,
     trace: tracing.Span | None = None,
     doc_ids: list[str] | None = None,
+    k_sections: int | None = None,
 ) -> Iterator[dict[str, Any]]:
     """Search as a generator of step events ``{"step", "seconds", "data"}``.
 
@@ -111,22 +128,28 @@ def search_steps(
     best dense similarity without reranking) and, on a hybrid collection, how many candidates both searches found.
     ``trace``: the span of a larger operation (a question); without it the search is a trace of its own.
     ``doc_ids``: search only these documents (a question asked about one paper, "ask this document").
+    ``k_sections`` (default ``HGRAG_K_SECTIONS``, 0 = off): return this many sections instead of the sections of the
+    ``k`` best chunks; every candidate is ranked and read best first until that many sections are found.
     """
     diag = diagnostics if diagnostics is not None else {}
     if not query.strip():
         raise ValueError("empty query")
     use_rerank = config.RERANK if rerank is None else rerank
-    n_fetch = max(k, candidates or config.RERANK_CANDIDATES) if use_rerank else k
+    n_sections = config.K_SECTIONS if k_sections is None else k_sections
+    n_fetch = max(k, candidates or config.RERANK_CANDIDATES) if use_rerank or n_sections else k
+    if n_sections:  # every candidate is ranked, then cut at n_sections sections (first_sections)
+        k = n_fetch
     weight = config.KEYWORD_WEIGHT if keyword_weight is None else keyword_weight
     span = tracing.child_or_root(trace, "search", tracking.RETRIEVAL, run_key, span_type="RETRIEVER", inputs={
         "query": query, "k": k, "candidates": n_fetch, "rerank": use_rerank, "keyword_weight": weight,
+        **({"k_sections": n_sections} if n_sections else {}),
         "collection": collection, "embedding_model": model_id, **({"doc_ids": list(doc_ids)} if doc_ids else {})})
     sections: list[dict[str, Any]] = []
     try:
         for event in _search_events(query, k, embedder=embedder, client=client, collection=collection,
                                     qdrant_path=qdrant_path, model_id=model_id, min_score=min_score, run_key=run_key,
                                     use_rerank=use_rerank, reranker=reranker, n_fetch=n_fetch, weight=weight,
-                                    diag=diag, span=span, doc_ids=doc_ids):
+                                    diag=diag, span=span, doc_ids=doc_ids, n_sections=n_sections):
             if event["step"] == "group":
                 sections = event["data"]
             yield event
@@ -162,7 +185,7 @@ def _doc_filter(doc_ids: list[str] | None) -> Any:
 def _search_events(query: str, k: int, *, embedder: Any, client: Any, collection: str, qdrant_path: str | Path,
                    model_id: str, min_score: float | None, run_key: str | None, use_rerank: bool, reranker: Any,
                    n_fetch: int, weight: float, diag: dict[str, Any], span: tracing.Span,
-                   doc_ids: list[str] | None = None) -> Iterator[dict[str, Any]]:
+                   doc_ids: list[str] | None = None, n_sections: int = 0) -> Iterator[dict[str, Any]]:
     with track_step(tracking.RETRIEVAL, "search", run_key, query=query, k=k, collection=collection,
                     model_id=model_id, rerank=use_rerank, **({"candidates": n_fetch} if use_rerank else {})) as tr:
         owns_client = client is None
@@ -238,7 +261,7 @@ def _search_events(query: str, k: int, *, embedder: Any, client: Any, collection
                 client.close()
 
         t0 = time.perf_counter()
-        sections = _group_points(points)
+        sections = _group_points(first_sections(points, n_sections) if n_sections else points)
         dt = time.perf_counter() - t0
         tr.metrics(n_sections=len(sections))
         tr.dict(sections, "sections.json")
