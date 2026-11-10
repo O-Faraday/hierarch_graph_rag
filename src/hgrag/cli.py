@@ -112,6 +112,10 @@ def main() -> None:
     query.add_argument("--children", action="store_true", help="also include sub-sections")
     query.add_argument("--no-mlflow", action="store_true", help="disable MLflow tracking")
     query.add_argument("--json", action="store_true", help="print JSON instead of Markdown")
+    st = sub.add_parser("structure", help="write the readable tree of every parsed document (title, sections, typed "
+                                          "content, pages) into one JSON list, from their hierarchy.json")
+    st.add_argument("--output-dir", default=str(config.OUTPUT_DIR))
+    st.add_argument("--dest", default=None, help="default <output-dir>/structure.json")
     ver = sub.add_parser("verify", help="check the output of the control PDFs against expected.json")
     ver.add_argument("--pdf-dir", default=str(config.CONTROL_PDF_DIR))
     bun = sub.add_parser("bundle", help="zip everything needed to analyse the runs (outputs, logs, MLflow, versions)")
@@ -229,6 +233,15 @@ def main() -> None:
             # (WinError 10022) and are restarted, which floods the console
             [sys.executable, "-m", "mlflow", "ui", "--backend-store-uri", tracking.TRACKING_URI, "--workers", "1"]
         ))
+
+    if args.cmd == "structure":
+        from . import structure
+
+        docs = structure.corpus(args.output_dir)
+        dest = Path(args.dest or Path(args.output_dir) / structure.FILE)
+        dest.write_text(json.dumps(docs, indent=2, ensure_ascii=False), encoding="utf-8")
+        print(f"{len(docs)} document(s) -> {dest}")
+        return
 
     if args.cmd == "freeze":
         from .evaluation import freeze_parsed

@@ -134,10 +134,12 @@ def _build_and_save_hierarchy(doc_dir: Path) -> dict[str, Any]:
     root = build_hierarchy(doc, figures, doc_title=pdf_stem(manifest["source_pdf"]),
                            table_descriptions=table_descriptions(doc_dir, manifest),
                            outline_headings=manifest.get("outline_headings"))
-    (doc_dir / "hierarchy.json").write_text(
-        json.dumps(root.to_dict(), indent=2, ensure_ascii=False), encoding="utf-8"
-    )
+    tree = root.to_dict()
+    (doc_dir / "hierarchy.json").write_text(json.dumps(tree, indent=2, ensure_ascii=False), encoding="utf-8")
     (doc_dir / "hierarchy_tree.txt").write_text(render_tree(root), encoding="utf-8")
+    from . import structure
+
+    structure.save(doc_dir, tree)  # the same tree, readable: sections, typed content, pages
     stats = tree_stats(root)
     return {
         **manifest,

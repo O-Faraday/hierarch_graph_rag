@@ -515,7 +515,7 @@ client, choisir un dossier à accès restreint plutôt que `/Shared`.
 | `orchestration/` | **Pour plus tard** : projet uv séparé, Airflow 3.3.2 + DAGs `hgrag_pipeline` / `hgrag_retrieval` |
 | `data/runs/<run_key>/` | `status.json` et `log.txt` de chaque run de l'app |
 | `data/pdf_sample/` | PDF d'entrée |
-| `data/output/<doc_id>/` | `document.json`, `figures/*.png`, `figures.json`, `hierarchy.json`, `manifest.json` |
+| `data/output/<doc_id>/` | `document.json`, `figures/*.png`, `figures.json`, `outline.json` (signets du PDF), `hierarchy.json`, `structure.json` (arbre lisible, avec les pages), `manifest.json` |
 | `data/qdrant/` | Stockage Qdrant local (collection unique `hgrag_chunks`) |
 | `data/mlflow/` | Base SQLite et artefacts MLflow |
 
@@ -534,6 +534,33 @@ Docling avec `HeadingHierarchyOptions(enabled=True)`, figures exportées en PNG
 bbox, légende, dimensions/dpi, chemin PNG, description VLM, classification). `hierarchy.json` :
 arbre des titres, chaque section contient ses éléments (paragraphe, liste, tableau en Markdown,
 figure, formule, code, note…).
+
+`structure.json`, écrit à côté de `hierarchy.json` (format de travail du pipeline, inchangé), est le **même arbre en
+version lisible**, pour les personnes et les autres outils : le titre du document (sa page de garde dans `content`),
+puis les sections imbriquées, chacune avec un identifiant stable (`s2.1.1`), son numéro tel qu'écrit (`2.1.1`, `IV`,
+`A` pour « Appendix A »), son niveau, ses pages (`start`, `end`), ses contenus dans l'ordre de lecture et ses
+sous-sections. Chaque contenu est typé et porte sa page (`pages` en plus quand il s'étend sur plusieurs pages, comme un
+tableau réuni par-dessus un saut de page) et sa référence Docling (`ref`, le lien avec les chunks et les traces) :
+
+```json
+{"doc_id": "…", "title": "Signalling Standard SR-12: Level Crossings", "source_pdf": "07_sr12_level_crossing_standard.pdf",
+ "pages": 2, "content": [],
+ "sections": [
+  {"id": "s2", "number": "2", "title": "2 Equipment", "level": 1, "pages": {"start": 1, "end": 1}, "content": [],
+   "sections": [
+    {"id": "s2.1", "number": "2.1", "title": "2.1 Barriers", "level": 2, "pages": {"start": 1, "end": 1},
+     "content": [
+      {"type": "paragraph", "text": "…", "page": 1, "ref": "#/texts/12"},
+      {"type": "list", "items": ["…", "…"], "pages": [1], "refs": ["…", "…"]},
+      {"type": "table", "caption": "…", "markdown": "| … |", "description": "…", "rows": 61, "cols": 4, "page": 1, "pages": [1, 2]},
+      {"type": "figure", "caption": "…", "image": "figures/figure-001.png", "description": "…", "page": 1},
+      {"type": "formula", "text": "…", "latex": "\\Delta T_{lm} = …", "reading": "…", "page": 1}],
+     "sections": []}]}]}
+```
+
+Types de contenu : `paragraph`, `list`, `table`, `figure`, `formula`, `code`, `footnote`, `caption`, `reference`.
+`uv run hgrag structure` rassemble les documents d'un dossier (`--output-dir`, défaut `data/output`) en une liste
+JSON (`structure.json` du dossier), reconstruite depuis les `hierarchy.json` : aucun reparsing.
 
 ### Indexation
 Seuls les **paragraphes** sont découpés (HybridChunker, tokenizer aligné sur le modèle

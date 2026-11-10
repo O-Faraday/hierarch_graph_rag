@@ -96,6 +96,12 @@ def _page_of(item: Any) -> int | None:
     return prov[0].page_no if prov else None
 
 
+def _spanned_pages(item: Any) -> dict[str, list[int]]:
+    """``{"pages": [...]}`` for an item over several pages (a table joined over a page break), else nothing."""
+    pages = sorted({p.page_no for p in getattr(item, "prov", None) or []})
+    return {"pages": pages} if len(pages) > 1 else {}
+
+
 # ---------------------------------------------------------------------------------------- heading levels
 _ROMAN_RE = re.compile(r"^\s*([IVXLCDM]+)[.)]\s+\S")
 _LETTER_RE = re.compile(r"^\s*([A-Z])[.)]\s+\S")
@@ -466,7 +472,8 @@ def build_hierarchy(
 
         if isinstance(item, PictureItem):
             fig = figures_by_ref.get(item.self_ref)
-            extra: dict[str, Any] = {"caption": item.caption_text(doc) or None, **_attached_refs(item)}
+            extra: dict[str, Any] = {"caption": item.caption_text(doc) or None, **_attached_refs(item),
+                                     **_spanned_pages(item)}
             if fig:
                 extra.update(
                     figure_index=fig["figure_index"],
@@ -489,6 +496,7 @@ def build_hierarchy(
                         **_attached_refs(item),
                         "num_rows": item.data.num_rows,
                         "num_cols": item.data.num_cols,
+                        **_spanned_pages(item),
                         **({"description": table_descriptions[item.self_ref]}
                            if table_descriptions and item.self_ref in table_descriptions else {}),
                     },

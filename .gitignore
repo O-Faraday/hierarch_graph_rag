@@ -18,6 +18,7 @@ data/mlflow
 data/eval/
 data/eval_run*/
 data/eval_run*.log
+data/qasper_run*.log
 data/bundles/
 .env
 data/ragbench/

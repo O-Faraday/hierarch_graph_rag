@@ -23,7 +23,8 @@ Répondre en **français**, de façon concise. Code, noms, commentaires et messa
 |---|---|
 | `src/hgrag/parsing.py` | Docling + options, export des figures, manifeste (`parse_options`) |
 | `src/hgrag/describe.py` | Descriptions des figures/tableaux, formules → LaTeX (modèle de vision) |
-| `src/hgrag/hierarchy.py` | Arbre des titres et rattachement des éléments |
+| `src/hgrag/hierarchy.py`, `outline.py`, `repair.py` | Arbre des titres et rattachement des éléments ; titres retrouvés par les signets du PDF ; réparations de la sortie Docling (tableaux coupés, titre en tête de page) |
+| `src/hgrag/structure.py` | `structure.json` : l'arbre lisible (titre, sections, contenus typés, pages), à côté de `hierarchy.json` ; `hgrag structure` pour le corpus |
 | `src/hgrag/indexing.py`, `pipeline.py` | Chunks, préfixes d'embedding, Qdrant |
 | `src/hgrag/retrieval.py`, `rerank.py` | Recherche par étapes, reranking, reconstruction des sections |
 | `src/hgrag/generation.py`, `evaluation.py` | Réponse LLM, juge |
@@ -45,7 +46,7 @@ Répondre en **français**, de façon concise. Code, noms, commentaires et messa
 uv sync                                   # installer
 uv run pytest -q                          # tests (≈ 45 s, hors ligne, aucun modèle réel)
 uv run streamlit run app/streamlit_app.py # application
-uv run hgrag --help                       # run, query, verify, bundle, eval, describe, vlm-bench, ragbench, ragbench-report, ragbench-refine, assess, register, evaluate-rag, mlflow-ui
+uv run hgrag --help                       # run, query, structure, verify, bundle, eval, describe, vlm-bench, ragbench, ragbench-report, ragbench-refine, assess, register, evaluate-rag, mlflow-ui
 uv run hgrag ragbench --docs 30 --negatives 30 -k 10 --generate   # validation (tourne chez l'utilisateur, pas dans le bac à sable)
 uv run hgrag ragbench --dataset qasper --docs 20 -k 10 --generate  # QASPER (CC BY 4.0), split dev
 ```
