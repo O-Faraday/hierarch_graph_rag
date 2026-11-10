@@ -284,6 +284,9 @@ JUDGE_MODEL = os.environ.get("HGRAG_JUDGE_MODEL", "claude-haiku-5-5")
 # the benchmark), then the sections given to the answer model, so that a true detail beyond the short ground truth no
 # longer costs a point; an unsupported one still does.
 JUDGE_WITH_SOURCE = os.environ.get("HGRAG_JUDGE_WITH_SOURCE", "1").lower() in ("1", "true", "yes")
+# ``hgrag ragbench --dataset qasper --generate``: one more call per question turns the full answer into the QASPER
+# short answer (span, Yes/No, Unanswerable), on which the official answer F1 is computed (comparable with papers).
+QASPER_SHORT_ANSWER = os.environ.get("HGRAG_QASPER_SHORT_ANSWER", "1").lower() in ("1", "true", "yes")
 # Second opinion on the low judge scores of a ragbench run (hgrag.refine): context judge on the whole PDF, then
 # generation judge. Questions scored strictly below REFINE_THRESHOLD are judged again; the generation judge runs only
 # when the context scores at least REFINE_CONTEXT_OK.

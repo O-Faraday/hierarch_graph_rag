@@ -114,7 +114,9 @@ def test_run_on_qasper_questions(bench, monkeypatch):  # noqa: F811
     assert 0 < s["answer_f1"] <= 1 and s["config"]["dataset"] == "qasper" and s["config"]["key"].startswith("qasper-dev_")
     assert (res["dir"] / "report.md").read_text(encoding="utf-8").startswith("# QASPER")
     unanswerable = next(r for r in res["results"] if r["id"] == "q4")
-    assert unanswerable["unanswerable"] and "answer_f1" not in unanswerable
+    assert unanswerable["unanswerable"] and "answer_f1_long" not in unanswerable  # no full-answer F1 without a reference
+    assert all("short_answer" in r and r["answer_f1"] is not None for r in res["results"])  # every question, as official
+    assert {"answer_f1_answerable", "answer_f1_long"} <= set(s)
 
 
 def test_unknown_dataset_is_refused(tmp_path):
@@ -136,3 +138,24 @@ def test_paper_scope_searches_only_the_paper_of_the_question(bench, monkeypatch)
         assert not r["question"].startswith("In the paper")
     with pytest.raises(ragbench.RagBenchError, match="unknown scope"):
         ragbench.run(3, workdir=work, source=src, track=False, dataset="qasper", scope="everything")
+
+
+def test_short_answer_is_asked_with_the_sources_and_cleaned(monkeypatch):
+    from hgrag import generation
+    from test_generation import FakeResponse, _anthropic_stream
+
+    seen = {}
+
+    def post(url, **kw):
+        seen.update(kw["json"])
+        return FakeResponse(_anthropic_stream(['  "Yes"  ']))
+
+    monkeypatch.setattr(generation.requests, "post", post)
+    cfg = generation.LLMConfig(provider="anthropic", api_key="k")
+    out = qasper.short_answer(cfg, "Do they release code?", "Yes, the code is on GitHub [1].",
+                              [{"section_path": "p > 7 Conclusion", "text": "The code is available."}])
+    assert out == "Yes"
+    user = seen["messages"][0]["content"]
+    assert "QUESTION:\nDo they release code?" in user and "[p > 7 Conclusion]\nThe code is available." in user
+    assert seen["system"].startswith("You turn the answer") and seen["max_tokens"] == 200
+    assert qasper.answer_f1(out, ["Yes", "Unanswerable"]) == 1.0

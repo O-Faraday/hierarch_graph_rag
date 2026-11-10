@@ -351,10 +351,15 @@ def _evaluate_query(qid: str, q: dict[str, Any], answer: str, gold: str, paper_i
             res["assessments"]["retrieval"] += info.get("context_checks") or []
             res.update(usage=info.get("usage"), n_images=info.get("n_images"),
                        truncated=(info.get("usage") or {}).get("stop_reason") == "max_tokens")
-            if q.get("references") and not q.get("unanswerable"):  # QASPER: the official token F1, best annotator
-                from .qasper import answer_f1
+            if q.get("references"):  # QASPER: the official token F1 (best annotator), on a short answer
+                from .qasper import answer_f1, short_answer
 
-                res["answer_f1"] = round(answer_f1(res["answer"], [r for r in q["references"] if r != "Unanswerable"]), 3)
+                if not q.get("unanswerable"):  # the full answer, for comparison
+                    res["answer_f1_long"] = round(answer_f1(res["answer"], [r for r in q["references"]
+                                                                            if r != "Unanswerable"]), 3)
+                if config.QASPER_SHORT_ANSWER:
+                    res["short_answer"] = short_answer(gen_cfg, q["query"], res["answer"], sections)
+                    res["answer_f1"] = round(answer_f1(res["short_answer"], q["references"]), 3)
             if judge_cfg is not None:
                 from .evaluation import judge_source
 
@@ -442,9 +447,13 @@ def _summarize(results: list[dict[str, Any]], k_sections: int) -> dict[str, Any]
         out["unanswerable"] = {"n": len(unanswerable), **({"mean_score": round(statistics.fmean(scored), 2),
                                                           "pct_abstained": round(sum(s >= 4 for s in scored) / len(scored), 3)}
                                                          if scored else {})}
-    f1 = [r["answer_f1"] for r in answerable if r.get("answer_f1") is not None]
-    if f1:
-        out["answer_f1"] = round(statistics.fmean(f1), 3)
+    # QASPER: official answer F1 on the short answers, over every question (unanswerable ones included, as the
+    # official evaluator does), and on the answerable ones; the full answers for comparison
+    for key, rows, name in (("answer_f1", results, "answer_f1"), ("answer_f1", answerable, "answer_f1_answerable"),
+                            ("answer_f1_long", answerable, "answer_f1_long")):
+        f1 = [r[key] for r in rows if r.get(key) is not None]
+        if f1:
+            out[name] = round(statistics.fmean(f1), 3)
     present = [s for s in SOURCES if any(r["source"] == s for r in answerable)]
     present += sorted({r["source"] for r in answerable} - set(present))
     out["by_source"] = {s: block([r for r in answerable if r["source"] == s]) for s in present}
@@ -462,7 +471,9 @@ def format_summary(s: dict[str, Any]) -> str:
              f"context recall {s['context_recall']} ({s['pct_context_recall_50']} ≥ 50 %)"]
     if "mean_score" in s:
         lines.append(f"answers: mean score {s['mean_score']}/5, {s['pct_score_4_plus']} ≥ 4"
-                     + (f" · answer F1 {s['answer_f1']} (official token F1, low for long answers)" if "answer_f1" in s else ""))
+                     + (f" · answer F1 {s['answer_f1']} (official token F1 on short answers, every question; "
+                        f"{s.get('answer_f1_answerable')} answerable)" if "answer_f1" in s else "")
+                     + (f" · full answers F1 {s['answer_f1_long']}" if "answer_f1_long" in s else ""))
     if (u := s.get("unanswerable")):
         lines.append(f"{u['n']} questions without an answer in the paper (out of the search metrics)"
                      + (f": abstention {u['pct_abstained']} (judge ≥ 4), mean score {u['mean_score']}/5" if "mean_score" in u else ""))

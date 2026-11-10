@@ -170,3 +170,26 @@ def token_f1(prediction: str, reference: str) -> float:
 def answer_f1(prediction: str, refs: list[str]) -> float:
     """Best token F1 over the annotators, as the official Answer F1."""
     return max((token_f1(prediction, r) for r in refs), default=0.0)
+
+
+# ------------------------------------------------------------------------------ short answer
+SHORT_SYSTEM = """You turn the answer of a question-answering system into the short answer format of a reading \
+comprehension benchmark. You receive the QUESTION, the SOURCES the system read and its full ANSWER.
+
+Reply with the short answer only, no other text:
+- a yes/no question: Yes or No;
+- otherwise the shortest span that answers it, copied word for word from the SOURCES when it is there (a name, a \
+number, a short phrase; several items separated by commas);
+- if the ANSWER says the sources do not contain the answer: Unanswerable."""
+SHORT_CONTEXT_CHARS = 12000
+
+
+def short_answer(cfg: Any, question: str, answer: str, sections: list[dict[str, Any]]) -> str:
+    """The short answer in the QASPER format (span, Yes/No or Unanswerable), from the full answer and its sources:
+    the official answer F1 compares words, so a correct answer of several sentences scores low."""
+    from .generation import complete
+
+    sources = "\n\n".join(f"[{s.get('section_path')}]\n{s.get('text') or ''}" for s in sections)[:SHORT_CONTEXT_CHARS]
+    text, _usage = complete(cfg, SHORT_SYSTEM, f"QUESTION:\n{question}\n\nSOURCES:\n{sources}\n\nANSWER:\n{answer}",
+                            max_tokens=200)
+    return " ".join(text.split()).strip().strip('"')

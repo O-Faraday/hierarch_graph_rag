@@ -257,8 +257,9 @@ des lecteurs qui n'avaient lu que le titre et le résumé d'un article de NLP, r
 d'autres chercheurs. Les articles sont téléchargés depuis arXiv et passent par notre parsing ; la « section de référence »
 d'une question est la réunion des paragraphes de preuve de ses annotateurs, comparée par 5-grammes comme ci-dessus. Les
 questions sans réponse dans l'article sont hors des métriques de recherche et jugées sur l'abstention (`unanswerable`).
-`answer_f1` est le F1 officiel par mots (meilleur annotateur) : il favorise les réponses courtes, donc reste bas pour nos
-réponses rédigées et ne se compare qu'entre nos runs. Split `dev` par défaut (281 articles, pour régler le pipeline),
+`answer_f1` est le F1 officiel par mots (meilleur annotateur), calculé sur une **réponse courte** tirée de la réponse
+rédigée (`short_answer`, `HGRAG_QASPER_SHORT_ANSWER`) et sur toutes les questions, comme l'évaluateur officiel ;
+`answer_f1_long` garde celui de la réponse rédigée, bas par construction. Split `dev` par défaut (281 articles, pour régler le pipeline),
 `--split test` (416) pour la mesure finale. Les négatifs sont des articles hors échantillon (leurs questions ne sont pas
 posées). Les PDF arXiv gardent leur propre licence : validation interne, jamais livrés. Une question QASPER porte sur un article
 donné (« Do they release code? ») : `--scope paper` ne cherche que dans cet article, avec la question telle qu'écrite (le
@@ -790,6 +791,7 @@ contexte (`tracing.submit`) : sans elle, `mlflow.genai.evaluate` perdait la trac
 | `HF_TOKEN` | — | Jeton HF pour `hgrag vlm-bench` (router d'inférence) |
 | `HGRAG_JUDGE_MODEL` | `claude-haiku-5-5` | Modèle du juge de `hgrag eval` |
 | `HGRAG_JUDGE_WITH_SOURCE` | `1` | `hgrag eval` et `hgrag ragbench` (les notes d'Open RAG Bench ne se comparent donc plus aux runs d'avant ; `0` pour l'ancien juge) : le juge lit aussi le texte de la section de référence (relu dans l'arbre, avec les descriptions), puis les sections données au modèle de réponse ; un détail exact absent de la courte référence ne coûte plus de point, un détail que la section n'appuie pas reste plafonné à 4 |
+| `HGRAG_QASPER_SHORT_ANSWER` | `1` | Ragbench QASPER avec `--generate` : un appel de plus par question tire de la réponse rédigée une réponse courte au format QASPER (extrait copié des sources, Yes/No, Unanswerable) ; le F1 officiel est calculé sur elle, sur toutes les questions (comme l'évaluateur officiel), ce qui le rend comparable aux articles. Le F1 de la réponse rédigée reste dans `answer_f1_long` |
 | `HGRAG_REFINE_MODEL` | `claude-haiku-5-5` | Modèle des juges de contexte et de génération (`hgrag ragbench-refine`) |
 | `HGRAG_REFINE_THRESHOLD` | `4` | Questions notées strictement en dessous jugées à nouveau |
 | `HGRAG_REFINE_CONTEXT_OK` | `4` | `context_score` minimal pour lancer le juge de génération |

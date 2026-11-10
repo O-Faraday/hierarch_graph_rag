@@ -66,6 +66,8 @@ HGRAG_EMBED_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 # HGRAG_JUDGE_MODEL = "claude-haiku-5-5"
 # hgrag eval: the judge also reads the text of the reference section.
 # HGRAG_JUDGE_WITH_SOURCE = true
+# QASPER ragbench: a short answer (span, Yes/No, Unanswerable) for the official answer F1.
+# HGRAG_QASPER_SHORT_ANSWER = true
 # HGRAG_REFINE_MODEL = "claude-haiku-5-5"
 
 [assessments]
