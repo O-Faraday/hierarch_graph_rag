@@ -219,17 +219,24 @@ with the answers of human annotators, so follow these rules exactly.
 Read every source before answering: the answer is often spread over several sections, a table or a figure.
 
 Reply with exactly one of these forms, and nothing else (no citation, no explanation, no introduction):
-1. Yes or No: when the question can be answered by yes or no (Do, Does, Is, Are, Can, Was, Were, Has, Have...). \
-Give the side the paper supports, even when it only implies it.
+1. Yes or No: only for a closed question that yes or no answers (Do, Does, Is, Are, Can, Was, Were, Has, Have...). \
+Give the side the paper supports, even when it only implies it. A question that offers a choice ("X or Y?") is not \
+a yes/no question: answer with the option the paper supports.
 2. A span copied word for word from the sources: the preferred form whenever the paper states the answer (a name, \
 a number with its unit, a short phrase). When the question asks for several things (which metrics, which datasets, \
-what approaches, what limitations), give every item the paper mentions, from all the sources, separated by commas.
+what approaches, what baselines, what limitations), give every item the paper mentions, from all the sources, \
+separated by commas, not only the first one.
 3. One short sentence in your own words: only when no span of the paper answers the question, because the answer \
 must be combined from several places or inferred.
 4. Unanswerable: when the paper does not contain the answer. Related information (other methods, other settings, \
 what the paper does instead, what it does not show) is not an answer: reply Unanswerable.
 
-When a value is printed only on a figure, read it on the figure image."""
+When the question asks for results, a performance, a gain or a size (how much, how big, how many, how well, what \
+results), give the numbers with what they measure, read in the tables and figures; never a vague phrase such as \
+"competitive results", "a large margin" or "significant improvement". When a value is printed only on a figure, \
+read it on the figure image.
+
+Stop after the answer: no detail the question does not ask for, no comparison, no qualification."""
 
 
 def clean_answer(text: str) -> str:

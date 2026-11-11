@@ -183,6 +183,8 @@ def test_qasper_prompt_follows_the_annotation_format():
     p = qasper.QASPER_SYSTEM
     assert "Yes or No" in p and "copied word for word" in p and "every item" in p and "Unanswerable" in p
     assert "Related information" in p  # family D: related information is not an answer
+    # 100-paper report: vague phrases instead of values (C2), yes/no to a choice (C3), answers longer than needed (A1)
+    assert "never a vague phrase" in p and '"X or Y?"' in p and "Stop after the answer" in p
 
 
 def test_direct_answers_are_scored_as_they_are(bench, monkeypatch):  # noqa: F811
