@@ -16,9 +16,11 @@ HF_HUB_OFFLINE = true
 HGRAG_EMBED_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 # HGRAG_RERANK = true
 # HGRAG_RERANK_MODEL = "cross-encoder/ms-marco-MiniLM-L12-v2"
-# HGRAG_RERANK_CANDIDATES = 30
-# Sections returned by the search (0 = the sections of the k best chunks).
-# HGRAG_K_SECTIONS = 0
+# Chunks fetched and reranked before the sections are cut (the cross-encoder reads them all).
+HGRAG_RERANK_CANDIDATES = 50
+# Sections returned by the search (0 = the sections of the k best chunks, about half as many). 10 sections from 50
+# candidates: section hit@10 0.739 -> 0.902 on 100 QASPER dev papers, no change on data/pdf_eval. With N > 0, k is unused.
+HGRAG_K_SECTIONS = 10
 # Share of the BM25 keyword score in the hybrid search (0 = dense only).
 # HGRAG_KEYWORD_WEIGHT = 0.3
 
