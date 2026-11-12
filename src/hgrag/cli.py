@@ -167,6 +167,10 @@ def main() -> None:
     asx.add_argument("--failed", action="store_true", help="list every failed check, document by document")
     rr = sub.add_parser("ragbench-report", help="rebuild questions.md (lowest score first) and the disputed-reference metrics of a ragbench run")
     rr.add_argument("run_dir", help="e.g. data/ragbench/runs/20261015T203656-d39c3b")
+    rc = sub.add_parser("ragbench-compare", help="paired comparison of two runs of the same sample: difference of each metric "
+                        "with its standard error (written to comparison.md in the second run)")
+    rc.add_argument("run_a", help="the reference run, e.g. data/ragbench/runs/20261110T162003-c46877")
+    rc.add_argument("run_b", help="the run to compare with it")
     rf = sub.add_parser("ragbench-refine", help="second opinion on the low judge scores of a ragbench run: context judge "
                         "(whole PDF vs retrieved context), then generation judge if the context is good")
     rf.add_argument("run_dir", help="e.g. data/ragbench/runs/20261021T105327-aed359")
@@ -341,6 +345,18 @@ def main() -> None:
         except ragbench.RagBenchError as exc:
             print(f"error: {exc}")
             raise SystemExit(2)
+        return
+
+    if args.cmd == "ragbench-compare":
+        from . import compare
+
+        try:
+            c, out = compare.write_comparison(args.run_a, args.run_b)
+        except compare.CompareError as exc:
+            print(f"error: {exc}")
+            raise SystemExit(2)
+        print(compare.format_comparison(c))
+        print(f"\nWritten to {out}")
         return
 
     if args.cmd == "ragbench-refine":

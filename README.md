@@ -252,6 +252,13 @@ Une section récupérée est « sur la référence » si un de ses chunks recouv
 la réponse générée, le commentaire du juge, un extrait de la section de référence, les 3 premières sections récupérées et le chemin du PDF
 (`data/ragbench/pdfs/<id arXiv>.pdf`). Pour un run existant : `uv run hgrag ragbench-report data/ragbench/runs/<run>`.
 
+**Comparer deux runs du même échantillon** : `uv run hgrag ragbench-compare data/ragbench/runs/<run_A> data/ragbench/runs/<run_B>`
+(sans appel d'API ; écrit `comparison.md` dans le run B). Les questions sont appariées par identifiant : pour chaque
+mesure (F1, note du juge, hit@1, hit@k, MRR, context recall, F1 par type de réponse), l'écart B − A, son erreur type
+(questions d'un même article regroupées, car elles ne sont pas indépendantes) et le nombre de questions qui montent ou
+descendent. **Un écart de moins de 2 erreurs types ne se distingue pas du bruit de la génération** : sur 100 articles
+QASPER, l'erreur type d'un écart de F1 est d'environ 0,01.
+
 **QASPER** (`--dataset qasper`, [AllenAI](https://allenai.org/data/qasper), annotations CC BY 4.0) : questions posées par
 des lecteurs qui n'avaient lu que le titre et le résumé d'un article de NLP, réponses et paragraphes de preuve marqués par
 d'autres chercheurs. Les articles sont téléchargés depuis arXiv et passent par notre parsing ; la « section de référence »
