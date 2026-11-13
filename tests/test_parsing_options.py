@@ -42,3 +42,24 @@ def test_manifest_keeps_the_status_of_the_conversion(tmp_path):
     converter = SimpleNamespace(convert=lambda _path: result)
     manifest = parsing.parse_pdf(pdf, output_root=tmp_path / "out", converter=converter, describe_pictures=False)
     assert manifest["conversion_status"] == "partial_success"
+    assert "docling" in manifest["runtime"]["packages"]  # a fake converter: the layout part is left out, no failure
+
+
+def test_runtime_names_the_layout_model_its_engine_and_its_weights(tmp_path, monkeypatch):
+    """What a local parsing and a Databricks one are compared on when their items differ."""
+    weights = tmp_path / "org--layout"
+    weights.mkdir()
+    (weights / "model.safetensors").write_bytes(b"weights")
+    layout = SimpleNamespace(kind="layout_object_detection", engine_options=SimpleNamespace(engine_type="transformers"),
+                             model_spec=SimpleNamespace(name="layout", repo_id="org/layout", revision="main"))
+    opts = SimpleNamespace(layout_options=layout, artifacts_path=tmp_path,
+                           accelerator_options=SimpleNamespace(device="cpu", num_threads=2))
+    converter = SimpleNamespace(format_to_options={parsing.InputFormat.PDF: SimpleNamespace(pipeline_options=opts)})
+    monkeypatch.setattr(parsing, "_runtime", None)
+    info = parsing.runtime_info(converter)
+    assert info["layout"]["engine"] == "transformers" and info["device"] == "cpu" and "error" not in info
+    import hashlib
+
+    assert info["layout"]["weights"] == {"folder": "org--layout", "file": "model.safetensors", "bytes": 7,
+                                         "sha256": hashlib.sha256(b"weights").hexdigest()[:16]}
+    monkeypatch.setattr(parsing, "_runtime", None)

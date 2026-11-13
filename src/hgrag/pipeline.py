@@ -120,6 +120,7 @@ def build_and_save_hierarchy(doc_dir: str | Path, *, run_key: str | None = None,
         tr.dict(stats, "tree_stats.json")
         tr.artifact(doc_dir / "hierarchy.json")
         tr.artifact(doc_dir / "hierarchy_tree.txt")
+        tr.artifact(doc_dir / "structure.json")  # the readable tree, to compare with a Databricks parsing
     logger.info("hierarchy %s: %d sections (max depth %d), %d elements %s", doc_dir.name, out["n_sections"],
                 stats["max_depth"], out["n_elements"], stats["elements_by_kind"])
     if stats["n_empty_sections"] > 1:  # one is normal: the document title

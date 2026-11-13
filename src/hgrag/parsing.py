@@ -38,6 +38,71 @@ def parse_options() -> dict[str, Any]:
             **({"document_timeout": config.DOCLING_TIMEOUT} if config.DOCLING_TIMEOUT else {})}
 
 
+_RUNTIME_PACKAGES = ("docling", "docling-core", "docling-ibm-models", "docling-parse", "torch", "transformers",
+                     "pypdfium2", "onnxruntime", "numpy", "pillow")
+_runtime: dict[str, Any] | None = None
+
+
+def _layout_weights(repo_id: str, artifacts: str | Path | None) -> dict[str, Any]:
+    """Where the weights of the layout model come from and their hash: the same Docling version can read another
+    file (the models are downloaded from the ``main`` revision of their repository, at different dates)."""
+    import hashlib
+
+    if artifacts:
+        folder = Path(artifacts) / repo_id.replace("/", "--")
+    else:
+        from huggingface_hub import snapshot_download
+
+        folder = Path(snapshot_download(repo_id, local_files_only=True))
+    out: dict[str, Any] = {"folder": folder.name}
+    weights = next((folder / n for n in ("model.safetensors", "pytorch_model.bin") if (folder / n).exists()), None)
+    if weights is not None:
+        digest = hashlib.sha256()
+        with weights.open("rb") as fh:
+            for block in iter(lambda: fh.read(1 << 20), b""):
+                digest.update(block)
+        out.update(file=weights.name, sha256=digest.hexdigest()[:16], bytes=weights.stat().st_size)
+    return out
+
+
+def runtime_info(converter: Any = None) -> dict[str, Any]:
+    """What can make two parsings of the same PDF differ with the same options: the versions of the packages that
+    read the page, the layout model, its engine, its weights and the device. Written to the manifest (``runtime``),
+    to compare a local parsing with a Databricks one. Never raises: a missing part is left out. Once per process."""
+    global _runtime
+    if _runtime is not None:
+        return _runtime
+    from importlib import metadata
+
+    info: dict[str, Any] = {"packages": {}}
+    for name in _RUNTIME_PACKAGES:
+        try:
+            info["packages"][name] = metadata.version(name)
+        except metadata.PackageNotFoundError:
+            pass
+    try:
+        import platform
+
+        info["python"], info["platform"] = platform.python_version(), platform.platform()
+        opts = converter.format_to_options[InputFormat.PDF].pipeline_options
+        layout = opts.layout_options
+        spec = layout.model_spec
+        engine = getattr(getattr(layout, "engine_options", None), "engine_type", None)
+        info["layout"] = {"kind": getattr(layout, "kind", None), "model": getattr(spec, "name", None),
+                          "repo_id": getattr(spec, "repo_id", None), "revision": getattr(spec, "revision", None),
+                          "engine": getattr(engine, "value", engine)}
+        from docling.utils.accelerator_utils import decide_device
+
+        info["device"] = decide_device(opts.accelerator_options.device)
+        info["num_threads"] = opts.accelerator_options.num_threads
+        if info["layout"]["repo_id"]:
+            info["layout"]["weights"] = _layout_weights(info["layout"]["repo_id"], opts.artifacts_path)
+    except Exception as exc:  # noqa: BLE001 - a diagnostic must not stop a parsing (fake converters of the tests too)
+        info["error"] = f"{type(exc).__name__}: {exc}"[:300]
+    _runtime = info
+    return info
+
+
 def build_converter(
     describe_pictures: bool = False,  # unused here: figures are described after parsing (hgrag.figure_vlm)
     images_scale: float = config.IMAGES_SCALE,
@@ -231,6 +296,7 @@ def parse_pdf(
         "convert_seconds": round(convert_seconds, 2),
         "conversion_status": getattr(getattr(result, "status", None), "value", None),  # partial_success: time limit hit
         "parse_options": parse_options(),
+        "runtime": runtime_info(converter),  # packages, layout model and device: local and Databricks compared
         **doc_stats(doc, figures),
     }
     (doc_dir / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
