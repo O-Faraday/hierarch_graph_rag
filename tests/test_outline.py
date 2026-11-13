@@ -135,3 +135,25 @@ def test_bookmarks_are_read_from_the_pdf_and_cached(tmp_path):
     assert outline.load_outline(tmp_path, str(pdf).replace("/", "\\")) == marks
     assert json.loads((tmp_path / outline.OUTLINE_FILE).read_text(encoding="utf-8")) == marks
     assert outline.load_outline(tmp_path / "missing", None) == []
+
+
+def test_headings_inside_one_text_region_are_split_when_numbered():
+    """The layout model read the whole body as one paragraph (Docling on Databricks, 01_talvera)."""
+    d = DoclingDocument(name="x")
+    d.add_page(page_no=1, size=Size(width=600, height=800))
+    d.add_heading(text="A paper title", level=1, prov=_prov())
+    d.add_text(label="text", prov=_prov(), text=(
+        "1. Introduction. The basin supplies water (see Results. below) to many. 2. Study area and data. It covers "
+        "412 km2. 2.1. Monitoring wells. Levels were recorded. Remark 1. A value. 3. Results. The recharge was 66 mm."))
+    bookmarks = [{"title": t, "level": lvl, "page_no": 1} for t, lvl in (
+        ("A paper title", 1), ("Introduction", 2), ("Study area and data", 2), ("Monitoring wells", 3), ("Results", 2),
+        ("Discussion", 2))]
+    doc, confirmed = outline.with_outline_headings(d, bookmarks)
+    items = [(type(i).__name__, i.text) for i, _ in doc.iterate_items()]
+    assert items[1:] == [
+        ("SectionHeaderItem", "1. Introduction"), ("TextItem", "The basin supplies water (see Results. below) to many."),
+        ("SectionHeaderItem", "2. Study area and data"), ("TextItem", "It covers 412 km2."),
+        ("SectionHeaderItem", "2.1. Monitoring wells"), ("TextItem", "Levels were recorded. Remark 1. A value."),
+        ("SectionHeaderItem", "3. Results"), ("TextItem", "The recharge was 66 mm.")]
+    assert sorted(confirmed.values()) == [1, 1, 1, 2]  # the title bookmark is dropped, the levels follow
+    assert outline.inner_heading("We discuss it. Results. were good.", "Results") is None  # no number: a sentence

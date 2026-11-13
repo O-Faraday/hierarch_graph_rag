@@ -6,7 +6,8 @@ text region and labels it ``text``: the heading is lost, and a 41-page paper end
 Docling has no option for this (its heading-hierarchy step only sets levels and never splits an item), but most
 PDFs made with LaTeX carry bookmarks that list the real headings with their page. ``with_outline_headings`` splits
 every paragraph that starts with the title of a bookmark of its page into a heading (the bookmark's level) and the
-rest of the paragraph. The Docling parsing itself is unchanged: the bookmarks are read from the PDF.
+rest of the paragraph, then the paragraphs that hold a numbered bookmark title after the end of a sentence (several
+run-in sections read as one text region). The Docling parsing itself is unchanged: the bookmarks are read from the PDF.
 """
 
 from __future__ import annotations
@@ -132,6 +133,63 @@ def split_heading(text: str, title: str, *, numbered_only: bool) -> tuple[str, s
     return text[:end].strip(), re.sub(r"^\s*[.:]\s*", "", rest).strip()
 
 
+# The number a heading must carry to be read inside a paragraph: "2.", "2.1.", "A.1"
+_INNER_NUMBER = r"(?:[A-Z]\.)?\d{1,2}(?:\.\d{1,2})*\.?"
+
+
+def inner_heading(text: str, title: str) -> tuple[int, int, int] | None:
+    """``(start, end, start of the rest)`` of the numbered heading ``title`` found inside ``text``, after the end of a
+    sentence and followed by ``.``/``:``: "...by later teams. 2.1. Monitoring wells. Water levels were...". The layout
+    model sometimes reads several run-in sections as one text region. The number is required: an unnumbered title
+    inside a paragraph is too often a plain sentence."""
+    words = re.findall(r"[^\W_]+", _NUMBER_RE.sub("", title, count=1))
+    if not words:
+        return None
+    pattern = (r"(?<=[.!?])\s+(" + _INNER_NUMBER + r"\s+" + r"[\W_]+".join(re.escape(w) for w in words)
+               + r"[)\]\"'’”]*)\s*[.:]\s+(?=\S)")
+    m = re.search(pattern, text, flags=re.IGNORECASE)
+    return (m.start(1), m.end(1), m.end()) if m else None
+
+
+def _split_inner_headings(doc: DoclingDocument, pending: list[dict[str, Any]], confirmed: dict[str, int]) -> int:
+    """Split the paragraphs that hold bookmarks still not found: each heading and the text that follows it become
+    items placed after the paragraph, which keeps the text before the first heading. Returns the headings added."""
+    inserted = 0
+    for item, _depth in list(doc.iterate_items()):
+        if not pending:
+            break
+        if not (isinstance(item, TextItem) and item.label in _TEXT_LABELS) or not item.prov:
+            continue
+        page, text = item.prov[0].page_no, item.text
+        found = []
+        for bm in pending:
+            if bm["page_no"] is not None and abs(bm["page_no"] - page) > PAGE_TOLERANCE:
+                continue
+            span = inner_heading(text, bm["title"])
+            if span is not None:
+                found.append((span, bm))
+        found.sort(key=lambda f: f[0][0])
+        kept: list[tuple[tuple[int, int, int], dict[str, Any]]] = []
+        for span, bm in found:
+            if not kept or span[0] >= kept[-1][0][2]:  # two bookmarks on the same words: the first one
+                kept.append((span, bm))
+        last: Any = item
+        for i, ((start, end, rest_start), bm) in enumerate(kept):
+            stop = kept[i + 1][0][0] if i + 1 < len(kept) else len(text)
+            level = int(bm["level"])
+            last = doc.insert_heading(sibling=last, text=text[start:end].strip(), level=level, prov=item.prov[0],
+                                      after=True)
+            confirmed[last.self_ref] = level
+            pending.remove(bm)
+            inserted += 1
+            rest = text[rest_start:stop].strip()
+            if rest:
+                last = doc.insert_text(sibling=last, label=DocItemLabel.TEXT, text=rest, prov=item.prov[0], after=True)
+        if kept:
+            item.text = text[:kept[0][0][0]].strip()
+    return inserted
+
+
 def with_outline_headings(doc: DoclingDocument, outline: list[dict[str, Any]]) -> tuple[DoclingDocument, dict[str, int]]:
     """A copy of ``doc`` where each bookmark found at the start of a paragraph or of a Docling heading of its page
     becomes a heading at the bookmark's level, followed by the rest of the text (same ref as before, so the figures,
@@ -175,6 +233,7 @@ def with_outline_headings(doc: DoclingDocument, outline: list[dict[str, Any]]) -
                 else:
                     item.content_layer = ContentLayer.FURNITURE  # the heading alone: replaced by the new heading
             break
+    inserted += _split_inner_headings(doc, pending, confirmed)  # after the starts: a paragraph holding several sections
     lifted = _lift_out_of_groups(doc, confirmed)
     if confirmed:
         logger.info("%d heading(s) confirmed by the PDF bookmarks, %d split from their paragraph; %d bookmark(s) "
