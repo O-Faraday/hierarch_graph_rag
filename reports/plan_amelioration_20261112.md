@@ -114,6 +114,23 @@ changée d'un run à l'autre) :
   l'ordre du bruit ; seul le gain de recherche est établi.
 - Pour juger un changement de génération, comparer la moyenne de 2 ou 3 runs, ou viser un écart supérieur à 0,03.
 
+**D1.** Chaîne complète sur Databricks (`demo.pdf_bench`, paquet 0.1.12), 10 PDF et 61 questions de `data/pdf_eval` :
+
+| Run | Hit@1 | Hit@10 | MRR | Juge | Erreurs |
+|---|---|---|---|---|---|
+| Local (Qdrant, cross-encoder) | 0,793 | 0,914 | | 4,90 | 0 |
+| Databricks, 1er run (paquet 0.1.11, 42 documents) | 0,569 | 0,690 | 0,622 | 4,83 | 1 |
+| Databricks, 2e run `20261113T191641-182b6e` | 0,776 | 0,914 | 0,839 | 4,82 | 0 |
+
+- Trois changements séparent les deux runs Databricks, non mesurés un par un : documents tous redécoupés avec le code
+  actuel (le 1er run gardait des chunks du paquet 0.1.7), 10 sections lues parmi 50 chunks comme en local, titres
+  numérotés séparés au milieu d'un bloc.
+- Les 5 questions encore manquées sont celles de `02_valmora`, manquées aussi en local (aucune section trouvée).
+- Docling ne produit pas les mêmes éléments sur 3 des 10 PDF (`01_talvera`, `02_valmora`, `03_orbit` : corps fusionné
+  en un bloc, blocs de code non vus). Le bloc `runtime` du manifeste montre les mêmes poids et le même moteur de mise
+  en page ; restent les versions de torch (2.15.0 / 2.14.1), transformers (5.23.0 / 5.19.0), pypdfium2 (5.15.2 /
+  5.14.0) et la plateforme (Linux ARM / Windows). Cause non isolée.
+
 ## 6. Ordre conseillé
 
 1. **A1, A2, A4** : sans mesure du bruit, on ne peut pas juger les tâches B et C.
