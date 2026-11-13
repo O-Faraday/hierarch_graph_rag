@@ -1,0 +1,36 @@
+# Asks the questions of an evaluation dataset to the AI Search index and scores them like `hgrag eval`: rank of the
+# expected section, answer, LLM judge (Claude API calls). No schedule: `databricks bundle run hgrag_evaluate`.
+resources:
+  jobs:
+    hgrag_evaluate:
+      name: hgrag_evaluate
+      max_concurrent_runs: 1
+
+      parameters:
+        - name: wheel
+          default: ${workspace.artifact_path}/.internal/hgrag-${var.package_version}-py3-none-any.whl
+        - name: catalog
+          default: ${var.catalog}
+        - name: schema
+          default: ${var.schema}
+        - name: volume
+          default: ${var.volume}
+        - name: search_endpoint
+          default: ${var.search_endpoint}
+        - name: secret_scope
+          default: ${var.secret_scope}
+        - name: mlflow_root
+          default: ${var.mlflow_root}
+        - name: dataset
+          default: ""
+        - name: k
+          default: "10"
+        - name: rerank
+          default: "true"
+        - name: generate
+          default: "true"
+
+      tasks:
+        - task_key: evaluate
+          notebook_task:
+            notebook_path: ../notebooks/05_evaluate.py

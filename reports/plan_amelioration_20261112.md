@@ -91,7 +91,30 @@ Prix par million de tokens (entrée / sortie), table de référence du 3 novembr
 
 Fable 5.2 ne se justifierait que pour une refonte d'architecture menée en autonomie sur plusieurs heures.
 
-## 5. Ordre conseillé
+## 5. Résultats (13 novembre 2026)
+
+**A1.** `hgrag ragbench-compare <run_A> <run_B>` : écart apparié de chaque mesure, erreur type par article, verdict.
+
+**A4.** `hgrag.toml` passe à 10 sections et 50 candidats. `data/pdf_eval` : recherche identique (hit@1 0,793,
+hit@10 0,914), juge 4,90 → 4,89.
+
+**A2.** Trois runs identiques (100 articles QASPER, 10 sections, prompt v2, Haiku), contexte identique (0 question
+changée d'un run à l'autre) :
+
+| Run | F1 | Juge |
+|---|---|---|
+| `20261111T015032-c1543e` | 0,553 | 4,10 |
+| `20261113T110636-e28ea8` | 0,536 | 4,07 |
+| `20261113T084512-8d6ca0` | 0,535 | 4,08 |
+| **Écart-type entre runs** | **0,010** | **0,017** |
+
+- 132 questions sur 334 changent de F1 de plus de 0,05 entre les trois runs, et 54 de plus de 0,3.
+- Les plus instables sont les questions sans réponse (F1 0,54 / 0,46 / 0,39 sur 28 questions) et les oui/non.
+- Conséquence : le run b était un tirage haut. Le gain du nouveau prompt mesuré sur un seul run (+0,014) est de
+  l'ordre du bruit ; seul le gain de recherche est établi.
+- Pour juger un changement de génération, comparer la moyenne de 2 ou 3 runs, ou viser un écart supérieur à 0,03.
+
+## 6. Ordre conseillé
 
 1. **A1, A2, A4** : sans mesure du bruit, on ne peut pas juger les tâches B et C.
 2. **D1** : c'est le plus gros risque non levé du projet.

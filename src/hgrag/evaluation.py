@@ -268,12 +268,16 @@ def section_rank(sections: list[dict[str, Any]], pdf: str | None, section: str |
 
 
 def evaluate_row(row: dict[str, Any], *, client: Any, embedder: Any, output_dir: Path, collection: str, k: int,
-                 include_children: bool, gen_cfg: LLMConfig | None, judge_cfg: LLMConfig | None) -> dict[str, Any]:
+                 include_children: bool, gen_cfg: LLMConfig | None, judge_cfg: LLMConfig | None,
+                 search: Callable[[str, int], list[dict[str, Any]]] | None = None) -> dict[str, Any]:
+    """One question: rank of the expected section, answer, judge. ``search(question, k)`` replaces the Qdrant search
+    (the Databricks backend passes its AI Search one); the sections are rebuilt from ``output_dir`` either way."""
     from .retrieval import reconstruct_hit, search_hits
 
     t0 = time.perf_counter()
     res: dict[str, Any] = {k_: row[k_] for k_ in ("id", "source_kind", "pdf", "section", "question", "expected_answer")}
-    hits = search_hits(row["question"], k, embedder=embedder, client=client, collection=collection)
+    hits = (search(row["question"], k) if search is not None
+            else search_hits(row["question"], k, embedder=embedder, client=client, collection=collection))
     res.update(rank=section_rank(hits, row["pdf"], row["section"]),
                retrieved=[{"rank": i, "section_path": h["section_path"], "score": round(h["score"], 4),
                            "pdf": pdf_name(h.get("source_pdf") or "")} for i, h in enumerate(hits, start=1)])
