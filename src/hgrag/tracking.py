@@ -1,6 +1,9 @@
 """MLflow tracking of the pipeline steps (indexing and retrieval).
 
-Layout in MLflow: one *experiment* per pipeline (``hgrag_pipeline``, ``hgrag_retrieval``),
+Layout in MLflow: one *experiment* per task of the pipeline (``hgrag_parsing``, ``hgrag_indexing``,
+``hgrag_retrieval``, ``hgrag_eval``, ``hgrag_ragbench``). On Databricks each job task writes to its own; locally a PDF is
+one end-to-end trace (parse, hierarchy, index) and stays in ``hgrag_indexing``, since a trace cannot span experiments.
+Within an experiment,
 one *parent run* per execution (identified by ``run_key``: the Airflow ``run_id``, or a
 generated id for local runs), one *child run* per step (and per mapped item, e.g. per PDF or
 per reconstructed section). Steps run in different processes under Airflow, so the parent is
@@ -25,7 +28,8 @@ from . import config
 
 logger = logging.getLogger(__name__)
 
-INDEXING = "hgrag_pipeline"
+PARSING = "hgrag_parsing"
+INDEXING = "hgrag_indexing"
 RETRIEVAL = "hgrag_retrieval"
 EVAL = "hgrag_eval"
 RAGBENCH = "hgrag_ragbench"

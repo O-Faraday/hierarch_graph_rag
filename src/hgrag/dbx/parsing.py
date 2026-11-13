@@ -126,7 +126,7 @@ def _save(session: Any, row: tuple) -> None:
 def _parse_one(pdf: str, doc_id: str, options: str, parse: Any, converter: Any, run_key: str | None = None) -> tuple:
     """One trace per parsed document, with the checks and the judges of the parsing and of the descriptions."""
     t0 = time.perf_counter()
-    span = tracing.root("parse", tracking.INDEXING, run_key, span_type="PARSER",
+    span = tracing.root("parse", tracking.PARSING, run_key, span_type="PARSER",
                         tags={"hgrag.pdf": Path(pdf).name, "hgrag.doc_id": doc_id},
                         inputs={"pdf": Path(pdf).name, "options": options})
     with span:
@@ -147,7 +147,7 @@ def parse_paths(session: Any, paths: Iterable[str], *, parse: Any = None, conver
                 run_key: str | None = None) -> dict[str, Any]:
     """Parse the PDFs not parsed yet with the current options; returns the counts and durations of the run, also
     logged to MLflow when ``run_key`` is given."""
-    with tracking.track_step(tracking.INDEXING, "parse", run_key, options=_options()) as tracker:
+    with tracking.track_step(tracking.PARSING, "parse", run_key, options=_options()) as tracker:
         summary = _parse_paths(session, paths, parse, converter, run_key)
         tracker.metrics(**summary)
     return summary

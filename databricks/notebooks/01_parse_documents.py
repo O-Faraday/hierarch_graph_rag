@@ -60,8 +60,8 @@ parsing.discover_pdfs(spark)
 parsing.parse_pending(spark, run_key=run_key)
 if dbutils.widgets.get("retry_incomplete") == "true":
     parsing.retry_incomplete(spark, run_key=run_key)
-tracking.finish_execution(tracking.INDEXING, run_key)
-tracing.report(tracking.INDEXING, run_key)
+tracking.finish_execution(tracking.PARSING, run_key)
+tracing.report(tracking.PARSING, run_key)
 
 # COMMAND ----------
 

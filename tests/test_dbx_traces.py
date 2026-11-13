@@ -65,7 +65,7 @@ def test_each_parsed_document_has_a_trace_given_to_parse_pdf(uc, tmp_path):
 
     parsing.parse_paths(Session(), [str(pdf)], parse=parse, converter=object(), run_key="rk")
     assert seen[0].active
-    trace = _traces(tracking.INDEXING)[0]
+    trace = _traces(tracking.PARSING)[0]
     assert trace.info.tags["hgrag.pdf"] == "a.pdf" and _names(trace) == ["parse.text_coverage"]
 
 
@@ -77,7 +77,7 @@ def test_a_failed_parse_is_an_error_trace_and_does_not_stop_the_batch(uc, tmp_pa
         raise ValueError("bad pdf")
 
     summary = parsing.parse_paths(Session(), [str(pdf)], parse=parse, converter=object(), run_key="rk")
-    assert summary["failed"] == 1 and "ERROR" in str(_traces(tracking.INDEXING)[0].info.state)
+    assert summary["failed"] == 1 and "ERROR" in str(_traces(tracking.PARSING)[0].info.state)
 
 
 def test_chunking_traces_the_hierarchy_and_chunk_checks(uc, monkeypatch):

@@ -171,7 +171,7 @@ def root(name: str, pipeline: str, run_key: str | None, *, span_type: str = "CHA
             return Span(mlflow.start_span_no_context(
                 name, span_type=span_type, parent_span=outer, inputs=_jsonable(inputs) if inputs is not None else None,
                 attributes={"hgrag.run_key": run_key}), nested=True)
-        model_id = versions.model_id("indexing" if pipeline == tracking.INDEXING else "rag")
+        model_id = versions.model_id("indexing" if pipeline in (tracking.PARSING, tracking.INDEXING) else "rag")
         live = mlflow.start_span_no_context(
             name, span_type=span_type, inputs=_jsonable(inputs) if inputs is not None else None,
             experiment_id=_experiment_id(pipeline),

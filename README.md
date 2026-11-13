@@ -133,7 +133,7 @@ Si le port 5000 est pris : `uv run mlflow ui --backend-store-uri sqlite:///data/
      étapes MLflow. **Cancel** arrête le run. Réindexer un document remplace ses chunks (idempotent).
 2. Page **Query** : une fois l'indexation terminée, saisir une requête ; la sortie de chaque étape
    s'affiche au fur et à mesure (embedding, chunks Qdrant, regroupement, sections reconstruites).
-3. MLflow : expériences `hgrag_pipeline` et `hgrag_retrieval` (un run parent par exécution, un run
+3. MLflow : expériences `hgrag_indexing` et `hgrag_retrieval` (un run parent par exécution, un run
    enfant par étape).
 
 Arrêt : `Ctrl+C` dans chaque terminal. Un run d'indexation continue même si l'on ferme l'onglet.
@@ -520,6 +520,17 @@ reprend là où il s'est arrêté : les documents déjà traités sont ignorés.
 fois les autres indexés ; `retry_incomplete=true` retente les documents échoués ou partiels. Aucune planification n'est
 déclarée. Le notebook `03_ask` est déployé avec le bundle et reste interactif.
 
+**Évaluer l'index (job `hgrag_evaluate`).** Pose les questions d'un jeu d'évaluation à l'index AI Search et les note comme
+`hgrag eval` : rang de la section attendue, réponse, juge LLM contre la réponse de référence (appels à l'API Claude, clé du
+scope). Le jeu est un fichier JSON Lines du volume, au format de `data/pdf_eval/eval_dataset.jsonl`, par défaut
+`eval/eval_dataset.jsonl` ; ses PDF doivent avoir été ingérés. Le run est écrit dans `eval/runs/<run>/` sur le volume
+(`results.jsonl`, `summary.json`, `report.md`, les mêmes fichiers qu'en local). `generate=false` ne mesure que la recherche.
+
+```bash
+databricks fs cp data/pdf_eval/eval_dataset.jsonl dbfs:/Volumes/<catalogue>/<schéma>/<volume>/eval/eval_dataset.jsonl
+databricks bundle run hgrag_evaluate -t dev --var="..."
+```
+
 **Avancement.** Les cellules écrivent une ligne par document et par étape, avec l'heure UTC et la mémoire du processus :
 `parse 3/30 a.pdf: started`, puis `parse 3/30 a.pdf: parsed, 12 page(s), 240 s`. Si le processus est tué, la dernière ligne
 `started` désigne le document en cours.
@@ -531,7 +542,7 @@ restent sur l'endpoint). À ne pas lancer pendant une ingestion. Sa planificatio
 `--var="stop_search_schedule=UNPAUSED"` ; le mode `development` met de toute façon les planifications en pause. Pour
 repartir, relancer `hgrag_ingest` : il recrée l'index depuis `chunks`, sans reparser, en recalculant les embeddings.
 
-**Traces et contrôles dans MLflow.** Sous `mlflow_root`, `hgrag_pipeline` reçoit une trace `parse` par document parsé, une
+**Traces et contrôles dans MLflow.** Sous `mlflow_root`, une expérience par tâche du job : `hgrag_parsing` reçoit une trace `parse` par document parsé, `hgrag_indexing` une
 trace `index` par document découpé (`hierarchy.*`, `chunks.*`) et une trace `sync_index` (`index.rows_indexed`) ;
 `hgrag_retrieval` reçoit une trace `question` (`retrieval.*`, `prompt.*`, `answer.*`). Les juges LLM y sont actifs par
 défaut (variable `assess_judges`, widget `judges`) et coûtent des appels à l'API Claude. Un document déjà traité n'est
@@ -660,7 +671,7 @@ Sont embeddés les éléments textuels listés dans `HGRAG_CHUNK_LABELS` (par d�
   Suspendue pendant une indexation (Qdrant local = un seul processus).
 
 ### MLflow
-Expériences `hgrag_pipeline` (étapes `parse`, `hierarchy`, `index`) et `hgrag_retrieval`
+Expériences `hgrag_indexing` (étapes `parse`, `hierarchy`, `index` : en local un PDF est une seule trace de bout en bout, une trace ne pouvant pas couvrir plusieurs expériences ; sur Databricks le parsing va dans `hgrag_parsing`) et `hgrag_retrieval`
 (`search`, `reconstruct`). Run parent nommé d'après un identifiant d'exécution (`run_key`, généré par l'app / la CLI ;
 le `run_id` Airflow plus tard), un run enfant par étape ou élément mappé (PDF, section), avec paramètres, métriques
 (durées, nombres de chunks / sections / éléments, scores) et artefacts. Une erreur MLflow ne fait
@@ -673,10 +684,10 @@ coupe en gardant les runs.
 
 | Trace | Expérience | Spans |
 |---|---|---|
-| `indexing` (un PDF, dans l'app ou `hgrag run`) | `hgrag_pipeline` | `parse`, `hierarchy`, puis `index` de ce document (`chunk`, `embed_and_store`) ; les traces d'une exécution partagent sa session (`run_key`), les modèles d'embedding ne sont chargés qu'une fois |
-| `parse` (un PDF) | `hgrag_pipeline` | `docling` (statistiques, Markdown), `export_figures`, `describe` > un span LLM par appel : `describe_figure`, `describe_table`, `transcribe_formula`, `read_formula` |
-| `hierarchy` (un document) | `hgrag_pipeline` | l'arbre des titres et ses statistiques |
-| `index` (une exécution) | `hgrag_pipeline` | `index_document` par document > `chunk` (chunks et texte vectorisé), `embed_and_store` |
+| `indexing` (un PDF, dans l'app ou `hgrag run`) | `hgrag_indexing` | `parse`, `hierarchy`, puis `index` de ce document (`chunk`, `embed_and_store`) ; les traces d'une exécution partagent sa session (`run_key`), les modèles d'embedding ne sont chargés qu'une fois |
+| `parse` (un PDF) | `hgrag_indexing` (local), `hgrag_parsing` (Databricks) | `docling` (statistiques, Markdown), `export_figures`, `describe` > un span LLM par appel : `describe_figure`, `describe_table`, `transcribe_formula`, `read_formula` |
+| `hierarchy` (un document) | `hgrag_indexing` | l'arbre des titres et ses statistiques |
+| `index` (une exécution) | `hgrag_indexing` | `index_document` par document > `chunk` (chunks et texte vectorisé), `embed_and_store` |
 | `rag_query` (une question) | `hgrag_retrieval` (app), `hgrag_ragbench` | `retrieve` > `search` > `embed`, `dense_search`, `keyword_search`, `fusion`, `rerank` ; `reconstruct` par section ; `generate` > `build_prompt`, `llm` |
 
 Les spans sont créés avec un parent explicite (`mlflow.start_span_no_context`) : la recherche et la réponse sont des

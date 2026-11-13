@@ -53,9 +53,9 @@ class Session:
 
 def test_experiments_go_under_the_configured_folder(monkeypatch):
     monkeypatch.setattr(config, "MLFLOW_EXPERIMENT_ROOT", "")
-    assert tracking.experiment_name(tracking.INDEXING) == "hgrag_pipeline"
+    assert tracking.experiment_name(tracking.INDEXING) == "hgrag_indexing"
     monkeypatch.setattr(config, "MLFLOW_EXPERIMENT_ROOT", "/Shared")
-    assert tracking.experiment_name(tracking.INDEXING) == "/Shared/hgrag_pipeline"
+    assert tracking.experiment_name(tracking.INDEXING) == "/Shared/hgrag_indexing"
 
 
 def test_setup_creates_the_experiment_under_that_folder(monkeypatch, tmp_path):
@@ -69,7 +69,7 @@ def test_setup_creates_the_experiment_under_that_folder(monkeypatch, tmp_path):
     monkeypatch.setattr(mlflow, "get_experiment_by_name", lambda _name: None)
     monkeypatch.setattr(mlflow, "create_experiment", lambda name, **kwargs: created.append((name, kwargs)) or "1")
     assert tracking._setup(tracking.INDEXING) == "1"
-    assert created == [("/Shared/hgrag_pipeline", {})]
+    assert created == [("/Shared/hgrag_indexing", {})]
 
 
 def test_parsing_logs_its_summary(steps):
