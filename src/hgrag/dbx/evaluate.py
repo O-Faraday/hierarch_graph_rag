@@ -9,6 +9,7 @@ reranker instead of Qdrant and the cross-encoder; the sections are rebuilt from 
 from __future__ import annotations
 
 import json
+import time
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -20,12 +21,14 @@ from ..generation import LLMConfig
 def run_eval(rows: list[dict[str, Any]], dest: str | Path, *, k: int = 10, rerank: bool | None = None,
              gen_cfg: LLMConfig | None = None, judge_cfg: LLMConfig | None = None,
              search: Callable[[str, int], list[dict[str, Any]]] | None = None, output_dir: str | Path | None = None,
-             on_row: Callable[[dict[str, Any]], None] | None = None, run_key: str | None = None) -> dict[str, Any]:
+             on_row: Callable[[dict[str, Any]], None] | None = None, run_key: str | None = None,
+             retry_errors: bool = True, retry_wait: float = 30.0) -> dict[str, Any]:
     """Ask every row, write the run to ``dest`` (a folder of the volume) and return its summary.
 
     ``search(question, k)`` defaults to the AI Search flow of ``hgrag.dbx.retrieval`` (the tests pass a fake).
     With ``run_key``, the run is tracked in the ``hgrag_eval`` experiment: one step per question, the summary metrics on
-    the parent run."""
+    the parent run. A question that ends in error (search, answer or judge) is asked once more after ``retry_wait``
+    seconds: a provider down for a minute must not leave a hole in the run."""
     if search is None:
         from . import retrieval
 
@@ -33,16 +36,24 @@ def run_eval(rows: list[dict[str, Any]], dest: str | Path, *, k: int = 10, reran
             return retrieval.search_sections(question, k_, rerank=rerank)
 
     out_dir = Path(output_dir or config.dbx_output_dir())
+
+    def ask(row: dict[str, Any]) -> dict[str, Any]:
+        return evaluation.evaluate_row(row, client=None, embedder=None, output_dir=out_dir, collection="", k=k,
+                                       include_children=False, gen_cfg=gen_cfg, judge_cfg=judge_cfg, search=search)
+
     results = []
     for row in rows:
-        res = evaluation.evaluate_row(row, client=None, embedder=None, output_dir=out_dir, collection="", k=k,
-                                      include_children=False, gen_cfg=gen_cfg, judge_cfg=judge_cfg, search=search)
+        res = ask(row)
+        if res.get("error") and retry_errors:  # the provider failed after its own retries: one more try, later
+            time.sleep(retry_wait)
+            res = ask(row)
         results.append(res)
         evaluation._track_row(run_key, res)
         if on_row:
             on_row(res)
     summary = evaluation.summarize(results, k)
     summary["config"] = {"backend": "databricks", "k": k, "rerank": config.DBX_RERANK if rerank is None else rerank,
+                         "k_sections": config.K_SECTIONS or None, "rerank_candidates": config.RERANK_CANDIDATES,
                          "embedding_endpoint": config.DBX_EMBED_ENDPOINT,
                          "generator": gen_cfg.describe() if gen_cfg else None,
                          "judge": judge_cfg.describe() if judge_cfg else None}

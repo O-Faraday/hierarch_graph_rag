@@ -14,7 +14,7 @@ from .. import config, tracing, tracking
 from ..assessments import retrieval as retrieval_checks
 from ..generation import LLMConfig, answer_stream
 from ..rerank import HFRouterReranker, rerank_points
-from ..retrieval import _group_points, reconstruct_hits
+from ..retrieval import _group_points, first_sections, reconstruct_hits
 from . import indexing
 
 # The AI Search reranker reads the first 2000 characters of these columns, in this order: the short and generated ones first.
@@ -61,15 +61,23 @@ def _diagnostics(points: list[Any], backend: str) -> dict[str, Any]:
 
 
 def search_sections(query: str, k: int = 10, *, rerank: bool | None = None, reranker: Any = None, client: Any = None,
-                    run_key: str | None = None, trace: tracing.Span | None = None) -> list[dict[str, Any]]:
+                    run_key: str | None = None, trace: tracing.Span | None = None,
+                    k_sections: int | None = None) -> list[dict[str, Any]]:
     """The sections of the ``k`` best chunks, best first. The AI Search reranker is tried first; on a workspace without
     it, AI Search fetches ``RERANK_CANDIDATES`` chunks and the cross-encoder of Hugging Face (or ``reranker``) keeps
-    ``k``. The order of the service is kept whatever its score means, so the score follows the rank."""
+    ``k``. The order of the service is kept whatever its score means, so the score follows the rank.
+    With ``k_sections`` (``HGRAG_K_SECTIONS`` by default), ``RERANK_CANDIDATES`` ranked chunks are read and the first
+    ``k_sections`` sections met are kept, as on the local backend: ``k`` is then unused."""
     if not query.strip():
         raise ValueError("empty query")
     use_rerank = config.DBX_RERANK if rerank is None else rerank
-    span = (trace or tracing.Span()).child("search", "RETRIEVER", inputs={"query": query, "k": k, "rerank": use_rerank})
-    with span, tracking.track_step(tracking.RETRIEVAL, "search", run_key, query=query, k=k, rerank=use_rerank) as tracker:
+    n_sections = config.K_SECTIONS if k_sections is None else k_sections
+    if n_sections:
+        k = max(k, config.RERANK_CANDIDATES)
+    span = (trace or tracing.Span()).child("search", "RETRIEVER", inputs={"query": query, "k": k, "rerank": use_rerank,
+                                                                          "k_sections": n_sections})
+    with span, tracking.track_step(tracking.RETRIEVAL, "search", run_key, query=query, k=k, rerank=use_rerank,
+                                   k_sections=n_sections) as tracker:
         rows = _native_search(query, k, client) if use_rerank else indexing.search(query, k, client=client)
         backend = "ai_search" if use_rerank else "none"
         if rows is None:
@@ -80,7 +88,7 @@ def search_sections(query: str, k: int = 10, *, rerank: bool | None = None, rera
                 sp.set({"chunk_ids": [p.id for p in points], "scores": [p.score for p in points]})
         else:
             points = [_point(row, 1.0 / rank) for rank, row in enumerate(rows, start=1)]
-        sections = _group_points(points)
+        sections = _group_points(first_sections(points, n_sections) if n_sections else points)
         span.set({"chunks": rows, "reranker": backend})
         span.assess(retrieval_checks.assess(_diagnostics(points, backend)))
         tracker.metrics(n_chunks=len(rows), n_kept=len(points), n_sections=len(sections))

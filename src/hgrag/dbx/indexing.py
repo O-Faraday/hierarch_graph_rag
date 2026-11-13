@@ -25,8 +25,24 @@ INDEX = "chunks_index"
 _VIEW = "hgrag_document_chunks"
 _SCHEMA = ("chunk_id string, doc_id string, chunk_index int, path string, page_no int, section_ref string, "
            "section_title string, section_path string, kinds string, headings string, element_refs string, "
-           "text string, embed_text string, table_description string, formula_reading string")
-_COLUMNS = [c.split()[0] for c in _SCHEMA.split(", ")]  # indexed_at stays out of the index
+           "text string, embed_text string, table_description string, formula_reading string, chunk_version string")
+# indexed_at and chunk_version stay out of the index
+_COLUMNS = [c.split()[0] for c in _SCHEMA.split(", ") if c.split()[0] != "chunk_version"]
+# Raised when the hierarchy or the chunks change for the same parsing and the same settings (a new repair, a new
+# heading rule): the documents already chunked are then chunked again at the next run, without being parsed again.
+CHUNKING_REVISION = 2
+
+
+def chunk_version() -> str:
+    """What the chunks of a parsed document depend on: the revision of the code and the settings of the hierarchy and
+    of the chunker. Stored with each chunk; a document whose chunks carry another version is chunked again."""
+    import hashlib
+
+    from .. import versions
+
+    settings = {**versions.config_snapshot("indexing"), "tokenizer": config.DBX_CHUNK_TOKENIZER}
+    digest = hashlib.sha1(json.dumps(settings, sort_keys=True).encode("utf-8")).hexdigest()[:10]
+    return f"r{CHUNKING_REVISION}-{digest}"
 
 
 def ensure_table(session: Any) -> None:
@@ -34,8 +50,12 @@ def ensure_table(session: Any) -> None:
     session.sql(f"""CREATE TABLE IF NOT EXISTS {config.dbx_table(TABLE)} (
         chunk_id STRING NOT NULL, doc_id STRING, chunk_index INT, path STRING, page_no INT, section_ref STRING,
         section_title STRING, section_path STRING, kinds STRING, headings STRING, element_refs STRING,
-        text STRING, embed_text STRING, table_description STRING, formula_reading STRING, indexed_at TIMESTAMP)
+        text STRING, embed_text STRING, table_description STRING, formula_reading STRING, chunk_version STRING,
+        indexed_at TIMESTAMP)
         USING DELTA TBLPROPERTIES (delta.enableChangeDataFeed = true)""")
+    columns = [row.col_name for row in session.sql(f"DESCRIBE TABLE {config.dbx_table(TABLE)}").collect()]
+    if columns and "chunk_version" not in columns:  # a table created before the versions: its chunks are all redone
+        session.sql(f"ALTER TABLE {config.dbx_table(TABLE)} ADD COLUMNS (chunk_version STRING)")
 
 
 def build_chunks(doc_dir: str | Path, chunker: Any) -> list[dict[str, Any]]:
@@ -90,12 +110,12 @@ def _assess_chunked(doc_dir: Path, chunks: list[dict[str, Any]], span: tracing.S
         logger.warning("%s: checks skipped: %s", doc_dir.name, exc)
 
 
-def _row(chunk: dict[str, Any], doc_id: str, path: str) -> tuple:
+def _row(chunk: dict[str, Any], doc_id: str, path: str, version: str | None = None) -> tuple:
     return (f"{doc_id}:{chunk['chunk_index']}", doc_id, chunk["chunk_index"], path, chunk.get("page_no"),
             chunk.get("section_ref"), chunk.get("section_title"), chunk.get("section_path"),
             json.dumps(chunk.get("kinds", [])), json.dumps(chunk.get("headings", []), ensure_ascii=False),
             json.dumps(chunk.get("element_refs", [])), chunk["text"], chunk["embed_text"],
-            chunk.get("table_description"), chunk.get("formula_reading"))
+            chunk.get("table_description"), chunk.get("formula_reading"), version)
 
 
 def _save(session: Any, rows: list[tuple], doc_id: str) -> None:
@@ -108,26 +128,33 @@ def _save(session: Any, rows: list[tuple], doc_id: str) -> None:
 
 
 def chunk_pending(session: Any, *, chunker: Any = None, build: Any = build_chunks,
-                  run_key: str | None = None) -> dict[str, Any]:
-    """Chunk the usable documents never chunked, or parsed again since, and drop the chunks of superseded versions."""
+                  run_key: str | None = None, force: bool = False) -> dict[str, Any]:
+    """Chunk the usable documents never chunked, parsed again since, or chunked by another version of the code or of
+    the settings (``chunk_version``), and drop the chunks of superseded versions. ``force``: all the usable documents.
+    ``structure.json`` of each document is logged to the run of the step (``structure/<pdf>/``)."""
     with tracking.track_step(tracking.INDEXING, "chunk", run_key, tokenizer=config.DBX_CHUNK_TOKENIZER,
-                             max_tokens=config.CHUNK_MAX_TOKENS) as tracker:
-        summary = _chunk_pending(session, chunker, build, run_key)
+                             max_tokens=config.CHUNK_MAX_TOKENS, chunk_version=chunk_version()) as tracker:
+        summary = _chunk_pending(session, chunker, build, run_key, force=force, tracker=tracker)
         tracker.metrics(**summary)
         tracker.dict(summary, "chunks_summary.json")
     return summary
 
 
-def _chunk_pending(session: Any, chunker: Any, build: Any, run_key: str | None = None) -> dict[str, Any]:
+def _chunk_pending(session: Any, chunker: Any, build: Any, run_key: str | None = None, *, force: bool = False,
+                   tracker: Any = None) -> dict[str, Any]:
     parsing.ensure_table(session)
     ensure_table(session)
     documents, chunks = config.dbx_table(parsing.TABLE), config.dbx_table(TABLE)
     session.sql(f"DELETE FROM {chunks} WHERE doc_id IN (SELECT doc_id FROM {documents} WHERE status = 'superseded')")
+    version = chunk_version()
+    # LEFT ANTI JOIN in both cases: with ``force`` no chunk matches, so every usable document is pending
     pending = session.sql(f"""SELECT d.doc_id, d.path FROM {documents} d LEFT ANTI JOIN
-        (SELECT doc_id, min(indexed_at) AS indexed_at FROM {chunks} GROUP BY doc_id) c
+        (SELECT doc_id, min(indexed_at) AS indexed_at FROM {chunks}
+         WHERE chunk_version = :version AND NOT :force GROUP BY doc_id) c
         ON d.doc_id = c.doc_id AND c.indexed_at >= d.updated_at
-        WHERE d.status IN ('parsed', 'partial')""").collect()
-    summary: dict[str, Any] = {"documents": 0, "chunks": 0, "failed": {}, "chunk_seconds": 0.0}
+        WHERE d.status IN ('parsed', 'partial')""", args={"version": version, "force": force}).collect()
+    summary: dict[str, Any] = {"documents": 0, "chunks": 0, "failed": {}, "chunk_seconds": 0.0,
+                               "chunk_version": version}
     t0 = time.perf_counter()
     progress.report(f"chunks: {len(pending)} document(s) to process")
     for position, row in enumerate(pending, 1):
@@ -145,7 +172,7 @@ def _chunk_pending(session: Any, chunker: Any, build: Any, run_key: str | None =
 
                     chunker = make_chunker(config.DBX_CHUNK_TOKENIZER, max_tokens=config.CHUNK_MAX_TOKENS)
                 chunks = build(doc_dir, chunker)
-                rows = [_row(c, row.doc_id, row.path) for c in chunks]
+                rows = [_row(c, row.doc_id, row.path, version) for c in chunks]
                 _save(session, rows, row.doc_id)
             except Exception as exc:  # noqa: BLE001 - no chunk row: the document is pending again at the next run
                 logger.warning("%s: chunking failed: %s", row.path, exc)
@@ -158,6 +185,8 @@ def _chunk_pending(session: Any, chunker: Any, build: Any, run_key: str | None =
             span.set({"n_chunks": len(rows), "chunks": [
                 {k: c.get(k) for k in ("chunk_index", "section_path", "page_no", "kinds", "text")} for c in chunks]})
             _assess_chunked(doc_dir, chunks, span)
+            if tracker is not None:  # the readable tree, to compare a document with its local parsing
+                tracker.artifact(doc_dir / "structure.json", f"structure/{Path(row.path).stem}")
         progress.report(f"{label}: {len(rows)} chunk(s), checks done")
     summary["chunk_seconds"] = round(time.perf_counter() - t0, 2)
     print(json.dumps({"hgrag_chunks": summary}))

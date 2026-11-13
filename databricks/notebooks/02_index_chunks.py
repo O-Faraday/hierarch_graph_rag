@@ -16,13 +16,21 @@ dbutils.widgets.text("secret_scope", "hgrag", "Secret scope")
 dbutils.widgets.text("mlflow_root", "/Shared", "Workspace folder of the MLflow experiments")
 dbutils.widgets.dropdown("judges", "true", ["true", "false"], "LLM judges of the checks (extra API calls)")
 dbutils.widgets.dropdown("reassess", "false", ["false", "true"], "Run the checks again on all the documents")
+dbutils.widgets.dropdown("rechunk", "false", ["false", "true"], "Chunk again all the documents (not only the new ones)")
 dbutils.widgets.text("test_query", "", "Question for a test search (optional)")
 
-wheel_spec = dbutils.widgets.get("wheel") + "[databricks]"
+# Installed twice: with its dependencies, then alone and forced, because pip keeps an installed wheel of the same
+# version and would not take the code of a new deployment.
+wheel_path = dbutils.widgets.get("wheel")
+wheel_spec = wheel_path + "[databricks]"
 
 # COMMAND ----------
 
 # MAGIC %pip install "opencv-python-headless==4.11.0.86" $wheel_spec
+
+# COMMAND ----------
+
+# MAGIC %pip install --force-reinstall --no-deps $wheel_path
 
 # COMMAND ----------
 
@@ -53,7 +61,7 @@ from hgrag import config, tracing, tracking
 from hgrag.dbx import indexing
 
 run_key = tracking.new_run_key()
-chunks = indexing.chunk_pending(spark, run_key=run_key)
+chunks = indexing.chunk_pending(spark, run_key=run_key, force=dbutils.widgets.get("rechunk") == "true")
 index = indexing.sync_index(session=spark, run_key=run_key)
 if dbutils.widgets.get("reassess") == "true":
     indexing.assess_documents(spark, run_key=run_key)

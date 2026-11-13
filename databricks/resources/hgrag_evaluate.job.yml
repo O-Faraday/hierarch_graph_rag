@@ -27,6 +27,10 @@ resources:
           default: "10"
         - name: rerank
           default: "true"
+        - name: k_sections
+          default: "10"
+        - name: rerank_candidates
+          default: "50"
         - name: generate
           default: "true"
 

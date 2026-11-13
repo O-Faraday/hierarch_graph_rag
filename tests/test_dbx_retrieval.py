@@ -174,3 +174,17 @@ def test_no_chunk_means_no_llm_call(uc, llm):
 def test_an_empty_question_is_refused(uc):
     with pytest.raises(ValueError):
         retrieval.search_sections("  ", client=Client([]))
+
+
+def test_k_sections_reads_the_candidates_and_keeps_the_first_sections(uc, monkeypatch):
+    """As on the local backend: N sections from RERANK_CANDIDATES ranked chunks, not the sections of k chunks."""
+    monkeypatch.setattr(config, "RERANK_CANDIDATES", 40)
+    rows = [_row("d1", "#/s1", 0, 0.9), _row("d1", "#/s2", 1, 0.8), _row("d2", "#/s1", 2, 0.7),
+            _row("d1", "#/s1", 3, 0.6)]
+    client = Client(rows)
+    sections = retrieval.search_sections("q", 2, rerank=True, client=client, k_sections=2)
+    assert client.query["num_results"] == 40
+    assert [(s["doc_id"], s["section_ref"]) for s in sections] == [("d1", "#/s1"), ("d1", "#/s2")]
+    assert len(sections[0]["hits"]) == 2  # the later chunk of a kept section is kept
+    monkeypatch.setattr(config, "K_SECTIONS", 1)  # the setting is the default
+    assert len(retrieval.search_sections("q", 2, rerank=False, client=Client(rows))) == 1

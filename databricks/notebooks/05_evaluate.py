@@ -19,13 +19,22 @@ dbutils.widgets.text("mlflow_root", "/Shared", "Workspace folder of the MLflow e
 dbutils.widgets.text("dataset", "", "Evaluation dataset on the volume (default eval/eval_dataset.jsonl)")
 dbutils.widgets.text("k", "10", "Chunks to retrieve")
 dbutils.widgets.dropdown("rerank", "true", ["true", "false"], "AI Search reranker")
+dbutils.widgets.text("k_sections", "10", "Sections to read (0: the sections of the k chunks)")
+dbutils.widgets.text("rerank_candidates", "50", "Ranked chunks the sections are taken from")
 dbutils.widgets.dropdown("generate", "true", ["true", "false"], "Answer and judge (Claude API calls)")
 
-wheel_spec = dbutils.widgets.get("wheel") + "[databricks]"
+# Installed twice: with its dependencies, then alone and forced, because pip keeps an installed wheel of the same
+# version and would not take the code of a new deployment.
+wheel_path = dbutils.widgets.get("wheel")
+wheel_spec = wheel_path + "[databricks]"
 
 # COMMAND ----------
 
 # MAGIC %pip install "opencv-python-headless==4.11.0.86" $wheel_spec
+
+# COMMAND ----------
+
+# MAGIC %pip install --force-reinstall --no-deps $wheel_path
 
 # COMMAND ----------
 
@@ -44,6 +53,8 @@ os.environ.update(
     HGRAG_DBX_SEARCH_ENDPOINT=dbutils.widgets.get("search_endpoint"),
     ANTHROPIC_API_KEY=dbutils.secrets.get(dbutils.widgets.get("secret_scope"), "ANTHROPIC_API_KEY"),
     HF_TOKEN=dbutils.secrets.get(dbutils.widgets.get("secret_scope"), "HF_TOKEN"),
+    HGRAG_K_SECTIONS=dbutils.widgets.get("k_sections"),  # hgrag.toml is not in the wheel: the project settings
+    HGRAG_RERANK_CANDIDATES=dbutils.widgets.get("rerank_candidates"),
     HGRAG_ASSESS_JUDGES="false",  # the production checks are not what this run measures
     MLFLOW_TRACKING_URI="databricks",
     HGRAG_MLFLOW_EXPERIMENT_ROOT=dbutils.widgets.get("mlflow_root"),

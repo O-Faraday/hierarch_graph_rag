@@ -17,11 +17,18 @@ dbutils.widgets.dropdown("retry_incomplete", "false", ["false", "true"], "Parse 
 dbutils.widgets.text("mlflow_root", "/Shared", "Workspace folder of the MLflow experiments")
 dbutils.widgets.dropdown("judges", "true", ["true", "false"], "LLM judges of the checks (extra API calls)")
 
-wheel_spec = dbutils.widgets.get("wheel") + "[databricks]"
+# Installed twice: with its dependencies, then alone and forced, because pip keeps an installed wheel of the same
+# version and would not take the code of a new deployment.
+wheel_path = dbutils.widgets.get("wheel")
+wheel_spec = wheel_path + "[databricks]"
 
 # COMMAND ----------
 
 # MAGIC %pip install "opencv-python-headless==4.11.0.86" $wheel_spec
+
+# COMMAND ----------
+
+# MAGIC %pip install --force-reinstall --no-deps $wheel_path
 
 # COMMAND ----------
 

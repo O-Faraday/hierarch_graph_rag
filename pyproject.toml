@@ -1,6 +1,6 @@
 [project]
 name = "hgrag"
-version = "0.1.11"
+version = "0.1.12"
 description = "Hierarchical RAG: PDF -> Docling -> heading tree -> Qdrant paragraph chunks"
 readme = "README.md"
 authors = [

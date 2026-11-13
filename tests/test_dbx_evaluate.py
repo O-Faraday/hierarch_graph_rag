@@ -41,3 +41,21 @@ def test_run_eval_ranks_the_expected_section_and_writes_the_local_files(tmp_path
     dest = tmp_path / "runs" / "r1"
     assert {p.name for p in dest.iterdir()} == {"results.jsonl", "summary.json", "report.md"}
     assert summary["dest"] == str(dest)
+
+
+def test_a_question_in_error_is_asked_once_more(tmp_path, monkeypatch):
+    calls = []
+
+    def evaluate_row(row, **_kwargs):
+        calls.append(row["id"])
+        failed = row["id"] == "q1" and calls.count("q1") == 1
+        return {"id": row["id"], "source_kind": "paragraph", "rank": 1, "score": None, "seconds": 0.1,
+                **({"error": "generation: anthropic returned HTTP 503"} if failed else {})}
+
+    monkeypatch.setattr(evaluate.evaluation, "evaluate_row", evaluate_row)
+    monkeypatch.setattr(evaluate.evaluation, "summarize", lambda results, k: {"n_errors": sum("error" in r for r in results)})
+    monkeypatch.setattr(evaluate.evaluation, "_markdown", lambda *_: "")
+    monkeypatch.setattr(evaluate.evaluation, "_track_row", lambda *_: None)
+    rows = [{"id": "q1"}, {"id": "q2"}]
+    summary = evaluate.run_eval(rows, tmp_path / "r", search=lambda *_: [], output_dir=tmp_path, retry_wait=0)
+    assert calls == ["q1", "q1", "q2"] and summary["n_errors"] == 0

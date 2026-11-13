@@ -49,7 +49,7 @@ variables:
     default: PAUSED
   package_version:
     description: Version of the hgrag wheel built and deployed, the one of pyproject.toml
-    default: "0.1.11"
+    default: "0.1.12"
 
 targets:
   dev:

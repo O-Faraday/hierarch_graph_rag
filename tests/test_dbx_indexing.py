@@ -56,7 +56,7 @@ def test_chunks_of_a_document_are_merged_with_stable_ids(uc, tmp_path):
     doc_id, rows = session.merged[0]
     assert doc_id == "d1" and [r[0] for r in rows] == ["d1:0", "d1:1"]
     assert rows[0][3] == "/Volumes/x/a.pdf" and json.loads(rows[0][8]) == ["text"] and rows[1][13] == "desc"
-    assert all(len(r) == len(indexing._COLUMNS) for r in rows)
+    assert all(len(r) == len(indexing._COLUMNS) + 1 and r[-1] == indexing.chunk_version() for r in rows)
 
 
 def test_progress_of_the_chunks_counts_the_documents(uc, capsys):
@@ -93,6 +93,9 @@ def test_pending_keeps_usable_documents_and_superseded_chunks_are_deleted(uc):
     statements = [s for s, _ in session.statements]
     pending = next(s for s in statements if "LEFT ANTI JOIN" in s)
     assert "c.indexed_at >= d.updated_at" in pending and "d.status IN ('parsed', 'partial')" in pending
+    assert "chunk_version = :version" in pending  # chunks of another version do not count: the document is redone
+    args = next(a for s, a in session.statements if "LEFT ANTI JOIN" in s)
+    assert args == {"version": indexing.chunk_version(), "force": False}
     assert any(s.startswith("DELETE") and "status = 'superseded'" in s for s in statements)
 
 
@@ -191,3 +194,26 @@ def test_endpoint_name_is_required(uc, monkeypatch):
     monkeypatch.setattr(config, "DBX_SEARCH_ENDPOINT", "")
     with pytest.raises(ValueError, match="HGRAG_DBX_SEARCH_ENDPOINT"):
         indexing.sync_index(FakeClient())
+
+
+def test_the_chunk_version_follows_the_settings_and_force_takes_all_the_documents(uc, monkeypatch):
+    before = indexing.chunk_version()
+    assert before.startswith(f"r{indexing.CHUNKING_REVISION}-") and "chunk_version" not in indexing._COLUMNS
+    monkeypatch.setattr(config, "OUTLINE_HEADINGS", not config.OUTLINE_HEADINGS)
+    assert indexing.chunk_version() != before
+    session = FakeSession()
+    summary = indexing.chunk_pending(session, chunker=object(), build=lambda *_: [], force=True)
+    args = next(a for s, a in session.statements if "LEFT ANTI JOIN" in s)
+    assert args["force"] is True and summary["chunk_version"] == indexing.chunk_version()
+
+
+def test_a_chunks_table_made_before_the_versions_gets_the_column(uc):
+    class Old(FakeSession):
+        def sql(self, statement, args=None):
+            if statement.startswith("DESCRIBE"):
+                return SimpleNamespace(collect=lambda: [SimpleNamespace(col_name="chunk_id")])
+            return super().sql(statement, args)
+
+    session = Old()
+    indexing.ensure_table(session)
+    assert any(s.startswith("ALTER TABLE") and "chunk_version STRING" in s for s, _ in session.statements)

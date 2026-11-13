@@ -520,11 +520,24 @@ reprend là où il s'est arrêté : les documents déjà traités sont ignorés.
 fois les autres indexés ; `retry_incomplete=true` retente les documents échoués ou partiels. Aucune planification n'est
 déclarée. Le notebook `03_ask` est déployé avec le bundle et reste interactif.
 
+**Redécoupage.** Chaque chunk porte une `chunk_version` : la révision du code de découpage (`CHUNKING_REVISION` dans
+`dbx/indexing.py`, à augmenter quand la hiérarchie ou les chunks changent à parsing égal) et l'empreinte des réglages.
+Un document dont les chunks portent une autre version est redécoupé au run suivant, sans nouveau parsing ;
+`rechunk=true` redécoupe tous les documents.
+
+**Comparer avec le local.** Le `structure.json` de chaque document est publié dans le run `chunk` de l'experiment
+`hgrag_indexing` (`structure/<pdf>/structure.json`), comme l'étape `hierarchy` en local. Le `manifest.json` porte un
+bloc `runtime` : versions de Docling, torch et pypdfium2, modèle de mise en page, moteur, empreinte de ses poids et
+processeur. C'est là qu'il faut regarder quand le même PDF donne des éléments différents des deux côtés.
+
 **Évaluer l'index (job `hgrag_evaluate`).** Pose les questions d'un jeu d'évaluation à l'index AI Search et les note comme
 `hgrag eval` : rang de la section attendue, réponse, juge LLM contre la réponse de référence (appels à l'API Claude, clé du
 scope). Le jeu est un fichier JSON Lines du volume, au format de `data/pdf_eval/eval_dataset.jsonl`, par défaut
 `eval/eval_dataset.jsonl` ; ses PDF doivent avoir été ingérés. Le run est écrit dans `eval/runs/<run>/` sur le volume
 (`results.jsonl`, `summary.json`, `report.md`, les mêmes fichiers qu'en local). `generate=false` ne mesure que la recherche.
+`hgrag.toml` n'est pas dans le wheel : les réglages de recherche du projet sont des paramètres du job, `k_sections=10`
+et `rerank_candidates=50` par défaut (10 sections lues parmi 50 chunks classés, comme en local ; `k_sections=0` revient
+aux sections de `k` chunks). Une question en erreur est reposée une fois, 30 s plus tard.
 
 ```bash
 databricks fs cp data/pdf_eval/eval_dataset.jsonl dbfs:/Volumes/<catalogue>/<schéma>/<volume>/eval/eval_dataset.jsonl
@@ -795,7 +808,7 @@ contexte (`tracing.submit`) : sans elle, `mlflow.genai.evaluate` perdait la trac
 | `HGRAG_FIX_HEADING_LEVELS` | `1` | Niveaux des titres corrigés par la numérotation (romaine, `1.2.3`, annexes `A` / `A.1`, `EC.1.2`) et les sections de fin |
 | `HGRAG_STRICT_HEADINGS` | `1` | Seuls les titres qui délimitent une section possible (titre, noms standard, numéro suivant de la numérotation ; taille des titres standard sans numérotation) ouvrent une section ; les autres deviennent des paragraphes |
 | `HGRAG_MAX_HEADING_WORDS` | `25` | Un titre Docling plus long est un paragraphe, dans l'arbre et dans les chunks : sinon il serait répété devant tous les chunks suivants et ne laisserait presque plus de place à leur texte ; `0` = pas de limite |
-| `HGRAG_OUTLINE_HEADINGS` | `1` | Signets du PDF (`outline.json`, lus par pypdfium2) : un paragraphe qui commence par le titre d'un signet de sa page (« 2.2. Titre. Texte… », titre en ligne que Docling étiquette `text`) est coupé en ce titre, au niveau du signet, et en paragraphe ; les titres trouvés dans les signets ouvrent toujours une section. Docling n'a pas d'option pour ce cas : son étape `HeadingHierarchyOptions` ne fait que fixer des niveaux |
+| `HGRAG_OUTLINE_HEADINGS` | `1` | Signets du PDF (`outline.json`, lus par pypdfium2) : un paragraphe qui commence par le titre d'un signet de sa page (« 2.2. Titre. Texte… », titre en ligne que Docling étiquette `text`) est coupé en ce titre, au niveau du signet, et en paragraphe ; un titre de signet numéroté trouvé au milieu d'un paragraphe, après une fin de phrase, est coupé de même (plusieurs sections lues comme un seul bloc) ; les titres trouvés dans les signets ouvrent toujours une section. Docling n'a pas d'option pour ce cas : son étape `HeadingHierarchyOptions` ne fait que fixer des niveaux |
 | `HGRAG_MERGE_SPLIT_TABLES` | `1` | Un tableau coupé par un saut de page (Docling en fait un par page, ligne d'en-tête répétée) est réuni en un seul, avec les descriptions de ses morceaux ; le parsing sur disque ne change pas |
 | `HGRAG_TOP_HEADING_FIRST` | `1` | Le titre le plus haut d'une page, s'il traverse le milieu de la page (titre centré ou pleine largeur), est remis en tête de sa page : l'ordre de lecture de Docling ne relie un élément à celui du dessus que s'ils se chevauchent horizontalement et range de gauche à droite ceux qui n'ont rien au-dessus, si bien qu'un titre centré au-dessus d'un titre court aligné à gauche était lu après toute la colonne |
 | `HGRAG_EXCLUDED_SECTIONS` | `references\|bibliography\|acknowledg…` | Expression régulière des sections non indexées (bibliographie, remerciements) ; vide = tout indexer |

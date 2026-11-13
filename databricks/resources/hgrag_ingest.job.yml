@@ -30,6 +30,8 @@ resources:
           default: "false"
         - name: reassess
           default: "false"
+        - name: rechunk
+          default: "false"
 
       tasks:
         - task_key: parse_documents
